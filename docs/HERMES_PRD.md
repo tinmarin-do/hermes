@@ -190,10 +190,10 @@ Notación: **P0** = imprescindible para el MVP · **P1** = mejora fuerte · **P2
 > Validar antes de operar real no diluye el "punch": lo hace **creíble**.
 
 ### 8.2 Guardrails de riesgo (P0, no negociables)
-- **Tamaño de posición por Kelly fraccional (0.25×):** el sizing no es fijo — depende de la confianza del PM y la volatilidad actual:
-  | Confianza del PM | Kelly 0.25× | Capital $500 | Capital $2,000 |
+- **Tamaño de posición por Kelly fraccional (0.15× calibrado):** el sizing depende de la confianza del PM. Calibrado con backtest cuantitativo + validación LLM sobre 126 semanas (2.5 años) de datos históricos (BTC/USDT, ETH/USDT). Ver `docs/calibration_report.md`.
+  | Confianza del PM | Kelly 0.15× | Capital $500 | Capital $2,000 |
   |---|---|---|---|
-  | Alta (≥ 70%) | 2.0% | $10 | $40 |
+  | Alta (≥ 70%) | 1.5% | $7.50 | $30 |
   | Media (50–70%) | 1.0% | $5 | $20 |
   | Baja (< 50%) | 0.5% | $2.50 | $10 |
 - **VaR/CVaR pre-trade:** antes de ejecutar, Risk calcula pérdida en escenario de 2 desviaciones. Si excede el límite, la operación se rechaza.
@@ -380,19 +380,20 @@ Registrar y exponer: régimen de mercado detectado · decisiones y transcripcion
 
 ### 11.2 Modelo de costos de LLM
 
-Estimación con modelos de OpenCode Zen (precios por 1M tokens, junio 2026):
+Estimación con DeepSeek V3 (`deepseek-chat`, junio 2026) — cloud mode unificado:
 
-| Rol | Modelo sugerido | Costo input | Costo output | Toks/corrida | Costo/corrida |
+| Rol | Modelo | Costo input (/1M) | Costo output (/1M) | Toks/corrida | Costo/corrida |
 |---|---|---|---|---|---|
-| RegimeClassifier | DeepSeek V4 Flash Free | $0 | $0 | ~5K | $0 |
-| Analysts (×3) | DeepSeek V4 Flash Free | $0 | $0 | ~30K c/u | $0 |
-| Trader | DeepSeek V4 Flash | $0.14 | $0.28 | ~20K | ~$0.006 |
-| Risk | DeepSeek V4 Flash | $0.14 | $0.28 | ~15K | ~$0.004 |
-| Portfolio Manager | GPT-5.4 Mini | $0.75 | $4.50 | ~25K | ~$0.12 |
-| **Total por corrida (free analysts)** | | | | | **~$0.13** |
-| **Total por corrida (modelos fuertes)** | | | | | **~$0.80** |
+| RegimeClassifier | DeepSeek V3 | $0.27 | $1.10 | ~5K | ~$0.005 |
+| Analysts (×2) | DeepSeek V3 | $0.27 | $1.10 | ~30K c/u | ~$0.04 |
+| Bull + Bear + Debate | DeepSeek V3 | $0.27 | $1.10 | ~50K | ~$0.07 |
+| Trader | DeepSeek V3 | $0.27 | $1.10 | ~20K | ~$0.03 |
+| Risk (×3) | DeepSeek V3 | $0.27 | $1.10 | ~30K | ~$0.04 |
+| Risk Facilitator | DeepSeek V3 | $0.27 | $1.10 | ~15K | ~$0.02 |
+| Portfolio Manager | DeepSeek V3 | $0.27 | $1.10 | ~25K | ~$0.03 |
+| **Total por corrida** | | | | | **~$0.24** |
 
-**4 corridas/día → ~$15.60/mes** (con free models para analistas) o **~$96/mes** (con modelos fuertes para PM/Risk).
+**4 corridas/día → ~$29/mes.** Para calibración (20 fechas × ~$0.24) ≈ $5 USD por corrida de backtest con LLM. Costo marginal de backtest cuantitativo sin LLM: $0.
 
 > **Tope de gasto mensual en LLMs:** $150. El dashboard muestra $$ gastado / $$ restante del mes. Al alcanzar el tope, las corridas se pausan automáticamente hasta el mes siguiente.
 
@@ -409,7 +410,7 @@ Estimación con modelos de OpenCode Zen (precios por 1M tokens, junio 2026):
 ## 13. Decisiones abiertas (a confirmar)
 - **Exchange**: se recomienda **Binance** (testnet estable, acepta MX, máxima liquidez). Portafolio POC: **BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT, AVAX/USDT, MATIC/USDT** (6 símbolos). Confirmado.
 - **Semana 0**: evaluar TradingAgents vs LangGraph nativo. **Decidido: LangGraph nativo**, adoptando la estructura de debate bull/bear de TradingAgents. Hermes es más riguroso en riesgo (Hurst, GARCH, VaR, Kelly); TradingAgents cubre sentiment/fundamentals de equities que no aplican a crypto.
-- **¿Quién decide el número? Cuant, no LLM. Decidido.** El núcleo de decisión (dirección + sizing) es una columna cuantitativa determinista (régimen → LightGBM → GARCH → Kelly/VaR), backtesteable con purged + embargoed walk-forward. Los agentes LLM se reposicionan a **verificación/explicación** (red-team del debate + síntesis de noticias + rationale), nunca deciden ni originan. Razón: un LLM es no-determinista, no backtesteable barato y alucina confianza — herramienta equivocada para *ser* el decisor numérico (ver §8.7.2). Evita además el riesgo de proyectar un wrapper agéntico en vez de rigor cuantitativo.
+- **¿Quién decide el número? Cuant, no LLM. Decidido.** El núcleo de decisión (dirección + sizing) es una columna cuantitativa determinista (régimen → LightGBM → GARCH → Kelly/VaR), backtesteable con purged + embargoed walk-forward. Los agentes LLM se reposicionan a **verificación/explicación** (red-team del debate + síntesis de noticias + rationale), nunca deciden ni originan. Razón: un LLM es no-determinista, no backtesteable barato y alucina confianza — herramienta equivocada para *ser* el decisor numérico (ver §8.7.2). Evita además el riesgo de proyectar un wrapper agéntico en vez de rigor cuantitativo. **Estado actual (junio 2026):** el núcleo LightGBM está pendiente de implementación. El backtest de calibración usa una heurística cuantitativa (5 filtros: régimen, Hurst, retorno mínimo, cap de volatilidad, confianza mínima) + validación LLM (DeepSeek vía API) como proxy. Calibración sobre ~2.5 años encuentra Kelly 0.10 y daily loss limit 0.01 como óptimo preliminar (F1=76%, precision=63%). Ver `src/brain/calibrate.py` y `docs/calibration_report.md`.
 - Niveles de modelo exactos por rol y **tope de gasto**: $150/mes confirmado.
 - Monto de capital para la fase live mínima: recomendado $500–2,000.
 

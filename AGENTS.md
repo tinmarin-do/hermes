@@ -1,6 +1,6 @@
 # Hermes — Agent Interoperability Contract
 
-**Version:** 0.1.0  
+**Version:** 0.2.0  
 **Project:** Hermes — Multi-agent AI trading system  
 **Contract type:** Custom JSON Schema (provider-agnostic)
 
@@ -131,7 +131,7 @@ Agents MUST respect these limits. The risk-agent enforces them pre-trade.
 
 | Guardrail | Rule |
 |-----------|------|
-| Position sizing | Kelly 0.25× based on PM confidence |
+| Position sizing | Kelly 0.15× based on PM confidence (calibrated) |
 | VaR pre-trade | Reject if 2σ loss > daily limit |
 | Correlation cap | Reject if corr > 0.7 AND total exposure > limit |
 | Daily loss limit | Halt trading for the day when reached |
@@ -150,6 +150,21 @@ Agents detect the active mode from environment or context:
 | LLM endpoint | `http://localhost:11434` (Ollama) | API key from Secret Manager |
 | Database | DuckDB file at `data/hermes.duckdb` | Cloud SQL connection string |
 | Exchange | Paper adapter | Binance testnet/live |
+
+---
+
+## Calibration
+
+The risk guardrails are periodically calibrated via `src/brain/calibrate.py`:
+
+- **Phase 1 — Quantitative backtest:** 126 weekly points over ~2.5 years, heuristic signals
+  (regime → filter → action), grid search over Kelly fraction and loss limit. No LLM cost.
+- **Phase 2 — LLM validation:** Top 20 most volatile dates run through the full LangGraph
+  pipeline with reduced debate rounds. Compares LLM decisions vs quantitative model.
+- **Output:** `docs/calibration_report.md` with optimal params and metrics.
+- **Run:** `direnv exec . .venv/bin/python -m src.brain.calibrate --concurrency 3 --debate-rounds 1`
+
+Current calibrated values (2026-06-27): Kelly 0.10, daily loss limit 0.01, F1 = 76%.
 
 ---
 

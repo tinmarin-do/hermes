@@ -71,6 +71,11 @@ Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defect
 | `/agents:debug` | Inspecciona transcripción de UNA corrida por ID |
 | `/agents:status` | Estado de la corrida activa o última |
 
+### `brain:*` — Calibración y análisis
+| Command | Acción |
+|---------|--------|
+| `/brain:calibrate-risk` | Backtest cuant + validación LLM para calibrar guardrails (Kelly, VaR, loss limit) |
+
 ### `execution:*` — Órdenes y posiciones
 | Command | Acción |
 |---------|--------|

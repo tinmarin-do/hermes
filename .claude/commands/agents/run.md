@@ -4,8 +4,9 @@ Ejecuta el ciclo completo: Gold → RegimeClassifier → Analysts → Debate →
 Portfolio Manager → decisión. Registra transcripción y decisión. Requiere `cost:gate` LLM.
 
 ## Parámetros
-`$ARGUMENTS` — modo override (opcional): `--dry-run` para simular sin consumir tokens reales.
-Si vacío: corrida real con modelos configurados.
+Ninguno por ahora. El modo y los símbolos salen del entorno (`HERMES_MODE`,
+`HERMES_ALLOWED_SYMBOLS`). Nota: `--dry-run` está documentado pero AÚN NO implementado
+en `src.brain.runner` — TODO si se quiere simular sin invocar modelos.
 
 ## Pasos
 
@@ -19,9 +20,11 @@ Si vacío: corrida real con modelos configurados.
 
 4. Si autorizado: ejecutar pipeline:
    ```bash
-   uv run python -m src.brain.pipeline --mode $HERMES_MODE $ARGUMENTS
+   HERMES_MODE=$HERMES_MODE uv run python -m src.brain.runner
    ```
-   El pipeline retorna: `run_id`, `AgentDecision`, `RiskCheck`, `debate_transcript`.
+   El runner lee `HERMES_MODE` y `HERMES_ALLOWED_SYMBOLS` del entorno (no acepta flags
+   `--mode`/`--dry-run` todavía). Imprime `run_id`, veredicto del debate, decisión del PM
+   y el `RiskCheck` (approved). El estado final completo se retorna como dict.
 
 5. Si `RiskCheck.approved=false`: registrar rechazo, NO ejecutar orden.
    Si `RiskCheck.approved=true` y no `--dry-run`: llamar `/execution:paper` o `/execution:live`

@@ -41,3 +41,6 @@ terraform/.terraform.lock.hcl
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code — settings personales (heartbeat, etc.)
+.claude/settings.local.json
