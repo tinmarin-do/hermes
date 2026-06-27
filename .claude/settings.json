@@ -1,0 +1,61 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(uv:*)",
+      "Bash(docker:*)",
+      "Bash(docker-compose:*)",
+      "Bash(python:*)",
+      "Bash(pytest:*)",
+      "Bash(terraform plan:*)",
+      "Bash(git status)",
+      "Bash(git diff:*)",
+      "Bash(git log:*)",
+      "Bash(git add:*)",
+      "Bash(git commit:*)",
+      "Bash(git checkout:*)",
+      "Bash(git branch:*)",
+      "Bash(git merge:*)",
+      "Bash(direnv allow)",
+      "Bash(cat:*)",
+      "Bash(ls:*)",
+      "Bash(find:*)",
+      "Bash(grep:*)",
+      "Read(*)",
+      "Edit(*)",
+      "Write(*)"
+    ],
+    "deny": [
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
+      "Bash(gcloud:*)",
+      "Bash(gsutil:*)",
+      "Bash(bq:*)",
+      "Bash(rm -rf:*)",
+      "Bash(curl * | bash:*)"
+    ]
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Bash",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/tea/hermes/scripts/hook-pre-bash.sh"
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Bash(terraform apply:*)",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash /home/tea/hermes/scripts/hook-post-terraform.sh"
+          }
+        ]
+      }
+    ]
+  }
+}

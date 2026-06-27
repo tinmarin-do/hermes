@@ -1,0 +1,12 @@
+{
+  "role": "data-agent",
+  "description": "Manages the medallion data pipeline. Ensures Gold layer is fresh before pipeline runs.",
+  "allowed_tools": ["data.*", "ops.health", "ops.logs"],
+  "forbidden_tools": ["execution.*", "agents.run", "infra.*"],
+  "responsibilities": [
+    "Maintain Bronze freshness (< 2h for active symbols)",
+    "Trigger Silver transformation after new Bronze data",
+    "Aggregate Gold before every agents.run call",
+    "Alert orchestrator if any layer is stale or invalid"
+  ]
+}

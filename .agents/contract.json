@@ -1,0 +1,72 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Hermes Agent Contract",
+  "version": "0.1.0",
+  "description": "Provider-agnostic tool contract for Hermes multi-agent trading system",
+  "request": {
+    "type": "object",
+    "required": ["tool", "args", "context"],
+    "properties": {
+      "tool": {
+        "type": "string",
+        "pattern": "^(cost|data|agents|execution|infra|ops|dashboard|test)\\.[a-z-]+$",
+        "description": "Tool in namespace.action format"
+      },
+      "args": {
+        "type": "object",
+        "description": "Tool-specific arguments. See tools/ directory for each tool's schema."
+      },
+      "context": {
+        "type": "object",
+        "required": ["agent_role", "hermes_mode"],
+        "properties": {
+          "agent_role": {
+            "type": "string",
+            "enum": ["orchestrator", "data-agent", "trading-agent", "risk-agent", "external"]
+          },
+          "hermes_mode": {
+            "type": "string",
+            "enum": ["local", "cloud"]
+          },
+          "run_id": {
+            "type": ["string", "null"],
+            "format": "uuid"
+          }
+        }
+      }
+    }
+  },
+  "response": {
+    "type": "object",
+    "required": ["tool", "status", "data", "cost_incurred", "message"],
+    "properties": {
+      "tool": { "type": "string" },
+      "status": {
+        "type": "string",
+        "enum": ["ok", "error", "blocked"],
+        "description": "blocked = cost:gate rejected. Do NOT retry without human authorization."
+      },
+      "data": { "type": "object" },
+      "cost_incurred": {
+        "type": "number",
+        "description": "Actual cost in USD. 0.00 for free operations."
+      },
+      "message": { "type": "string" }
+    }
+  },
+  "tool_namespaces": ["cost", "data", "agents", "execution", "infra", "ops", "dashboard", "test"],
+  "tool_definitions": ".agents/tools/",
+  "role_definitions": ".agents/roles/",
+  "guardrails": {
+    "position_sizing": "Kelly 0.25x based on PM confidence",
+    "var_pretrade": "Reject if 2sigma loss > daily limit",
+    "correlation_cap": 0.7,
+    "daily_loss_limit_pct": "HERMES_DAILY_LOSS_LIMIT_PCT env var",
+    "symbol_whitelist": "HERMES_ALLOWED_SYMBOLS env var",
+    "max_positions": "HERMES_MAX_POSITIONS env var"
+  },
+  "cost_caps": {
+    "llm_monthly_usd": 150.0,
+    "gcp_infra_usd": "TBD — see docs/cost_ledger_gcp.md"
+  }
+}

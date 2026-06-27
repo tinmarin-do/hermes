@@ -1,0 +1,40 @@
+name: Deploy — Production (main → live)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  deploy-prod:
+    name: Deploy to production
+    runs-on: ubuntu-latest
+    environment: production
+    steps:
+      - uses: actions/checkout@v4
+      - uses: google-github-actions/auth@v2
+        with:
+          credentials_json: ${{ secrets.GCP_SA_KEY_PROD }}
+      - uses: google-github-actions/setup-gcloud@v2
+
+      - name: Build and push dashboard image
+        run: |
+          gcloud builds submit \
+            --tag gcr.io/${{ vars.GCP_PROJECT_ID }}/hermes-dashboard:${{ github.sha }} \
+            --tag gcr.io/${{ vars.GCP_PROJECT_ID }}/hermes-dashboard:latest \
+            src/dashboard/
+
+      - name: Deploy dashboard to Cloud Run (prod)
+        run: |
+          gcloud run deploy hermes-dashboard \
+            --image gcr.io/${{ vars.GCP_PROJECT_ID }}/hermes-dashboard:${{ github.sha }} \
+            --region ${{ vars.GCP_REGION }} \
+            --allow-unauthenticated \
+            --set-env-vars HERMES_MODE=cloud \
+            --min-instances 0 --max-instances 2
+
+      - name: Verify deployment health
+        run: |
+          URL=$(gcloud run services describe hermes-dashboard \
+            --region=${{ vars.GCP_REGION }} --format='value(status.url)')
+          curl --fail "$URL/health" || (echo "❌ Health check failed" && exit 1)
+          echo "✅ Production deployed: $URL"

@@ -1,2 +1,43 @@
+# Secrets
 .envrc
 .env
+*.key
+*.pem
+
+# GCP credentials (local)
+.gcloud_config/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+.uv/
+*.egg-info/
+dist/
+.coverage
+coverage.xml
+htmlcov/
+
+# Data (local DuckDB)
+data/
+*.duckdb
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfplan
+terraform/tfplan.binary
+terraform/*.tfstate
+terraform/*.tfstate.backup
+terraform/.terraform.lock.hcl
+
+# Docker
+.docker/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db

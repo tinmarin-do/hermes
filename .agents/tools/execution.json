@@ -1,0 +1,62 @@
+{
+  "namespace": "execution",
+  "tools": {
+    "execution.backtest": {
+      "description": "Run pipeline over historical data, compute risk-adjusted metrics",
+      "args": {
+        "required": ["symbol", "timeframe", "since", "until"]
+      },
+      "output_schema": {
+        "sharpe": "number",
+        "psr": "number",
+        "sharpe_ci_90": [null, null],
+        "sortino": "number",
+        "max_drawdown_pct": "number",
+        "win_rate": "number",
+        "total_trades": "integer",
+        "pnl_pct": "number"
+      },
+      "side_effects": "none"
+    },
+    "execution.paper": {
+      "description": "Submit one paper/testnet order. Requires approved RiskCheck.",
+      "args": {
+        "required": ["symbol", "side", "size_usd", "run_id"],
+        "properties": {
+          "side": { "type": "string", "enum": ["buy", "sell"] },
+          "size_usd": { "type": "number" }
+        }
+      },
+      "preconditions": ["RiskCheck.approved=true for run_id"],
+      "side_effects": "Writes to orders table"
+    },
+    "execution.live": {
+      "description": "Submit one live order to Binance. Requires double confirmation + approved RiskCheck.",
+      "args": {
+        "required": ["symbol", "side", "size_usd", "run_id"],
+        "confirmation_required": "CONFIRMAR LIVE"
+      },
+      "preconditions": [
+        "EXCHANGE_MODE=live",
+        "RiskCheck.approved=true",
+        "API key has NO withdrawal permission"
+      ],
+      "side_effects": "Real order on Binance, writes to orders table"
+    },
+    "execution.status": {
+      "description": "Open positions + realized and unrealized P&L",
+      "args": {},
+      "side_effects": "none"
+    },
+    "execution.kill": {
+      "description": "Kill switch: close all positions + pause pipeline",
+      "args": {
+        "properties": {
+          "pause_only": { "type": "boolean", "default": false }
+        }
+      },
+      "confirmation_required": "KILL",
+      "side_effects": "Closes positions, pauses Cloud Scheduler, sets kill_switch=true in DB"
+    }
+  }
+}
