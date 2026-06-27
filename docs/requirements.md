@@ -40,6 +40,9 @@ Gestionadas en `pyproject.toml`. Instalación: `uv sync`.
 | `numpy` | ≥ 2.0 | Cómputo numérico |
 | `arch` | ≥ 7.0 | Estimación GARCH(1,1) |
 | `hurst` | ≥ 0.0.5 | Cálculo de Hurst exponent |
+| `lightgbm` | ≥ 4.0 | Predictor direccional/edge del **núcleo de decisión** (gradient boosting sobre features tabulares) |
+| `shap` | ≥ 0.45 | Interpretabilidad de features del LightGBM |
+| `scipy` | ≥ 1.14 | Cópula t-Student (Risk Agent, Sprint 2); distribuciones estadísticas |
 | `langgraph` | ≥ 0.2 | Orquestación del pipeline multiagente |
 | `langchain-core` | ≥ 0.3 | Abstracciones LLM |
 | `langchain-openai` | ≥ 0.2 | Adapter OpenAI/DeepSeek compatible |
@@ -64,6 +67,16 @@ Gestionadas en `pyproject.toml`. Instalación: `uv sync`.
 | `mypy` | Type checking |
 | `pip-audit` | Auditoría de vulnerabilidades |
 
+### News clustering (extra: `uv sync --extra news`)
+Sub-pipeline de clustering de eventos de noticias (ver PRD §8.7). Todo local, $0.
+| Paquete | Propósito |
+|---------|-----------|
+| `sentence-transformers` | Embeddings de noticias (CPU, sin API) |
+| `umap-learn` | Reducción de dimensión para clusterizar (inferencia reutilizable) |
+| `hdbscan` | Clustering por densidad + métrica DBCV |
+| `scikit-learn` | K-Means, Agglomerative, métricas de validez (silhouette, DB, CH) |
+| `matplotlib` | Gráfica 2D (t-SNE) de inspección de clusters |
+
 ---
 
 ## 3. APIs externas requeridas
@@ -86,6 +99,13 @@ Gestionadas en `pyproject.toml`. Instalación: `uv sync`.
 | `OPENAI_API_KEY` | GPT-5.4 Mini (Portfolio Manager) | `HERMES_MODE=cloud` |
 
 > En `HERMES_MODE=local` se usa Ollama — sin API keys.
+
+### Noticias — CryptoPanic
+| Variable | Descripción | Cuándo se necesita |
+|----------|-------------|-------------------|
+| `CRYPTOPANIC_API_KEY` | Key de [cryptopanic.com](https://cryptopanic.com/developers/api/) (tier gratuito) | Sprint 1 — sub-pipeline de clustering de noticias (§8.7) |
+
+> El tier gratuito de CryptoPanic cubre el POC. Sin permisos sensibles.
 
 ### GCP (cloud mode)
 | Requisito | Detalle |
@@ -124,11 +144,13 @@ Provisionada íntegramente con Terraform. Ejecutar `/infra:bootstrap` → `/infr
 - **RF-D4** Gold: clasificar régimen en `{trending, mean-reverting, volatile, illiquid}` con score de confianza.
 - **RF-D5** Gold: snapshot debe tener < 2h de antigüedad antes de cada corrida de agentes.
 
-### Capa de decisión (cerebro multiagente)
-- **RF-A1** Pipeline: RegimeClassifier → Analysts (×3) → Debate → Trader → Risk → PM.
-- **RF-A2** Cada corrida persiste: régimen detectado, transcripción del debate, decisión y racional.
-- **RF-A3** El Risk agent ejecuta todos los guardrails antes de aprobar cualquier decisión.
-- **RF-A4** Cada corrida registra tokens consumidos y costo USD en `cost_ledger_llm.md`.
+### Capa de decisión (núcleo cuant + verificación agéntica)
+- **RF-A1** Núcleo de decisión **cuantitativo y determinista**: régimen → LightGBM (dirección) → GARCH (sizing) → math de Risk (Kelly/VaR/correlación). Fija dirección y tamaño **sin LLM**; backtesteable con purged + embargoed walk-forward.
+- **RF-A2** Pipeline agéntico (LangGraph) como **verificación**: RegimeClassifier → Analysts (×N) → Debate bull/bear (red-team) → Trader → Risk (×3) → PM. Los agentes solo pueden **vetar o recortar** la tesis cuant (freno asimétrico: opera en `[0, tamaño_cuant]`), **nunca originar ni amplificar**.
+- **RF-A3** Cada corrida persiste: régimen, **señal cuant (LightGBM/GARCH)**, transcripción del debate, decisión y racional auditable.
+- **RF-A4** El Risk agent ejecuta todos los guardrails antes de aprobar cualquier decisión.
+- **RF-A5** **Validez de la capa agéntica (medible):** el backtest cuant-solo vs cuant+veto-agéntico debe mostrar mejora en Sharpe/drawdown; si no la muestra, la capa es decoración y se recorta.
+- **RF-A6** Cada corrida registra tokens consumidos y costo USD en `cost_ledger_llm.md`.
 
 ### Capa de ejecución
 - **RF-E1** ExecutionAdapter expone interfaz agnóstica: `paper | testnet | live`.
