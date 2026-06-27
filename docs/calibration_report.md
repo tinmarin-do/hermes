@@ -1,6 +1,6 @@
 # Risk Team Calibration Report
 
-**Generated:** 2026-06-27 22:43 UTC
+**Generated:** 2026-06-27 23:57 UTC
 
 ## Phase 1 — Quantitative Backtest
 
@@ -23,8 +23,8 @@
 | Recall | 95.0% |
 | F1 Score | 76.0% |
 | Approval rate | 85.7% |
-| Avg return (approved) | 1.35% |
-| Avg return (rejected) | -1.67% |
+| Avg return (approved) | 3.38% |
+| Avg return (rejected) | -5.09% |
 | True positives | 19 |
 | False positives | 11 |
 | True negatives | 4 |
@@ -73,26 +73,28 @@
 ## Phase 2 — LLM Validation
 
 **Dates validated:** 20
+**Trades executed:** 2
+**Total P&L (effective):** +3.06%
 
-| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Fwd Return |
+| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Eff Return |
 |---|---|---|---|---|---|---|
-| 2024-08-05T01:00:00 | HOLD | 80% | YES | SELL | ETH/USDT | +9.94% |
-| 2025-03-03T01:00:00 | HOLD | 80% | YES | HOLD | NONE | +0.00% |
-| 2025-01-20T01:00:00 | HOLD | 60% | YES | HOLD | NONE | +0.00% |
-| 2026-02-02T01:00:00 | HOLD | 60% | YES | SELL | ETH/USDT | -9.62% |
-| 2024-04-15T01:00:00 | HOLD | 80% | YES | BUY | ETH/USDT | +0.38% |
-| 2024-07-08T01:00:00 | HOLD | 80% | YES | SELL | ETH/USDT | +14.57% |
-| 2026-06-08T01:00:00 | HOLD | 80% | YES | BUY | ETH/USDT | +1.69% |
-| 2024-10-07T01:00:00 | HOLD | 60% | YES | BUY | ETH/USDT | -1.77% |
-| 2024-12-23T01:00:00 | HOLD | 80% | YES | SELL | ETH/USDT | +4.90% |
-| 2026-01-26T01:00:00 | HOLD | 80% | YES | HOLD | NONE | +0.00% |
-| 2024-11-11T01:00:00 | HOLD | 80% | YES | BUY | ETH/USDT | -2.63% |
-| 2025-05-12T01:00:00 | HOLD | 60% | YES | SELL | ETH/USDT | -3.06% |
-| 2024-05-27T01:00:00 | BUY | 80% | YES | BUY | ETH/USDT | -2.06% |
-| 2025-07-21T01:00:00 | HOLD | 80% | YES | BUY | ETH/USDT | +3.38% |
-| 2025-03-31T01:00:00 | HOLD | 80% | YES | HOLD | NONE | +0.00% |
-| 2025-09-29T01:00:00 | BUY | 60% | YES | BUY | ETH/USDT | +10.04% |
-| 2025-10-13T01:00:00 | HOLD | 60% | YES | BUY | ETH/USDT | -6.21% |
-| 2024-07-22T01:00:00 | HOLD | 80% | YES | HOLD | NONE | +0.00% |
-| 2025-07-14T01:00:00 | HOLD | 80% | YES | BUY | BTC/USDT | -1.51% |
-| 2024-03-04T01:00:00 | BUY | 60% | YES | BUY | BTC/USDT | +7.54% |
+| 2024-08-05T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-03-03T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-01-20T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2026-02-02T01:00:00 | HOLD | 80% | NO | HOLD | NONE | — |
+| 2024-04-15T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2024-07-08T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2026-06-08T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2024-10-07T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2024-12-23T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2026-01-26T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2024-11-11T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-05-12T01:00:00 | SELL | 80% | YES | SELL | ETH/USDT | +3.06% |
+| 2024-05-27T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-07-21T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2025-03-31T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-09-29T01:00:00 | BUY | 80% | YES | BUY | NONE | — |
+| 2025-10-13T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2024-07-22T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |
+| 2025-07-14T01:00:00 | HOLD | 60% | YES | HOLD | NONE | — |
+| 2024-03-04T01:00:00 | HOLD | 80% | YES | HOLD | NONE | — |

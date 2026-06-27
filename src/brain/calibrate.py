@@ -219,11 +219,14 @@ def _run_point(signal: dict, kelly_frac: float, loss_limit: float) -> BacktestPo
 
     fwd_ret = get_forward_return(symbol, "1h", ts, FORWARD_PERIODS)
     profitable = None
+    eff_ret = fwd_ret
     if fwd_ret is not None:
         if action == "BUY":
             profitable = fwd_ret > 0
+            eff_ret = fwd_ret
         else:
             profitable = fwd_ret < 0
+            eff_ret = -fwd_ret
 
     return BacktestPoint(
         ts=ts,
@@ -239,7 +242,7 @@ def _run_point(signal: dict, kelly_frac: float, loss_limit: float) -> BacktestPo
         kelly_size=size,
         var_ok=var_ok,
         risk_approved=approved,
-        forward_return=fwd_ret,
+        forward_return=eff_ret,
         profitable=profitable,
     )
 
@@ -424,16 +427,19 @@ async def _run_pipeline_at(ts: datetime, symbols: list[str],
             pm = final_state.get("pm_decision", {})
             fwd_ret = None
             sym = pm.get("symbol", "")
+            action = pm.get("action", "HOLD")
             if sym and sym != "NONE":
-                fwd_ret = get_forward_return(sym, timeframe, ts, FORWARD_PERIODS)
+                raw_ret = get_forward_return(sym, timeframe, ts, FORWARD_PERIODS)
+                if raw_ret is not None:
+                    fwd_ret = -raw_ret if action == "SELL" else raw_ret
 
             return {
                 "ts": ts.isoformat(),
                 "verdict": final_state.get("debate_verdict", "HOLD"),
                 "confidence": final_state.get("debate_confidence", 0.5),
                 "risk_approved": final_state.get("risk_approved", False),
-                "pm_action": pm.get("action", "HOLD"),
-                "pm_symbol": pm.get("symbol", ""),
+                "pm_action": action,
+                "pm_symbol": sym,
                 "pm_size": pm.get("size_usd", 0),
                 "pm_rationale": pm.get("rationale", "")[:500],
                 "risk_reports": final_state.get("risk_reports", []),
@@ -542,22 +548,30 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
         )
 
     if llm_results:
+        trades = [r for r in llm_results if r.get("pm_action", "HOLD") != "HOLD"
+                  and r.get("pm_symbol", "NONE") != "NONE"]
+        total_return = sum((r.get("forward_return") or 0) for r in trades)
+
         lines.extend([
             "",
             "## Phase 2 — LLM Validation",
             "",
             f"**Dates validated:** {len(llm_results)}",
+            f"**Trades executed:** {len(trades)}",
+            f"**Total P&L (effective):** {total_return:+.2%}",
             "",
-            "| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Fwd Return |",
+            "| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Eff Return |",
             "|---|---|---|---|---|---|---|",
         ])
         for r in llm_results:
+            ret = r.get("forward_return")
+            ret_str = f"{ret:+.2%}" if ret is not None else "—"
             lines.append(
                 f"| {r.get('ts', '')[:19]} | {r.get('verdict', '?')} | "
                 f"{r.get('confidence', 0):.0%} | "
                 f"{'YES' if r.get('risk_approved') else 'NO'} | "
                 f"{r.get('pm_action', '?')} | {r.get('pm_symbol', '')} | "
-                f"{r.get('forward_return', 0) or 0:+.2%} |"
+                f"{ret_str} |"
             )
 
     text = "\n".join(lines)
