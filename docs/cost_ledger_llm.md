@@ -1,6 +1,7 @@
 # Cost Ledger — Hermes LLM (mensual)
 
-Presupuesto mensual LLM: **$150.00 USD**.
+Presupuesto LLM (POC sprint): **$40.00 USD** | Mensual post-POC: **$150.00 USD**.
+Tope POC total (GCP $10 + LLM $40): **$50.00 USD**.
 Cada fila representa una corrida de agentes autorizada. Se reinicia el día 1 de cada mes vía `/cost:reset-llm`.
 **No editar manualmente** — solo vía `/cost:log`.
 

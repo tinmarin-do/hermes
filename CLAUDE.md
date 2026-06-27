@@ -151,9 +151,10 @@ PR hacia `develop` requiere: tests ✅ + cost-check ✅ + security scan ✅
 
 ## Presupuestos
 
-| Dimensión | Cap |
-|-----------|-----|
-| LLM tokens/mes | $150 USD |
-| GCP infra (a definir) | ver `docs/cost_ledger_gcp.md` |
+| Dimensión | Cap POC | Cap mensual (post-POC) |
+|-----------|---------|----------------------|
+| GCP infra | $10 USD | — |
+| LLM tokens | $40 USD | $150 USD |
+| **Total POC** | **$50 USD** | — |
 
 Al alcanzar el cap de LLM, `/agents:run` pausa automáticamente hasta el mes siguiente.
