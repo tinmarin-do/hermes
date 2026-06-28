@@ -21,7 +21,7 @@ Ejemplo: `BTC/USDT buy 12.50 3f7a2b1c`
 
 4. Ejecutar orden:
    ```bash
-   uv run python -m src.execution.adapter \
+   uv run python -m src.execution.cli \
      --mode "$EXCHANGE_MODE" \
      --symbol "$SYMBOL" --side "$SIDE" --size-usd "$SIZE_USD" \
      --run-id "$RUN_ID"
