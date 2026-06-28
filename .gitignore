@@ -18,8 +18,8 @@ dist/
 coverage.xml
 htmlcov/
 
-# Data (local DuckDB)
-data/
+# Data lake (local DuckDB, models) — root-relative so it does NOT match src/data/
+/data/
 *.duckdb
 
 # Terraform
