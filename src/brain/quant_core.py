@@ -547,12 +547,12 @@ def train_and_save(
         raw = os.environ.get("HERMES_ALLOWED_SYMBOLS", "BTC/USDT,ETH/USDT")
         symbols = [s.strip() for s in raw.split(",")]
 
-    # Sampling stride for training. Default weekly (fast + matches calibration);
-    # denser values (e.g. "3D", "D") give many more samples and are statistically
-    # valid under the walk-forward purge+embargo, but are currently bottlenecked by
-    # aggregate_at performance (per-point DB reopen + news subqueries). Optimize
-    # aggregate_at before lowering this. Override via QUANT_TRAIN_FREQ.
-    freq = os.environ.get("QUANT_TRAIN_FREQ", "W-MON")
+    # Sampling stride for training. Default 3-daily: gives ~2.4x more samples than
+    # weekly (n=1425 vs 605) with better metrics (F1 0.623 vs 0.596) and is
+    # statistically valid under the walk-forward purge+embargo. Now viable (~120s)
+    # after the O(n^2)->O(n) label-precompute fix. Override via QUANT_TRAIN_FREQ
+    # (e.g. "W-MON" for the older weekly cadence, "D" for daily).
+    freq = os.environ.get("QUANT_TRAIN_FREQ", "3D")
     stamps = _generate_weekly_timestamps(symbols, timeframe, freq=freq)
     if not stamps:
         raise RuntimeError("No timestamps available for training")

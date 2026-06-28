@@ -39,5 +39,5 @@ jobs:
         run: |
           URL=$(gcloud run services describe hermes-dashboard \
             --region=${{ vars.GCP_REGION }} --format='value(status.url)')
-          curl --fail "$URL/health" || (echo "❌ Health check failed" && exit 1)
+          curl --fail "$URL/healthz" || (echo "❌ Health check failed" && exit 1)
           echo "✅ Production deployed: $URL"
