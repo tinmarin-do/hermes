@@ -2,6 +2,7 @@
 
 No network: we feed fake LLMResult-shaped objects to the callback.
 """
+
 from types import SimpleNamespace
 
 import pytest
@@ -14,6 +15,8 @@ from src.brain.cost_meter import (
     persist_run,
     start_run,
 )
+
+pytestmark = pytest.mark.unit
 
 
 @pytest.fixture(autouse=True)

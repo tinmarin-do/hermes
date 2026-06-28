@@ -1,4 +1,5 @@
 """Validate integrity of Bronze OHLCV data."""
+
 from dataclasses import dataclass
 
 import pandas as pd

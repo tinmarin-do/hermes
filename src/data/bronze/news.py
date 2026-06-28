@@ -3,15 +3,16 @@
 Golden rule (PRD §8.7.1): raw text is stored here and scanned, but NEVER
 flows to a decision LLM. Downstream layers consume categorical features only.
 """
+
+import html
 import json
 import re
-import html
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from html.parser import HTMLParser
 
-from src.data.db import get_connection
-from src.data.bronze.news_sources import fetch_all
 from src.data.bronze.injection_scanner import scan_batch
+from src.data.bronze.news_sources import fetch_all
+from src.data.db import get_connection
 
 MAX_TEXT_LEN = 4000  # hard length cap on stored text
 
@@ -40,8 +41,12 @@ def _clean_html(text: str) -> str:
     return re.sub(r"\s+", " ", plain).strip()
 
 
-def ingest_news(symbols: list[str], sources: list[str] | None = None,
-                limit: int = 50, scan_injection: bool = True) -> dict:
+def ingest_news(
+    symbols: list[str],
+    sources: list[str] | None = None,
+    limit: int = 50,
+    scan_injection: bool = True,
+) -> dict:
     """Fetch from all sources, scan for injection, persist to bronze_news.
 
     Returns summary: {fetched, stored, flagged, by_source}.
@@ -63,22 +68,32 @@ def ingest_news(symbols: list[str], sources: list[str] | None = None,
             it["injection_score"] = None
 
     con = get_connection()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     stored = 0
     flagged = 0
     by_source: dict[str, int] = {}
 
     for it in items:
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO bronze_news
                 (id, source, url, title, body, published_at, symbols,
                  injection_flag, injection_score, ingested_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            it["id"], it["source"], it.get("url"), it["title"], it.get("body"),
-            it["published_at"], json.dumps(it.get("symbols", [])),
-            it["injection_flag"], it.get("injection_score"), now,
-        ])
+        """,
+            [
+                it["id"],
+                it["source"],
+                it.get("url"),
+                it["title"],
+                it.get("body"),
+                it["published_at"],
+                json.dumps(it.get("symbols", [])),
+                it["injection_flag"],
+                it.get("injection_score"),
+                now,
+            ],
+        )
         stored += 1
         flagged += 1 if it["injection_flag"] else 0
         by_source[it["source"]] = by_source.get(it["source"], 0) + 1

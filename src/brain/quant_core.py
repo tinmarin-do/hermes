@@ -7,6 +7,7 @@ El modelo aprende P(forward_return > 0) sobre features de régimen. En inferenci
   P > 0.65 → BUY,  P < 0.35 → SELL,  resto → HOLD.
 Confianza = |P - 0.5| × 2.  Sizing = capital × kelly_fraction × conf × vol_scalar.
 """
+
 from __future__ import annotations
 
 import math
@@ -27,11 +28,10 @@ MODEL_PATH = MODEL_DIR / "quant_core_lgbm.pkl"
 
 CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
 FORWARD_PERIODS = 168  # 7 days in 1h candles
-PURGE_PERIODS = 500    # GARCH window — longest rolling feature
-EMBARGO_PERIODS = 168   # 1 week — avoid forward return leakage
+PURGE_PERIODS = 500  # GARCH window — longest rolling feature
+EMBARGO_PERIODS = 168  # 1 week — avoid forward return leakage
 
-REGIME_MAP = {"trending": "trending", "mean_reverting": "mean-reverting",
-              "random_walk": "volatile"}
+REGIME_MAP = {"trending": "trending", "mean_reverting": "mean-reverting", "random_walk": "volatile"}
 
 FEATURE_COLS = [
     "hurst",
@@ -69,9 +69,10 @@ LGBM_PARAMS = {
 @dataclass
 class QuantSignal:
     """Output of the quant core — deterministic direction + sizing before LLM verification."""
+
     symbol: str
-    direction: str          # BUY | SELL | HOLD
-    confidence: float       # 0.0 – 1.0
+    direction: str  # BUY | SELL | HOLD
+    confidence: float  # 0.0 – 1.0
     raw_probability: float  # P(forward_return > 0)
     size_usd: float
     features_used: dict[str, float] = field(default_factory=dict)
@@ -81,10 +82,11 @@ class QuantSignal:
 @dataclass
 class PurpleWalkForwardResult:
     """Metrics from one walk-forward fold."""
+
     ts: datetime
     symbol: str
-    prediction: float       # predicted probability
-    actual: bool            # actual profitable?
+    prediction: float  # predicted probability
+    actual: bool  # actual profitable?
     direction: str
     confidence: float
 
@@ -129,7 +131,8 @@ class QuantCore:
         }
 
     def _build_matrix(
-        self, signals: list[dict[str, Any]],
+        self,
+        signals: list[dict[str, Any]],
         forward_returns: dict[tuple[str, datetime], float | None],
     ) -> tuple[pd.DataFrame, pd.Series, list[dict[str, Any]]]:
         """Build feature matrix X and target y from signals and forward returns."""
@@ -154,10 +157,14 @@ class QuantCore:
     # ── Purged + embargoed walk-forward ────────────────────────────────────
 
     def _build_labels(
-        self, points: list[dict[str, Any]], symbols: list[str], timeframe: str,
+        self,
+        points: list[dict[str, Any]],
+        symbols: list[str],
+        timeframe: str,
     ) -> dict[tuple[str, datetime], float | None]:
         """Pre-compute forward returns for all points to avoid repeated DB queries."""
         from src.data.gold.aggregate import get_forward_return
+
         labels: dict[tuple[str, datetime], float | None] = {}
         for sig in points:
             sym = sig["symbol"]
@@ -167,7 +174,9 @@ class QuantCore:
         return labels
 
     def walk_forward_validate(
-        self, signals: list[dict[str, Any]], symbols: list[str],
+        self,
+        signals: list[dict[str, Any]],
+        symbols: list[str],
         timeframe: str = "1h",
     ) -> list[PurpleWalkForwardResult]:
         """Purged + embargoed walk-forward cross-validation.
@@ -215,36 +224,45 @@ class QuantCore:
             if num_train >= 50:
                 split = int(num_train * 0.8)
                 train_ds = lgb.Dataset(X_train.iloc[:split], y_train.iloc[:split])
-                valid_ds = lgb.Dataset(X_train.iloc[split:], y_train.iloc[split:],
-                                       reference=train_ds)
+                valid_ds = lgb.Dataset(
+                    X_train.iloc[split:], y_train.iloc[split:], reference=train_ds
+                )
                 valid_sets: list[lgb.Dataset] | None = [valid_ds]
-                callbacks: list[Callable[..., Any]] = [
-                    lgb.early_stopping(5), lgb.log_evaluation(0)
-                ]
+                callbacks: list[Callable[..., Any]] = [lgb.early_stopping(5), lgb.log_evaluation(0)]
             else:
                 train_ds = lgb.Dataset(X_train, y_train)
                 valid_sets = None
                 callbacks = [lgb.log_evaluation(0)]
-            model = lgb.train(LGBM_PARAMS, train_ds,
-                              num_boost_round=200, valid_sets=valid_sets,
-                              callbacks=callbacks)
+            model = lgb.train(
+                LGBM_PARAMS,
+                train_ds,
+                num_boost_round=200,
+                valid_sets=valid_sets,
+                callbacks=callbacks,
+            )
 
             feat = self._features_from_signal(test_sig)
             X_test = pd.DataFrame([feat])[FEATURE_COLS]
             prob = float(model.predict(X_test)[0])
             direction, confidence = _prob_to_signal(prob)
-            results.append(PurpleWalkForwardResult(
-                ts=test_ts, symbol=test_sig["symbol"],
-                prediction=prob, actual=fwd_ret > 0,
-                direction=direction, confidence=confidence,
-            ))
+            results.append(
+                PurpleWalkForwardResult(
+                    ts=test_ts,
+                    symbol=test_sig["symbol"],
+                    prediction=prob,
+                    actual=fwd_ret > 0,
+                    direction=direction,
+                    confidence=confidence,
+                )
+            )
 
         return results
 
     # ── Train final model ──────────────────────────────────────────────────
 
-    def train(self, signals: list[dict[str, Any]], symbols: list[str],
-              timeframe: str = "1h") -> QuantCore:
+    def train(
+        self, signals: list[dict[str, Any]], symbols: list[str], timeframe: str = "1h"
+    ) -> QuantCore:
         """Train final LightGBM model on all data. Use walk_forward_validate first for metrics."""
         labels = self._build_labels(signals, symbols, timeframe)
         X, y, _ = self._build_matrix(signals, labels)
@@ -257,16 +275,16 @@ class QuantCore:
             train_ds = lgb.Dataset(X.iloc[:split], y.iloc[:split])
             valid_ds = lgb.Dataset(X.iloc[split:], y.iloc[split:], reference=train_ds)
             valid_sets: list[lgb.Dataset] | None = [valid_ds]
-            callbacks: list[Callable[..., Any]] = [
-                lgb.early_stopping(10), lgb.log_evaluation(0)
-            ]
+            callbacks: list[Callable[..., Any]] = [lgb.early_stopping(10), lgb.log_evaluation(0)]
         else:
             train_ds = lgb.Dataset(X, y)
             valid_sets = None
             callbacks = [lgb.log_evaluation(0)]
         self.model = lgb.train(
-            LGBM_PARAMS, train_ds,
-            num_boost_round=300, valid_sets=valid_sets,
+            LGBM_PARAMS,
+            train_ds,
+            num_boost_round=300,
+            valid_sets=valid_sets,
             callbacks=callbacks,
         )
         self._trained = True
@@ -345,6 +363,7 @@ class QuantCore:
 
         try:
             import shap
+
             explainer = shap.TreeExplainer(self.model)
             shap_values = explainer.shap_values(X)
             expected_value = explainer.expected_value
@@ -366,15 +385,15 @@ class QuantCore:
         contributions: list[dict[str, Any]] = []
         for i, col in enumerate(FEATURE_COLS):
             if i < len(sv_flat):
-                contributions.append({
-                    "feature": col,
-                    "shap_value": round(float(sv_flat[i]), 6),
-                    "feature_value": round(feat.get(col, 0.0), 6),
-                })
+                contributions.append(
+                    {
+                        "feature": col,
+                        "shap_value": round(float(sv_flat[i]), 6),
+                        "feature_value": round(feat.get(col, 0.0), 6),
+                    }
+                )
 
-        contributions.sort(
-            key=lambda c: abs(float(c["shap_value"])), reverse=True
-        )
+        contributions.sort(key=lambda c: abs(float(c["shap_value"])), reverse=True)
         top_n = min(10, len(contributions))
 
         return {
@@ -386,17 +405,18 @@ class QuantCore:
             "base_value": round(float(expected_value), 4),
             "top_features": contributions[:top_n],
             "waterfall": [
-                {"label": c["feature"], "value": c["shap_value"]}
-                for c in contributions[:top_n]
+                {"label": c["feature"], "value": c["shap_value"]} for c in contributions[:top_n]
             ],
             "all_features": contributions,
         }
 
+
 # ── Helpers ─────────────────────────────────────────────────────────────────
 
 
-def _prob_to_signal(prob: float, buy_threshold: float = 0.65,
-                    sell_threshold: float = 0.35) -> tuple[str, float]:
+def _prob_to_signal(
+    prob: float, buy_threshold: float = 0.65, sell_threshold: float = 0.35
+) -> tuple[str, float]:
     """Convert model probability to (direction, confidence)."""
     if prob > buy_threshold:
         return "BUY", round((prob - 0.5) * 2, 4)
@@ -405,8 +425,7 @@ def _prob_to_signal(prob: float, buy_threshold: float = 0.65,
     return "HOLD", 0.0
 
 
-def _kelly_size(confidence: float, kelly_fraction: float,
-                garch_vol: float) -> float:
+def _kelly_size(confidence: float, kelly_fraction: float, garch_vol: float) -> float:
     """Kelly-based position sizing: capital × confidence × fraction, scaled by vol."""
     if garch_vol <= 0:
         return round(CAPITAL * confidence * kelly_fraction, 2)
@@ -414,8 +433,7 @@ def _kelly_size(confidence: float, kelly_fraction: float,
     return round(CAPITAL * confidence * kelly_fraction * vol_scalar, 2)
 
 
-def _var_check(garch_vol: float | None, size_usd: float,
-               daily_limit_pct: float) -> bool:
+def _var_check(garch_vol: float | None, size_usd: float, daily_limit_pct: float) -> bool:
     if garch_vol is None or garch_vol <= 0:
         return True
     var_2sigma = size_usd * garch_vol * 2 * math.sqrt(FORWARD_PERIODS)
@@ -516,9 +534,9 @@ def compute_metrics(results: list[PurpleWalkForwardResult]) -> dict[str, Any]:
 # ── Convenience entry point ─────────────────────────────────────────────────
 
 
-def train_and_save(symbols: list[str] | None = None,
-                   timeframe: str = "1h",
-                   path: Path | None = None) -> QuantCore:
+def train_and_save(
+    symbols: list[str] | None = None, timeframe: str = "1h", path: Path | None = None
+) -> QuantCore:
     """Train a QuantCore model on all available data and save to disk."""
     import os
 
@@ -553,9 +571,11 @@ def train_and_save(symbols: list[str] | None = None,
 
     results = core.walk_forward_validate(all_signals, symbols, timeframe)
     metrics = compute_metrics(results)
-    print(f"[quant_core] walk-forward: n={metrics['n']} accuracy={metrics['accuracy']:.3f} "
-          f"f1={metrics['f1']:.3f} tradable={metrics['tradable_rate']:.1%} "
-          f"win_rate={metrics['trade_win_rate']:.1%}")
+    print(
+        f"[quant_core] walk-forward: n={metrics['n']} accuracy={metrics['accuracy']:.3f} "
+        f"f1={metrics['f1']:.3f} tradable={metrics['tradable_rate']:.1%} "
+        f"win_rate={metrics['trade_win_rate']:.1%}"
+    )
 
     core.train(all_signals, symbols, timeframe)
     saved = core.save(path)

@@ -6,6 +6,7 @@ Lives in its own module (not imported by src/execution/__init__.py) so that
 
 Used by the execution:paper / execution:live skills.
 """
+
 from __future__ import annotations
 
 from src.execution.adapter import ExecutionAdapter, PaperAdapter
@@ -15,6 +16,7 @@ def _build_adapter(mode: str) -> ExecutionAdapter:
     """Pick an adapter from an EXCHANGE_MODE-style string."""
     if mode in ("testnet", "live"):
         from src.execution.binance import BinanceAdapter
+
         return BinanceAdapter(mode=mode)
     return PaperAdapter()
 
@@ -25,8 +27,7 @@ def main() -> int:
     import json
 
     parser = argparse.ArgumentParser(description="Send one execution order.")
-    parser.add_argument("--mode", default="paper",
-                        choices=["paper", "testnet", "live"])
+    parser.add_argument("--mode", default="paper", choices=["paper", "testnet", "live"])
     parser.add_argument("--symbol", required=True)
     parser.add_argument("--side", required=True, choices=["buy", "sell"])
     parser.add_argument("--size-usd", type=float, required=True)

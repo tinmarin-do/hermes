@@ -3,6 +3,7 @@
 Uses an off-the-shelf DeBERTa classifier (ProtectAI / Meta Prompt-Guard).
 Lazy-loaded singleton so the model is read into memory only once.
 """
+
 import os
 from functools import lru_cache
 

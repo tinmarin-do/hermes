@@ -1,5 +1,7 @@
 """RegimeClassifier — summarizes Gold signals into a human-readable regime brief."""
+
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from src.brain.llm import get_llm
 from src.brain.state import HermesState
 
@@ -20,13 +22,17 @@ def regime_classifier(state: HermesState) -> dict:
     )
 
     llm = get_llm("analyst")
-    response = llm.invoke([
-        SystemMessage(content=SYSTEM),
-        HumanMessage(content=f"Classify the current market regime for:\n{signal_text}\n\n"
-                             "Produce a 3-5 sentence brief covering: dominant regime, "
-                             "which assets are trending vs mean-reverting, volatility level, "
-                             "and overall market risk tone."),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=SYSTEM),
+            HumanMessage(
+                content=f"Classify the current market regime for:\n{signal_text}\n\n"
+                "Produce a 3-5 sentence brief covering: dominant regime, "
+                "which assets are trending vs mean-reverting, volatility level, "
+                "and overall market risk tone."
+            ),
+        ]
+    )
 
     summary = response.content
     return {

@@ -3,12 +3,15 @@
 The model-heavy /api/explain path is not exercised here (covered manually); these
 tests use a synthetic snapshot and stay fast + offline.
 """
+
 import json
 
 import pytest
 from fastapi.testclient import TestClient
 
 from src.dashboard import app as dash_app
+
+pytestmark = pytest.mark.unit
 
 SNAPSHOT = {
     "generated_at": "2026-06-28T00:00:00+00:00",
@@ -23,14 +26,22 @@ SNAPSHOT = {
                 "explanation": {
                     "prediction": {"direction": "HOLD", "probability": 0.49, "confidence": 0.0},
                     "base_value": 0.02,
-                    "top_features": [{"feature": "momentum_1h", "shap_value": 0.05, "feature_value": 0.1}],
+                    "top_features": [
+                        {"feature": "momentum_1h", "shap_value": 0.05, "feature_value": 0.1}
+                    ],
                     "waterfall": [{"label": "momentum_1h", "value": 0.05}],
                 },
             }
         },
     },
-    "cost": {"available": True, "total_usd": 0.0069, "runs": 1, "unlogged_runs": 0,
-             "budget_usd": 150.0, "recent": []},
+    "cost": {
+        "available": True,
+        "total_usd": 0.0069,
+        "runs": 1,
+        "unlogged_runs": 0,
+        "budget_usd": 150.0,
+        "recent": [],
+    },
     "positions": {"available": True, "balance_usd": 500.0, "open": []},
 }
 

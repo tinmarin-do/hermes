@@ -1,4 +1,5 @@
 import os
+
 import duckdb
 
 # Paths whose schema has already been ensured this process — avoids re-running

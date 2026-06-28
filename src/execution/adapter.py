@@ -1,10 +1,11 @@
 """ExecutionAdapter — abstract base + PaperAdapter (simulated execution)."""
+
 from __future__ import annotations
 
 import uuid
 from abc import ABC, abstractmethod
-from datetime import datetime, timezone
-from typing import TYPE_CHECKING
+from datetime import UTC, datetime
+from typing import TYPE_CHECKING, Any
 
 from src.data.db import get_connection
 from src.execution.kill import kill_switch
@@ -12,14 +13,14 @@ from src.execution.models import OrderResult, Position
 from src.execution.schema import ensure_execution_schema
 
 if TYPE_CHECKING:
-    import duckdb
+    pass
 
 
 class ExecutionAdapter(ABC):
     """Agents send decisions here. The adapter executes against paper/testnet/live."""
 
     @abstractmethod
-    def execute(self, decision: dict, run_id: str) -> OrderResult:
+    def execute(self, decision: dict[str, Any], run_id: str) -> OrderResult:
         """Execute a trading decision. Returns an OrderResult."""
         ...
 
@@ -67,12 +68,16 @@ class PaperAdapter(ExecutionAdapter):
         finally:
             con.close()
 
-    def execute(self, decision: dict, run_id: str) -> OrderResult:
+    def execute(self, decision: dict[str, Any], run_id: str) -> OrderResult:
         if not kill_switch.is_alive():
             return OrderResult(
-                order_id="", run_id=run_id, symbol=decision.get("symbol", ""),
-                action=decision.get("action", "HOLD"), quantity=0,
-                status="REJECTED", error="Kill switch active — trading halted",
+                order_id="",
+                run_id=run_id,
+                symbol=decision.get("symbol", ""),
+                action=decision.get("action", "HOLD"),
+                quantity=0,
+                status="REJECTED",
+                error="Kill switch active — trading halted",
             )
 
         action = decision.get("action", "HOLD")
@@ -81,16 +86,24 @@ class PaperAdapter(ExecutionAdapter):
 
         if action == "HOLD" or symbol == "NONE" or size_usd <= 0:
             return OrderResult(
-                order_id=str(uuid.uuid4()), run_id=run_id, symbol=symbol,
-                action=action, quantity=0, status="CANCELLED",
+                order_id=str(uuid.uuid4()),
+                run_id=run_id,
+                symbol=symbol,
+                action=action,
+                quantity=0,
+                status="CANCELLED",
                 error="HOLD or zero size — no order placed",
             )
 
         price = self._current_price(symbol)
         if price is None or price <= 0:
             return OrderResult(
-                order_id=str(uuid.uuid4()), run_id=run_id, symbol=symbol,
-                action=action, quantity=0, status="REJECTED",
+                order_id=str(uuid.uuid4()),
+                run_id=run_id,
+                symbol=symbol,
+                action=action,
+                quantity=0,
+                status="REJECTED",
                 error=f"No price data for {symbol}",
             )
 
@@ -101,35 +114,52 @@ class PaperAdapter(ExecutionAdapter):
         balance = self.get_balance()
         if cost > balance:
             return OrderResult(
-                order_id=str(uuid.uuid4()), run_id=run_id, symbol=symbol,
-                action=action, quantity=0, status="REJECTED",
+                order_id=str(uuid.uuid4()),
+                run_id=run_id,
+                symbol=symbol,
+                action=action,
+                quantity=0,
+                status="REJECTED",
                 error=f"Insufficient balance: ${balance:.2f} < ${cost:.2f}",
             )
 
         order_id = str(uuid.uuid4())
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        now = datetime.now(UTC).replace(tzinfo=None)
 
         con = get_connection()
         try:
-            con.execute("""
+            con.execute(
+                """
                 INSERT INTO execution_orders
                     (order_id, run_id, symbol, action, quantity, price, status,
                      filled_at, created_at, cost_usd, fee_usd)
                 VALUES (?, ?, ?, ?, ?, ?, 'FILLED', ?, ?, ?, ?)
-            """, [order_id, run_id, symbol, action, quantity, price, now, now, cost, fee])
+            """,
+                [order_id, run_id, symbol, action, quantity, price, now, now, cost, fee],
+            )
 
-            con.execute("""
+            con.execute(
+                """
                 INSERT INTO execution_positions
                     (symbol, action, quantity, entry_price, opened_at, run_id, status)
                 VALUES (?, ?, ?, ?, ?, ?, 'OPEN')
-            """, [symbol, action, quantity, price, now, run_id])
+            """,
+                [symbol, action, quantity, price, now, run_id],
+            )
         finally:
             con.close()
 
         return OrderResult(
-            order_id=order_id, run_id=run_id, symbol=symbol,
-            action=action, quantity=quantity, price=price,
-            status="FILLED", filled_at=now, cost_usd=cost, fee_usd=fee,
+            order_id=order_id,
+            run_id=run_id,
+            symbol=symbol,
+            action=action,
+            quantity=quantity,
+            price=price,
+            status="FILLED",
+            filled_at=now,
+            cost_usd=cost,
+            fee_usd=fee,
         )
 
     def get_positions(self) -> list[Position]:
@@ -156,12 +186,22 @@ class PaperAdapter(ExecutionAdapter):
                 else:
                     unrealized = round((entry - current) * qty, 2)
 
-            positions.append(Position(
-                id=r[0], symbol=r[1], action=r[2], quantity=qty,
-                entry_price=entry, current_price=current,
-                unrealized_pnl=unrealized, realized_pnl=r[8] or 0,
-                opened_at=r[5], closed_at=r[6], run_id=r[9], status=r[10],
-            ))
+            positions.append(
+                Position(
+                    id=r[0],
+                    symbol=r[1],
+                    action=r[2],
+                    quantity=qty,
+                    entry_price=entry,
+                    current_price=current,
+                    unrealized_pnl=unrealized,
+                    realized_pnl=r[8] or 0,
+                    opened_at=r[5],
+                    closed_at=r[6],
+                    run_id=r[9],
+                    status=r[10],
+                )
+            )
         return positions
 
     def get_balance(self) -> float:
@@ -187,7 +227,7 @@ class PaperAdapter(ExecutionAdapter):
         con = get_connection()
         try:
             positions = self.get_positions()
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            now = datetime.now(UTC).replace(tzinfo=None)
             for p in positions:
                 current = self._current_price(p.symbol)
                 exit_price = current or p.entry_price
@@ -196,10 +236,13 @@ class PaperAdapter(ExecutionAdapter):
                     pnl = (exit_price - p.entry_price) * p.quantity
                 else:
                     pnl = (p.entry_price - exit_price) * p.quantity
-                con.execute("""
+                con.execute(
+                    """
                     UPDATE execution_positions
                     SET closed_at = ?, exit_price = ?, realized_pnl = ?, status = 'CLOSED'
                     WHERE id = ?
-                """, [now, exit_price, round(pnl, 2), p.id])
+                """,
+                    [now, exit_price, round(pnl, 2), p.id],
+                )
         finally:
             con.close()
