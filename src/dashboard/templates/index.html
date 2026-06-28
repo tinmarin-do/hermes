@@ -1,0 +1,65 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Hermes — Dashboard</title>
+  <link rel="stylesheet" href="/static/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Hermes <span class="muted">— núcleo cuant + SHAP</span></h1>
+    <div id="generated" class="muted"></div>
+  </header>
+
+  {% if not has_snapshot %}
+  <section class="card warn">
+    <p>No hay snapshot todavía. Generá uno con <code>/dashboard:build</code>
+       (<code>uv run python -m src.dashboard.build</code>).</p>
+  </section>
+  {% endif %}
+
+  <section class="card" id="shap-card">
+    <div class="card-head">
+      <h2>Explicabilidad SHAP — tesis del núcleo cuant</h2>
+      <select id="symbol-select"></select>
+    </div>
+    <div id="prediction" class="prediction"></div>
+    <div class="chart-wrap"><canvas id="waterfall"></canvas></div>
+    <table id="features">
+      <thead><tr><th>Feature</th><th>Valor</th><th>Impacto SHAP</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p class="muted small">El waterfall arranca en el valor base del modelo y suma la
+       contribución (log-odds) de cada feature hasta la predicción. Verde empuja a comprar,
+       rojo a vender.</p>
+  </section>
+
+  <div class="grid">
+    <section class="card" id="cost-card">
+      <h2>Costo LLM (DeepSeek)</h2>
+      <div id="cost-summary"></div>
+      <table id="cost-runs">
+        <thead><tr><th>Corrida</th><th>Tokens</th><th>USD</th><th>Ledger</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+
+    <section class="card" id="pos-card">
+      <h2>Posiciones (paper)</h2>
+      <div id="pos-summary"></div>
+      <table id="positions">
+        <thead><tr><th>Símbolo</th><th>Lado</th><th>Cant.</th><th>Entrada</th><th>P&L</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </section>
+  </div>
+
+  <footer class="muted small">
+    Snapshot estático — costo por visitante $0. Proyecto experimental y educativo, no asesoría financiera.
+  </footer>
+
+  <script src="/static/app.js"></script>
+</body>
+</html>

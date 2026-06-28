@@ -44,3 +44,4 @@ Thumbs.db
 
 # Claude Code — settings personales (heartbeat, etc.)
 .claude/settings.local.json
+src/dashboard/static/data/snapshot.json
