@@ -184,8 +184,15 @@ def _var_check(garch_vol: float | None, size_usd: float, daily_limit_pct: float)
 
 
 def _generate_weekly_timestamps(
-    symbols: list[str], timeframe: str
+    symbols: list[str], timeframe: str, freq: str = "W-MON"
 ) -> list[datetime] | None:
+    """Sampling timestamps for backtest/training.
+
+    `freq` is a pandas offset alias. Default "W-MON" (weekly) keeps calibration
+    comparable; denser frequencies (e.g. "3D", "D") give the model far more
+    training samples. Leakage is controlled by the purge+embargo in the
+    walk-forward CV (QuantCore.EMBARGO_PERIODS), not by the sampling stride.
+    """
     earliest = None
     latest = None
     for sym in symbols:
@@ -202,7 +209,7 @@ def _generate_weekly_timestamps(
     start = earliest.replace(minute=0, second=0, microsecond=0) + timedelta(days=7)
     end = latest.replace(minute=0, second=0, microsecond=0) - timedelta(days=7)
 
-    stamps = pd.date_range(start=start, end=end, freq="W-MON")
+    stamps = pd.date_range(start=start, end=end, freq=freq)
     return [d.to_pydatetime().replace(tzinfo=UTC) for d in stamps if d.to_pydatetime() >= start]
 
 

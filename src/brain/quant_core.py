@@ -527,7 +527,13 @@ def train_and_save(symbols: list[str] | None = None,
         raw = os.environ.get("HERMES_ALLOWED_SYMBOLS", "BTC/USDT,ETH/USDT")
         symbols = [s.strip() for s in raw.split(",")]
 
-    stamps = _generate_weekly_timestamps(symbols, timeframe)
+    # Sampling stride for training. Default weekly (fast + matches calibration);
+    # denser values (e.g. "3D", "D") give many more samples and are statistically
+    # valid under the walk-forward purge+embargo, but are currently bottlenecked by
+    # aggregate_at performance (per-point DB reopen + news subqueries). Optimize
+    # aggregate_at before lowering this. Override via QUANT_TRAIN_FREQ.
+    freq = os.environ.get("QUANT_TRAIN_FREQ", "W-MON")
+    stamps = _generate_weekly_timestamps(symbols, timeframe, freq=freq)
     if not stamps:
         raise RuntimeError("No timestamps available for training")
 
@@ -539,7 +545,7 @@ def train_and_save(symbols: list[str] | None = None,
     if len(all_signals) < 10:
         raise RuntimeError(f"Only {len(all_signals)} signals — need ≥ 10 for training")
 
-    print(f"[quant_core] {len(all_signals)} signals from {len(stamps)} weekly points")
+    print(f"[quant_core] {len(all_signals)} signals from {len(stamps)} points (freq={freq})")
 
     core = QuantCore()
 
