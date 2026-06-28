@@ -12,7 +12,7 @@ Ninguno.
    **local:**
    - Docker services: `docker compose -f docker-compose.local.yml ps`
    - Dashboard: `curl -s http://localhost:8080/health`
-   - Ollama: `curl -s http://localhost:11434/api/tags`
+   - DeepSeek API: verificar `DEEPSEEK_API_KEY` configurado
    - DuckDB: query de health sobre `HERMES_DUCKDB_PATH`
 
    **cloud:**
@@ -24,8 +24,8 @@ Ninguno.
 2. Mostrar tabla de estado:
    ```
    ── ops:health ─────────────────────────────────────────────
-   Dashboard    : ✅ healthy  (http://localhost:8080)
-   Brain/Ollama : ✅ healthy
+    Dashboard    : ✅ healthy  (http://localhost:8080)
+    Brain/LLM    : ✅ healthy  (DeepSeek V4 Flash)
    Database     : ✅ healthy  (X tablas, X MB)
    Scheduler    : ✅ próxima corrida: 2026-06-26T04:00:00Z
    Kill switch  : ✅ INACTIVO

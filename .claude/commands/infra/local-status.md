@@ -12,23 +12,20 @@ Ninguno.
    docker compose -f docker-compose.local.yml ps
    ```
 
-2. Verificar Ollama y modelos disponibles:
-   ```bash
-   curl -s http://localhost:11434/api/tags | python3 -c "import sys,json; [print(m['name']) for m in json.load(sys.stdin)['models']]"
-   ```
-
-3. Verificar DuckDB:
+2. Verificar DuckDB:
    - Comprobar que `$HERMES_DUCKDB_PATH` existe y su tamaño.
    - Ejecutar query de health: `SELECT COUNT(*) FROM information_schema.tables`.
 
-4. Verificar dashboard en `http://localhost:8080/health`.
+3. Verificar dashboard en `http://localhost:8080/health`.
+
+4. Verificar conectividad con DeepSeek API (`DEEPSEEK_API_KEY` configurado).
 
 5. Mostrar resumen:
    ```
    ── infra:local-status ────────────────────────────────────
-   Ollama    : ✅ running  │ modelos: llama3.2:3b, llama3.1:8b
    Dashboard : ✅ running  │ http://localhost:8080
    DuckDB    : ✅ X.XX MB  │ ./data/hermes.duckdb
+   LLM       : ✅ DeepSeek V4 Flash (API)
    HERMES_MODE: local
    ──────────────────────────────────────────────────────────
    ```

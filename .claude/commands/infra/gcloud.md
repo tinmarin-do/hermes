@@ -1,7 +1,7 @@
 # infra:gcloud — Ad-hoc gcloud CLI con cotización y gate
 
-Ejecuta UN comando `gcloud` o `gsutil` con autorización explícita previa. Equivalente al
-patrón `gcloud ad-hoc` del `cost_layer.md` de referencia.
+Ejecuta UN comando `gcloud` o `gsutil` con autorización explícita previa, siguiendo el
+patrón `gcloud ad-hoc`: cotización con `/cost:quote` → gate con `/cost:gate` → log con `/cost:log`.
 
 ## Parámetros
 `$ARGUMENTS` — el comando completo a ejecutar (sin el prefijo `gcloud`). Ejemplos:

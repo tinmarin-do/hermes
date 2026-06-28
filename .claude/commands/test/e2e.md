@@ -4,7 +4,7 @@ Corre el pipeline completo desde ingesta hasta orden paper, en local o testnet.
 Es el test más costoso (puede invocar LLM en cloud mode).
 
 ## Parámetros
-`$ARGUMENTS` — `--local` para forzar Ollama aunque `HERMES_MODE=cloud`.
+`$ARGUMENTS` — `--local` para forzar modo local aunque `HERMES_MODE=cloud`.
 
 ## Pasos
 
@@ -31,5 +31,5 @@ Es el test más costoso (puede invocar LLM en cloud mode).
 4. Mostrar resultado: duración total, etapas completadas, decisión del pipeline.
 
 ## Notas
-- Con `--local` usa Ollama — más lento (minutos) pero gratis.
+- Con `--local` usa DeepSeek API — costo mínimo por corrida.
 - Correr antes de toda PR a `main`.
