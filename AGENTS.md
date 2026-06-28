@@ -1,6 +1,6 @@
 # Hermes — Agent Interoperability Contract
 
-**Version:** 0.2.0  
+**Version:** 0.3.0  
 **Project:** Hermes — Multi-agent AI trading system  
 **Contract type:** Custom JSON Schema (provider-agnostic)
 
@@ -101,12 +101,34 @@ All tools follow this request/response schema:
   "run_id": "<uuid>",
   "timestamp": "2026-06-26T00:00:00Z",
   "symbol": "BTC/USDT",
-  "action": "buy | sell | hold",
+  "action": "buy | sell | hold | short",
   "confidence": 0.0,
   "kelly_fraction": 0.0,
   "position_size_usd": 0.0,
   "rationale": "<debate summary>",
   "debate_transcript": "<full LangGraph transcript>"
+}
+```
+
+> `action: short` solo es válido bajo la política ultra-conservadora (`P ≤ 0.25` +
+> confianza ≥ 0.50 + régimen bajista; cap 10%). Short real requiere venue de futuros;
+> en spot/live arranca deshabilitado. Ver `docs/DESIGN_portfolio_allocator.md`.
+
+### PortfolioAllocation (vector — diseño, pendiente de implementación)
+Reemplaza la decisión única por un **vector de pesos** sobre los símbolos permitidos,
+rebalanceado a diario. Cada `leg` es una `AgentDecision` derivada del delta vs el libro actual.
+
+```json
+{
+  "run_id": "<uuid>",
+  "timestamp": "2026-06-26T00:00:00Z",
+  "budget_usd": 1.0,
+  "weighting": "conf_x_inverse_vol",
+  "legs": [
+    { "symbol": "BTC/USDT", "target_weight": 0.0, "action": "buy | sell | hold | short", "position_size_usd": 0.0 }
+  ],
+  "cash_usd": 0.0,
+  "short_exposure_usd": 0.0
 }
 ```
 
@@ -119,9 +141,15 @@ All tools follow this request/response schema:
   "correlation_with_open": 0.0,
   "daily_loss_remaining": 0.0,
   "kelly_size": 0.0,
+  "short_exposure_pct": 0.0,
+  "short_stop_loss": null,
   "rejection_reason": null
 }
 ```
+
+> Para legs `short`, el comité de riesgo aplica política estricta: `short_exposure_pct ≤ 10%`
+> del budget, `short_stop_loss` obligatorio, veto si la confianza es baja, y rechazo de shorts
+> correlacionados entre sí.
 
 ---
 
@@ -131,12 +159,14 @@ Agents MUST respect these limits. The risk-agent enforces them pre-trade.
 
 | Guardrail | Rule |
 |-----------|------|
-| Position sizing | Kelly 0.15× based on PM confidence (calibrated) |
+| Position sizing | Kelly 0.10× based on PM confidence (calibrated 2026-06-27) |
 | VaR pre-trade | Reject if 2σ loss > daily limit |
 | Correlation cap | Reject if corr > 0.7 AND total exposure > limit |
 | Daily loss limit | Halt trading for the day when reached |
 | Symbol whitelist | Only approved symbols (see `.env` HERMES_ALLOWED_SYMBOLS) |
 | Max open positions | See `.env` HERMES_MAX_POSITIONS |
+| **Short policy** | Origina solo si `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **exposición corta ≤ 10%** del budget; stop-loss obligatorio; **futuros-only** (spot no puede); **OFF por default en live** |
+| **Portfolio budget** | Reparto entre símbolos por `conf × inverse-vol`; **$1 paper / $50 real**; rebalanceo diario por delta vs libro |
 
 ---
 

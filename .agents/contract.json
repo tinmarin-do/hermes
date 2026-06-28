@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Hermes Agent Contract",
-  "version": "0.1.0",
+  "version": "0.3.0",
   "description": "Provider-agnostic tool contract for Hermes multi-agent trading system",
   "request": {
     "type": "object",
@@ -58,12 +58,19 @@
   "tool_definitions": ".agents/tools/",
   "role_definitions": ".agents/roles/",
   "guardrails": {
-    "position_sizing": "Kelly 0.25x based on PM confidence",
+    "position_sizing": "Kelly 0.10x based on PM confidence (calibrated 2026-06-27)",
     "var_pretrade": "Reject if 2sigma loss > daily limit",
     "correlation_cap": 0.7,
     "daily_loss_limit_pct": "HERMES_DAILY_LOSS_LIMIT_PCT env var",
     "symbol_whitelist": "HERMES_ALLOWED_SYMBOLS env var",
-    "max_positions": "HERMES_MAX_POSITIONS env var"
+    "max_positions": "HERMES_MAX_POSITIONS env var",
+    "short_policy": "Origina solo si P<=0.25 AND conf>=0.50 AND regimen bajista; exposicion corta <=10% del budget; stop-loss obligatorio; futuros-only (spot no puede); OFF por default en live. Ver docs/DESIGN_portfolio_allocator.md",
+    "portfolio_allocation": "Reparto del budget entre simbolos por conf x inverse-vol, rebalanceo diario por delta vs libro. Budget: $1 paper / $50 real. Diseno pendiente de implementacion."
+  },
+  "trading_capital": {
+    "paper_local_usd": 1.0,
+    "real_cloud_usd": 50.0,
+    "note": "Bolsillo distinto de los caps operativos (GCP+LLM). Testnet primero; live solo con guardrails."
   },
   "cost_caps": {
     "llm_monthly_usd": 150.0,

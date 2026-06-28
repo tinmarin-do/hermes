@@ -34,9 +34,11 @@ ccxt (mercado) ──▶ Bronze (raw OHLCV)
          ┌─────────────────────────────────┐
          │  Pipeline multiagente (LangGraph)│
          │  RegimeClassifier               │
+         │  QuantCore (LightGBM+GARCH+Kelly)│  ← decide dirección/tamaño (sin LLM)
          │  Analysts ×3 (condicionados)    │
          │  Debate alcista/bajista         │
          │  Trader → Risk (VaR + Kelly)    │
+         │  Allocator (pesos por símbolo)* │  ← reparte el budget entre los 6
          │  Portfolio Manager              │
          └──────────────┬──────────────────┘
                         ↓
@@ -47,6 +49,10 @@ ccxt (mercado) ──▶ Bronze (raw OHLCV)
 
 **Principio clave:** cada capa vive detrás de una interfaz agnóstica.
 Cambiar Binance por Alpaca (acciones) = implementar el adapter, sin tocar el cerebro.
+
+> `*` **Allocator** = diseño aprobado, **pendiente de implementación**. Reparte un budget de
+> trading entre los 6 símbolos como cartera (`conf × inverse-vol`), rebalanceado a diario.
+> Hoy el motor es *winner-takes-all* (una sola apuesta). Ver `docs/DESIGN_portfolio_allocator.md`.
 
 ---
 
@@ -114,9 +120,10 @@ Ver `CLAUDE.md` para la referencia completa.
 
 Ninguna orden se ejecuta sin pasar por el Risk agent:
 
-- **Kelly fraccional 0.25×** — sizing basado en confianza del PM y volatilidad actual
+- **Kelly fraccional** — sizing basado en confianza del PM y volatilidad actual (0.10 calibrado)
 - **VaR pre-trade** — rechaza si pérdida 2σ excede el límite diario
 - **Correlación** — rechaza si corr > 0.7 con posiciones abiertas
+- **Short ultra-conservador** — solo si `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10%** del budget; futuros-only en real; **OFF por default en live** (diseño, ver `docs/DESIGN_portfolio_allocator.md`)
 - **Kill switch** — cierra todo en < 5 segundos vía `/execution:kill`
 - **Keys sin retiro** — las API keys de exchange nunca tienen permiso de withdrawal
 
@@ -178,10 +185,13 @@ hermes/
 |-----------|---------|----------------------|
 | GCP infra | $10 USD | — |
 | LLM tokens | $40 USD | $150 USD |
-| **Total** | **$50 USD** | — |
+| **Total operativo** | **$50 USD** | — |
 
 El dashboard muestra `$$ gastado / $$ restante` en tiempo real.
 Al alcanzar el cap de LLM, las corridas se pausan automáticamente.
+
+> **Capital de trading** (bolsillo distinto del operativo): **$1 imaginario** en paper local,
+> **$50 reales** en cloud al despegar. Ver `docs/DESIGN_portfolio_allocator.md`.
 
 ---
 

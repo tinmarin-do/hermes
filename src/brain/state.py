@@ -20,7 +20,12 @@ class HermesState(TypedDict):
     regime_summary: str
 
     # Quant core (§8.7.2) — deterministic direction + sizing BEFORE LLM verification
-    quant_signal: dict  # {direction, confidence, size_usd, rationale}
+    quant_signal: dict  # {direction, confidence, size_usd, rationale} — best single (lead thesis)
+    quant_signals: list[dict]  # per-symbol signals for the portfolio allocator (§8.8)
+
+    # Portfolio allocator (§8.8) — deterministic budget split across symbols
+    current_positions: list[dict]  # open book injected by the runner BEFORE the graph
+    allocations: list[dict]  # target legs {symbol, target_weight, target_usd, action, size_usd}
 
     # Analyst reports (one per symbol) — written by parallel analyst nodes,
     # so it needs an additive reducer to merge concurrent branches.

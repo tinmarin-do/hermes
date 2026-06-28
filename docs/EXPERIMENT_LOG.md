@@ -1,0 +1,234 @@
+# Experiment Log — Hermes (registro honesto de qué funciona y qué no)
+
+> Bitácora de laboratorio. Cada experimento se anota con **hipótesis, setup, resultado OOS y
+> conclusión** — incluidos (sobre todo) los resultados negativos. Esto es el mapa de **dónde NO
+> ir**, y la cuenta de configuraciones probadas alimenta el **Deflated Sharpe** (anti data-snooping).
+> Filosofía (README): el éxito es el proceso riguroso + la transparencia, reportar pérdidas incluido.
+
+---
+
+## Protocolo de iteración disciplinada (no negociable)
+
+Para no caer en el data-snooping que el DSR castiga:
+
+1. **Holdout final reservado — INTOCABLE.** `2025-06-28 → 2026-06-28` (últimos 12 meses) **NO se usa
+   en NINGUNA iteración**. Toda exploración/walk-forward corre solo sobre `2021-01-01 → 2025-06-28`
+   (~4.5 años). El holdout se toca **UNA sola vez**, al final, para validar el candidato ganador.
+2. **Una variable por experimento.** Cambiar label, o features, o horizonte — nunca todo junto.
+3. **Contar TODOS los intentos.** Cada fila de abajo suma a `n_trials` del DSR. Reportar siempre PSR(0)
+   y DSR; un PSR alto con DSR bajo = overfitting por selección.
+4. **Métrica de corte a priori.** Un candidato "pasa" solo si PSR(0) > 0.95 **y** DSR > 0.90 en
+   walk-forward de iteración — y recién entonces se valida en el holdout.
+5. **No tunear umbrales para subir el número.** Los umbrales (`P≤0.25/0.65`, Kelly, cap short) se
+   fijan por diseño, no por búsqueda sobre el test.
+
+---
+
+## Experimento 0 — BASELINE (núcleo cuant LightGBM + allocator §8.8)
+
+**Fecha:** 2026-06-28 · **Estado:** ❌ **SIN edge demostrable** (línea base de referencia).
+
+**Hipótesis:** un LightGBM sobre features de régimen (Hurst, GARCH, spread, momentum) predice
+`P(forward_return_7d > 0)` con edge suficiente para que el allocator genere retorno ajustado por riesgo.
+
+**Setup:** purged + embargoed walk-forward (purge 500h, embargo 168h, horizonte 168h=7d).
+5 majors (BTC/ETH/SOL/BNB/AVAX). Backtest de portafolio semanal no-solapado, budget $1,
+`global_mult=1.0` (sin freno LLM — no backtesteable barato). PSR/DSR Bailey-López de Prado.
+
+**Resultado — la historia corta MINTIÓ:**
+
+| Métrica | 2.5 años (2024–26) | **5.5 años (2021–26)** |
+|---|---|---|
+| Señales OOS | 1492 | 3250 |
+| BUY win rate | 56.4% (n=179) | **46.8%** (n=263) |
+| Trade win dir-aware | 53.9% | **46.8%** |
+| SELL disparos OOS | 12 | **0** |
+| Backtest períodos | 21 | 41 |
+| Retorno total | −2.35% | **−37.0%** |
+| Sharpe anual | 0.33 | **0.011** |
+| **PSR(0)** | 0.58 | **0.504** |
+| **DSR (8 configs)** | 0.11 | 0.074 |
+| Max drawdown | −48% | **−74.8%** |
+
+**Conclusión / DÓNDE NO IR:**
+1. **No confiar en ventanas cortas.** 2024–26 fue alcista; el sesgo largo del modelo "acertaba" por
+   inercia de mercado, no por skill. Sumar 2021–22 (bear de 2022) derrumbó el win rate a <50%.
+2. **`P(fwd_7d > 0)` con label binario crudo no tiene alpha** sobre un ciclo completo. PSR(0)=0.504 = moneda.
+3. **El modelo tiene sesgo largo** y no aprende a anticipar caídas (los shorts ni disparan).
+4. **El umbral de short `P≤0.25` es tan estricto que nunca se activa** (n=0 en 5.5 años) → política
+   de short *dormida*, no validada. No perdió, pero tampoco aporta.
+5. **El framework de medición (walk-forward purgado + PSR/DSR + holdout) SÍ funciona** — cazó el
+   falso positivo antes de cualquier deploy. Eso se conserva; lo que se itera es el *modelo*.
+
+---
+
+## Experimento H5 — Control momentum no-ML (la vara)
+
+**Fecha:** 2026-06-28 · **Estado:** 🟢 **el momentum DEMUELE al LightGBM** (resultado fuerte, a estresar).
+
+**Hipótesis:** una regla trivial (largo si retorno-30d > 0, corto si < 0) por el **mismo allocator**
+iguala o supera al LightGBM. Si lo supera, el ML no aporta edge.
+
+**Setup:** `run_momentum_backtest`, lookback 720h=30d (fijo a priori, no tuneado), mismo allocator +
+cap short 10% + horizonte fwd 7d, ventana de iteración `<2025-06-28`, 1 trial.
+
+| Métrica | LightGBM (baseline) | **Momentum (H5)** |
+|---|---|---|
+| Períodos | 41 (silencioso) | **230** (opera casi siempre) |
+| Retorno total | −37.0% | **+2131%** |
+| Sharpe anual | 0.011 | **1.50** |
+| **PSR(0)** | 0.504 | **0.9999** |
+| **DSR** | 0.074 | **0.9999** (n_trials=1) |
+| Max drawdown | −74.8% | **−36.9%** |
+| Skew | −0.47 | **+1.76** (cola derecha) |
+
+**Conclusión:** el **LightGBM no solo no aporta — es PEOR que una regla de una línea.** El momentum,
+al flipear a corto/cash en downtrends, evita el bear de 2022 y cabalga los bulls → Sharpe 1.5, skew
+positivo, menos drawdown. **El alpha (en este universo/era) está en trend-following, no en el ML direccional.**
+
+⚠️ **A ESTRESAR antes de creérselo (Sharpe 1.5 es sospechosamente bueno):**
+1. **Sin costos de transacción** — el rebalanceo semanal tiene turnover; con fees baja.
+2. **Survivorship bias** — los 5 majors son sobrevivientes conocidos (SOL/AVAX explotaron). Sesga el momentum al alza.
+3. **Era excepcionalmente trendy** — 2021-2025 fue la época dorada del momentum cripto. El **holdout 2025-06→2026-06 (intocado)** es el juez real.
+4. Kurtosis 10.8 → colas gordas; el retorno depende de pocos movimientos grandes.
+
+**Implicación para el plan:** H4 (rescatar el LightGBM con features de downside) y H1 (relabel) pierden
+prioridad — no tiene sentido invertir en un modelo que pierde contra un one-liner. El pivote racional es
+**estresar + endurecer el momentum**, no arreglar el ML. (Confirmado por Erika → pivote a estresar.)
+
+### H5-stress — el globo se pincha (foto sobria)
+
+| Test | Resultado | Lectura |
+|---|---|---|
+| **Costos** (fee/side 0→0.2%) | Sharpe 1.50→**1.40** (10bps), 1.30 (20bps) | ✅ **sobrevive a fees** (poco turnover, holdea tendencias) |
+| **Sensib. lookback** (14d/30d/60d) | Sharpe **0.63 / 1.40 / 0.64** | 🔴 **bandera roja:** el 30d es un pico; los vecinos son mediocres → el 1.40 es en parte *suerte de parámetro* |
+| **Por año** | 2021 **+805%** · 2022 **−27%** · 2023 +149% · 2024 +7.5% · 2025 −1.7% | 🔴 **front-loaded por 2021**; 2022 fue PÉRDIDA (el cap short no protege el bear); **2024-25 planos** |
+| **Equity** | 1→9.05→6.59→16.4→17.7→**17.4** | el edge **decae**: casi todo fue 2021+2023; 2024-25 chato |
+
+**Conclusión honesta:** el momentum tiene un edge **real pero modesto y decreciente**, NO el slam-dunk del
+número crudo. El Sharpe robusto (descontando suerte de lookback) es ~0.6-0.7, **dominado por la alt-season
+2021**, plano desde 2024. **No protege en bear** (2022 perdió −27%). Mi hipótesis previa ("flipea a corto
+y gana en el bear") era FALSA — el cap short 10% lo impide.
+
+**Dónde NO ir (actualizado):**
+6. **No confiar en el Sharpe crudo de una sola config** — el stress (lookback, por-año, costos) es obligatorio.
+7. **El edge de momentum cripto decae** post-2021; un número alto puede ser una era irrepetible.
+8. **El cap short 10% deja sin protección de bear** — revisar si se quiere capturar downside de verdad.
+
+**Próximo:** el holdout 2025-06→26 (intocado) es el juez final. Dado que 2024-25 ya vienen planos, se espera
+poco edge vivo — pero validarlo es el cierre riguroso. (Decisión: ¿gastar el holdout ahora?)
+
+---
+
+## Experimento H6 — Momentum multi-escala (voto 7/14/30/90d), regla sin ML
+
+**Fecha:** 2026-06-28 · **Estado:** 🟡 robusto pero **NO supera al single-30d; el decaimiento persiste**.
+
+**Hipótesis:** votar el signo del momentum en 4 escalas (7/14/30/90d) es más robusto que una sola
+ventana (el single-30d era suerte de parámetro: 14d→0.63, 60d→0.64). Perf 7d, mismo allocator, `<2025-06-28`.
+
+| Estrategia (fee 0.1%/lado) | Sharpe | PSR | ret | maxDD | skew | win |
+|---|---|---|---|---|---|---|
+| **multi-escala 7/14/30/90** | **1.20** | 0.999 | +987% | −44% | +2.16 | 0.49 |
+| single-30d (ref) | 1.40 | 1.000 | +1635% | −39% | +1.75 | 0.53 |
+
+**Por año (multi-escala vs single):**
+| Año | single-30d | multi-escala |
+|---|---|---|
+| 2021 | +805% | +642% |
+| 2022 | −27% | −21.7% |
+| 2023 | +149% | +81% |
+| 2024 | +7.5% | **+23.6%** |
+| 2025 | −1.7% | **−16.3%** (win 0.28) |
+
+**Conclusión:** multi-escala compra **robustez** (no depende de un lookback con suerte) a costa de
+**performance** (Sharpe 1.20 < 1.40). PERO **el problema de fondo NO se resolvió**: ambas siguen
+front-loaded por 2021, pierden en 2022, y **decaen** — 2025 es negativo para las dos (peor para multi-escala,
+−16%, win 0.28). Reshufflear la ventana de momentum no arregla el decaimiento; **el edge de momentum
+cripto es un fenómeno 2021-2023 que se está yendo del mercado.**
+
+**Dónde NO ir (actualizado):**
+9. **El decaimiento no es problema de lookback** — single vs multi-escala da igual; el edge se está agotando.
+10. **Ninguna regla de momentum condiciona por RÉGIMEN** — la única palanca sin probar: ¿cash en mean-reverting?
+
+---
+
+## Experimento H7 — Logística regime-conditioned (mom 7/14/30/90 + hurst/garch)
+
+**Fecha:** 2026-06-28 · **Estado:** ❌ **DESCARTADA** por criterio de muerte a priori (no se la ganó).
+
+**Hipótesis:** una logística que condicione el momentum por régimen ("confiá si trendea, cash si
+revierte") frena el decaimiento 2024-25. Walk-forward purgado, una logística por punto, perf 7d, `<2025-06-28`.
+
+**Criterio de muerte (fijado ANTES de correr):** gana solo si Sharpe>1.20 **Y** mejora 2024 **Y** 2025 **Y** PSR>0.95 ∧ DSR>0.90.
+
+| | logística | regla multi-escala (vara) |
+|---|---|---|
+| Sharpe | **0.43** ❌ | 1.20 |
+| PSR / DSR | 0.775 / **0.223** ❌ | 0.999 / 0.893 |
+| 2024 | **−52.4%** 💥 | +23.6% |
+| 2025 | +4.9% ✅ | −16.3% |
+| 2022 | −9.9% ✅ | −21.7% |
+
+**Resultado:** **se descarta** (falla las 3 condiciones). Matiz honesto: el regime-conditioning **tuvo un
+kernel de mérito** — mejoró 2022 y 2025 (los años choppy/bear). Pero **explotó en 2024 (−52%)**, un año que
+la regla ganó +24%: el modelo hizo llamadas de régimen catastróficamente erradas. Net: Sharpe 0.43 << 1.20.
+
+**Dónde NO ir (actualizado):**
+11. **El ML pierde otra vez contra la regla** (logística Sharpe 0.43 vs regla 1.20) — 3er modelo que no aporta.
+    En este problema, la **regla simple gana**; el ML solo agrega varianza.
+12. **Regime-conditioning vía clasificación binaria no funciona** — ayuda en bear pero rompe en bull (2024).
+
+**CONCLUSIÓN DEL ARCO H5→H7:** el mejor candidato es la **regla de momentum multi-escala** (Sharpe 1.20,
+PSR 0.999, robusta al lookback). El ML está descartado (3 intentos). El edge es **real pero decreciente**
+(2024-25 flojos), front-loaded por 2021, sin protección de bear. Candidato listo para el holdout.
+
+---
+
+## VEREDICTO FINAL — Holdout 2025-06-28 → 2026 (data 100% nunca vista, 1 sola bala)
+
+**Fecha:** 2026-06-28 · Candidato: **regla momentum multi-escala** (la única que sobrevivió el arco).
+
+| | Candidato (multi-escala) | Benchmark (buy&hold equal-weight) |
+|---|---|---|
+| n (semanas) | 51 | 51 |
+| Retorno total | **+2.2%** | **−40.4%** |
+| Sharpe anual | **0.22** | −0.74 |
+| PSR(0) / DSR | 0.585 / 0.106 | 0.232 / — |
+| Max drawdown | **−27%** | −63% |
+
+**El holdout fue un CRASH de cripto** (el mercado perdió −40% con −63% de drawdown). Veredicto de dos caras:
+
+1. **❌ Sin edge ABSOLUTO significativo.** Sharpe 0.22, **PSR(0) 0.585** (casi moneda), DSR 0.106. Como
+   predijimos (2024-25 venían planos), **no podemos afirmar con confianza estadística que genere retorno.**
+   El +2.2% podría ser ruido.
+2. **✅ Valor DEFENSIVO real y grande.** En un año que el mercado se desplomó −40%, el candidato quedó
+   **plano (+2%) con la MITAD del drawdown** (−27% vs −63%). Sidesteppeó el crash. Sharpe 0.22 vs −0.74 del mercado.
+
+**Conclusión honesta (cierre del arco):** la regla de momentum **no es una máquina de alpha** — su retorno
+absoluto no es estadísticamente distinguible de cero. PERO se comporta como un **overlay defensivo / "crisis
+alpha"**: preserva capital en bear markets, que es la propiedad clásica y documentada del time-series momentum
+(estrategia convexa). Validado out-of-sample en un crash real.
+
+**Qué dejó el proyecto (todo honesto y medido):**
+- El **ML no aporta** en este problema (3 modelos, 3 derrotas vs regla simple).
+- El **framework de medición** (walk-forward purgado + PSR/DSR + holdout reservado) **funciona** — cazó 1 falso
+  positivo (LightGBM baseline) y dimensionó honestamente el momentum (espejismo de Sharpe 1.5 → realidad defensiva).
+- El candidato desplegable es **defensivo, no ofensivo**: úsese como protección de drawdown, no como generador de retorno.
+
+**Dónde NO ir (final):**
+13. **No vender el momentum como alpha** — su valor probado es defensivo (downside protection), no retorno absoluto.
+
+> Cada una se corre solo sobre datos de iteración (< 2025-06-28), cuenta para `n_trials`, y se anota acá.
+
+- **H1 — Label triple-barrier / meta-labeling (López de Prado):** reemplazar `fwd>0` binario por
+  barreras (TP/SL/tiempo) ajustadas por volatilidad. Hipótesis: el label binario crudo es ruido; un
+  label que respeta riesgo/horizonte tiene más señal. *(candidato #1 — el problema más probable es el label)*
+- **H2 — Horizonte:** probar 24h / 72h en vez de 7d (el 7d fijo puede no matchear los regímenes).
+- **H3 — Modelos condicionados por régimen:** un modelo por régimen en vez de uno global.
+- **H4 — Features de downside:** agregar señales que capten caídas (drawdown rolling, asimetría) para
+  romper el sesgo largo.
+- **H5 — Enfoque no-ML de control:** trend-following / momentum puro como baseline honesto — si le gana
+  al LightGBM, el ML no estaba aportando.
+
+**Próximo:** definir con Erika cuál arrancar (recomendado: H1).

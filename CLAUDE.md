@@ -14,6 +14,21 @@ en GCP con Terraform. **Proyecto experimental y educativo — no asesoría finan
 
 Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defecto: `local`.
 
+## Portafolio y budget de trading (diseño 2026-06-28 — pendiente de implementar)
+
+Hermes reparte un **budget de trading** entre los 6 símbolos permitidos como **cartera**
+(no una sola apuesta), **rebalanceado a diario**. Es un bolsillo **distinto** de los caps
+operativos (GCP + LLM) de la sección Presupuestos.
+
+| Entorno | Capital de trading | Naturaleza |
+|---------|--------------------|------------|
+| `local` / paper | **$1 imaginario** | Sandbox; día 0 arranca con $1 en cash. |
+| `cloud` / real | **$50 USD reales** | Testnet primero; live solo con guardrails (regla #4). |
+
+- **Pesos:** `conf × inverse-vol`, normalizados al budget. El delta vs el libro actual define buy/sell/hold.
+- **Short:** ultra-conservador (`P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10%**). Futuros-only en real, simulado en paper, **OFF por default en live** (regla #8).
+- **Estado:** *winner-takes-all* hoy en código; el allocator + short son **diseño aprobado, sin implementar**. Fuente de verdad: `docs/DESIGN_portfolio_allocator.md` y §8.8 del PRD.
+
 ## Reglas críticas (no negociables)
 
 1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`.
@@ -23,6 +38,7 @@ Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defect
 5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`.
 6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00.
 7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`.
+8. **NUNCA** habilitar short en live sin opt-in explícito tras calibrar (`/brain:calibrate-risk`). Short real requiere venue de **futuros** (spot no puede); en paper se **simula**. Live arranca **long-only**. Ver §8.8 del PRD y `docs/DESIGN_portfolio_allocator.md`.
 
 ## Skills disponibles
 

@@ -7,6 +7,7 @@ import os
 
 from langgraph.graph import END, START, StateGraph
 
+from src.brain.agents.allocator import allocator_node
 from src.brain.agents.analyst import make_analyst
 from src.brain.agents.pm import portfolio_manager
 from src.brain.agents.quant import quant_core_node
@@ -47,6 +48,7 @@ def build_graph(symbols: list[str] | None = None) -> StateGraph:
 
     g.add_node("risk_facilitator", risk_facilitator)
     g.add_node("portfolio_manager", portfolio_manager)
+    g.add_node("allocator", allocator_node)
 
     # ── Edges ─────────────────────────────────────────────────────────────────
     # START → regime → quant_core (§8.7.2: cuant DETERMINISTA antes que LLM)
@@ -80,7 +82,9 @@ def build_graph(symbols: list[str] | None = None) -> StateGraph:
         g.add_edge(f"risk_{perspective}", "risk_facilitator")
 
     g.add_edge("risk_facilitator", "portfolio_manager")
-    g.add_edge("portfolio_manager", END)
+    # PM (lead-thesis brake) → allocator (deterministic portfolio split, §8.8) → END
+    g.add_edge("portfolio_manager", "allocator")
+    g.add_edge("allocator", END)
 
     return g.compile()
 
