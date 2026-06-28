@@ -25,8 +25,18 @@ Ejemplo:
 
 5. Append la nueva fila a la tabla del ledger con todos los campos correctos.
 
-6. Confirmar: `✅ cost:log — entrada registrada en <ledger>`.
+6. Solo para `llm`: si la descripción contiene `run_id <id>`, flipear el flag de DuckDB
+   para que `/cost:status` deje de marcar la corrida como sin registrar:
+   ```bash
+   uv run python -m src.brain.cost_meter --mark-logged <id>
+   ```
+   (acepta el id completo o el prefijo corto de 8 chars del ledger). Si no hay `run_id`
+   en la descripción, omitir este paso.
+
+7. Confirmar: `✅ cost:log — entrada registrada en <ledger>`.
 
 ## Notas
 - No preguntar confirmación — ya fue dada en `cost:gate`.
 - Si el ledger no existe, reportar error y NO crear — indica problema de configuración.
+- El markdown es la fuente de verdad del presupuesto; el flag DuckDB (`logged_to_ledger`)
+  es solo para la auditoría de `/cost:status`. El paso 6 mantiene ambos en sync.
