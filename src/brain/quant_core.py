@@ -178,17 +178,20 @@ class QuantCore:
         if len(signals) < 10:
             raise ValueError(f"Need at least 10 signals for walk-forward, got {len(signals)}")
 
-        from src.data.gold.aggregate import get_forward_return
-
         signals_sorted = sorted(signals, key=lambda s: s.get("ts", ""))
         results: list[PurpleWalkForwardResult] = []
+
+        # Forward return for a (symbol, ts) is fold-invariant — precompute ONCE
+        # for all points instead of rebuilding labels per test point (was O(n²)
+        # DB queries; now O(n)).
+        labels = self._build_labels(signals_sorted, symbols, timeframe)
 
         for i in range(10, len(signals_sorted)):
             test_sig = signals_sorted[i]
             test_ts_str = test_sig.get("ts", "")
             test_ts = datetime.fromisoformat(test_ts_str.replace("Z", "+00:00"))
 
-            fwd_ret = get_forward_return(test_sig["symbol"], timeframe, test_ts, FORWARD_PERIODS)
+            fwd_ret = labels.get((test_sig["symbol"], test_ts))
             if fwd_ret is None:
                 continue
 
@@ -204,7 +207,6 @@ class QuantCore:
             if len(train_signals) < 10:
                 continue
 
-            labels = self._build_labels(train_signals, symbols, timeframe)
             X_train, y_train, _ = self._build_matrix(train_signals, labels)
             if len(X_train) < 10:
                 continue
