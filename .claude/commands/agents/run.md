@@ -45,5 +45,5 @@ en `src.brain.runner` — TODO si se quiere simular sin invocar modelos.
    ```
 
 ## Notas
-- En `HERMES_MODE=local`, usa Ollama — más lento pero $0 de costo.
+- En `HERMES_MODE=local`, usa DeepSeek V4 Flash via API.
 - El `run_id` es necesario para `/agents:debug`.

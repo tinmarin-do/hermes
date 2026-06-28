@@ -147,7 +147,7 @@ Agents detect the active mode from environment or context:
 | Variable | Local mode | Cloud mode |
 |----------|-----------|------------|
 | `HERMES_MODE` | `local` | `cloud` |
-| LLM endpoint | `http://localhost:11434` (Ollama) | API key from Secret Manager |
+| LLM endpoint | API key from Secret Manager | API key from Secret Manager |
 | Database | DuckDB file at `data/hermes.duckdb` | Cloud SQL connection string |
 | Exchange | Paper adapter | Binance testnet/live |
 

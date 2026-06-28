@@ -1,7 +1,7 @@
 # execution:backtest — Backtest sobre histórico para UNA estrategia
 
 Corre el pipeline completo de decisión sobre datos históricos Silver/Gold y simula
-ejecución con slippage realista. No consume LLM en cloud — usa respuestas mock o Ollama local.
+ejecución con slippage realista. No consume LLM en cloud — usa respuestas mock.
 
 ## Parámetros
 `$ARGUMENTS` — formato: `<símbolo> <timeframe> <desde> <hasta>`

@@ -1,16 +1,18 @@
 """Risk team calibration — quantitative backtest + LLM validation.
 
-Phase 1: Quantitative backtest (260 weekly points, no LLM, ~2 min)
-  - Simulates heuristic trading signals from gold features
+Phase 1: Quantitative backtest (126 weekly points, no LLM, ~11s heuristic / ~30s LightGBM)
+  - Simulates trading signals from gold features (heuristic or LightGBM QuantCore)
   - Applies risk guardrails (Kelly, VaR) — purely numeric
   - Evaluates forward outcomes to find optimal guardrail params
 
-Phase 2: LLM validation (top 20 volatile dates, full pipeline, ~30 min)
+Phase 2: LLM validation (top 20 volatile dates, full pipeline, ~9 min)
   - Runs the complete LangGraph pipeline on historical dates
-  - Compares LLM-decided risk vs heuristic risk vs actual outcome
+  - Compares LLM-decided risk vs heuristic/model risk vs actual outcome
 
 Usage:
-  python -m src.brain.calibrate                        # full run
+  python -m src.brain.calibrate                        # full run (heuristic)
+  python -m src.brain.calibrate --model data/models/quant_core_lgbm.pkl  # use trained LightGBM
+  python -m src.brain.calibrate --train-model           # train LightGBM first, then calibrate
   python -m src.brain.calibrate --skip-llm             # quant only
   python -m src.brain.calibrate --concurrency 3        # more parallel LLM
 """
@@ -18,21 +20,27 @@ Usage:
 from __future__ import annotations
 
 import asyncio
-import json
 import math
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 import numpy as np
 import pandas as pd
 
 from src.brain.news_verify import apply_news_modifier
-from src.data.db import get_connection
 from src.data.gold.aggregate import aggregate_at, get_available_period, get_forward_return
+
+# LightGBM quant core — replace heuristic when model is available (§8.7.2)
+QUANT_CORE_AVAILABLE = False
+try:
+    from src.brain.quant_core import QuantCore  # noqa: F401
+    QUANT_CORE_AVAILABLE = True
+except ImportError:
+    pass
 
 REPORT_PATH = Path("docs/calibration_report.md")
 
@@ -195,14 +203,21 @@ def _generate_weekly_timestamps(
     end = latest.replace(minute=0, second=0, microsecond=0) - timedelta(days=7)
 
     stamps = pd.date_range(start=start, end=end, freq="W-MON")
-    return [d.to_pydatetime().replace(tzinfo=timezone.utc) for d in stamps if d.to_pydatetime() >= start]
+    return [d.to_pydatetime().replace(tzinfo=UTC) for d in stamps if d.to_pydatetime() >= start]
 
 
-def _run_point(signal: dict, kelly_frac: float, loss_limit: float) -> BacktestPoint | None:
-    action, conf = _heuristic_signal(signal)
+def _run_point(signal: dict, kelly_frac: float, loss_limit: float,
+               quant_core: QuantCore | None = None) -> BacktestPoint | None:
+    if quant_core is not None:
+        qs = quant_core.predict(signal, kelly_fraction=kelly_frac)
+        action = qs.direction
+        conf = qs.confidence
+    else:
+        action, conf = _heuristic_signal(signal)
+
     symbol = signal["symbol"]
     ts_str = signal.get("ts", "")
-    ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")) if ts_str else datetime.now(timezone.utc)
+    ts = datetime.fromisoformat(ts_str.replace("Z", "+00:00")) if ts_str else datetime.now(UTC)
 
     if action == "HOLD":
         return None
@@ -292,17 +307,30 @@ def _compute_metrics(points: list[BacktestPoint], kelly_frac: float,
 def quantitative_backtest(
     symbols: list[str] | None = None,
     timeframe: str = "1h",
+    model_path: str | None = None,
 ) -> dict:
-    """Phase 1: Quantitative backtest. Returns results dict with metrics."""
+    """Phase 1: Quantitative backtest. Uses LightGBM QuantCore if model_path provided.
+
+    Returns results dict with metrics.
+    """
     if symbols is None:
         raw = os.environ.get("HERMES_ALLOWED_SYMBOLS", "BTC/USDT,ETH/USDT")
         symbols = [s.strip() for s in raw.split(",")]
+
+    core: QuantCore | None = None
+    signal_source = "heuristic"
+    if model_path and QUANT_CORE_AVAILABLE:
+        core = QuantCore.load(Path(model_path))
+        signal_source = f"LightGBM ({model_path})"
+    elif model_path and not QUANT_CORE_AVAILABLE:
+        print("[calibrate:quant] WARNING: quant_core unavailable, falling back to heuristic")
 
     stamps = _generate_weekly_timestamps(symbols, timeframe)
     if stamps is None or len(stamps) == 0:
         raise RuntimeError("No data available for backtest")
 
-    print(f"[calibrate:quant] {len(stamps)} weekly points over {len(symbols)} symbols")
+    print(f"[calibrate:quant] {len(stamps)} weekly points over {len(symbols)} symbols  "
+          f"| source: {signal_source}")
     print(f"[calibrate:quant] grid: Kelly {GRID_KELLY} × loss_limit {GRID_LOSS_LIMIT}"
           f" = {len(GRID_KELLY) * len(GRID_LOSS_LIMIT)} combinations")
 
@@ -312,7 +340,7 @@ def quantitative_backtest(
             print(f"  fetching signals at {ts:%Y-%m-%d} ({i + 1}/{len(stamps)})", flush=True)
         signals = aggregate_at(symbols, timeframe, ts)
         for sig in signals:
-            point = _run_point(sig, 0.25, 0.02)  # baseline
+            point = _run_point(sig, 0.25, 0.02, quant_core=core)
             if point is not None:
                 all_points.append(point)
 
@@ -482,7 +510,7 @@ def llm_validation(
                 print(f"    verdict={result.get('verdict')} risk={result.get('risk_approved')} "
                       f"({elapsed:.0f}s)", flush=True)
             else:
-                print(f"    no signals available", flush=True)
+                print("    no signals available", flush=True)
             return result
 
     async def _run_all() -> list[dict]:
@@ -504,7 +532,7 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
     lines = [
         "# Risk Team Calibration Report",
         "",
-        f"**Generated:** {datetime.now(timezone.utc):%Y-%m-%d %H:%M} UTC",
+        f"**Generated:** {datetime.now(UTC):%Y-%m-%d %H:%M} UTC",
         "",
         "## Phase 1 — Quantitative Backtest",
         "",
@@ -514,15 +542,15 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
         "",
         "### Optimal Guardrails",
         "",
-        f"| Parameter | Value |",
-        f"|---|---|",
+        "| Parameter | Value |",
+        "|---|---|",
         f"| `HERMES_KELLY_FRACTION` | **{params.get('kelly_fraction', 0.25)}** |",
         f"| `HERMES_DAILY_LOSS_LIMIT_PCT` | **{params.get('daily_loss_limit_pct', 0.02)}** |",
         "",
         "### Performance Metrics (at optimum)",
         "",
-        f"| Metric | Value |",
-        f"|---|---|",
+        "| Metric | Value |",
+        "|---|---|",
         f"| Precision | {best.get('precision', 0):.1%} |",
         f"| Recall | {best.get('recall', 0):.1%} |",
         f"| F1 Score | {best.get('f1', 0):.1%} |",
@@ -589,14 +617,23 @@ def run_calibration(
     llm_concurrency: int = 2,
     debate_rounds: int = 1,
     skip_llm: bool = False,
+    model_path: str | None = None,
+    train_model: bool = False,
 ) -> dict:
     """Run full risk calibration — quant backtest + optional LLM validation."""
     t0 = time.time()
 
+    if train_model and QUANT_CORE_AVAILABLE:
+        print("[calibrate] training LightGBM QuantCore ...")
+        from src.brain.quant_core import train_and_save
+        train_and_save(symbols, timeframe)
+        if model_path is None:
+            model_path = str(Path("data/models/quant_core_lgbm.pkl"))
+
     print("=" * 60)
     print("PHASE 1: Quantitative Backtest")
     print("=" * 60)
-    quant_result = quantitative_backtest(symbols, timeframe)
+    quant_result = quantitative_backtest(symbols, timeframe, model_path=model_path)
     t1 = time.time()
     print(f"[calibrate] Phase 1 done in {t1 - t0:.0f}s")
 
@@ -613,7 +650,7 @@ def run_calibration(
         t2 = time.time()
         print(f"[calibrate] Phase 2 done in {t2 - t1:.0f}s")
 
-    report = generate_report(quant_result, llm_results)
+    generate_report(quant_result, llm_results)
     total = time.time() - t0
     print(f"[calibrate] Total: {total:.0f}s — report: {REPORT_PATH}")
 
@@ -632,6 +669,10 @@ if __name__ == "__main__":
                         help="max concurrent LLM pipelines (default: 2)")
     parser.add_argument("--debate-rounds", type=int, default=1,
                         help="debate rounds for LLM validation (default: 1)")
+    parser.add_argument("--model", default=None,
+                        help="path to trained LightGBM model (replaces heuristic)")
+    parser.add_argument("--train-model", action="store_true",
+                        help="train LightGBM QuantCore before calibration")
     args = parser.parse_args()
 
     symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None
@@ -641,4 +682,6 @@ if __name__ == "__main__":
         llm_concurrency=args.concurrency,
         debate_rounds=args.debate_rounds,
         skip_llm=args.skip_llm,
+        model_path=args.model,
+        train_model=args.train_model,
     )

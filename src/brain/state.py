@@ -1,8 +1,9 @@
 """Global agent state — single source of truth across all nodes."""
 import operator
-from typing import Annotated, Any
-from typing_extensions import TypedDict
+from typing import Annotated
+
 from langgraph.graph.message import add_messages
+from typing_extensions import TypedDict
 
 
 class HermesState(TypedDict):
@@ -17,6 +18,9 @@ class HermesState(TypedDict):
     # Regime classification
     regime_summary: str
 
+    # Quant core (§8.7.2) — deterministic direction + sizing BEFORE LLM verification
+    quant_signal: dict                # {direction, confidence, size_usd, rationale}
+
     # Analyst reports (one per symbol) — written by parallel analyst nodes,
     # so it needs an additive reducer to merge concurrent branches.
     analyst_reports: Annotated[list[dict], operator.add]
@@ -29,8 +33,8 @@ class HermesState(TypedDict):
     debate_verdict: str               # "BUY" | "SELL" | "HOLD"
     debate_confidence: float
 
-    # Trader decision
-    trader_decision: dict             # {action, symbol, rationale}
+    # Trader — synthesizes quant_signal + debate → clamped decision
+    trader_decision: dict             # {action, symbol, size_usd, rationale}
 
     # Risk team (3 perspectives) — written by parallel risk nodes, additive reducer.
     risk_reports: Annotated[list[dict], operator.add]

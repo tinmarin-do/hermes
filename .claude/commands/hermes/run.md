@@ -6,7 +6,7 @@ en el orden correcto y detenerse en el primero que falle.
 ## Parámetros
 `$ARGUMENTS`:
 - vacío → corrida estándar (paper/testnet según EXCHANGE_MODE)
-- `--local` → fuerza HERMES_MODE=local (Ollama + DuckDB + paper)
+- `--local` → fuerza HERMES_MODE=local (DeepSeek API + DuckDB + paper)
 - `--dry-run` → ejecuta todo hasta agents:run pero sin orden
 
 ## Flujo

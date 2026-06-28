@@ -155,7 +155,7 @@ Notación: **P0** = imprescindible para el MVP · **P1** = mejora fuerte · **P2
 1. **Corridas programadas** (Cloud Scheduler), no por visitante → genera decisiones reales y alimenta el track record. Costo acotado y predecible.
 2. **La demo pública lee del historial guardado** → instantánea, siempre poblada, costo por visitante = 0.
 3. **Botón "correr ahora"** opcional y *rate-limited* para disparar una corrida en vivo durante una entrevista, sin exponerse a costos infinitos.
-4. **Modelos hosted** por calidad y cero riesgo de infra en el sprint. *Local (Ollama) en Odysseus queda soportado pero opcional* — un flex de MLOps documentado, fuera de la ruta crítica.
+4. **Modelos hosted** por calidad y cero riesgo de infra en el sprint — DeepSeek V4 Flash unificado para todos los roles.
 
 **Principio de diseño — agnóstico al activo.** Tanto datos como ejecución viven detrás de una interfaz (`MarketDataSource`, `ExecutionAdapter`). Cambiar `ccxt` por Alpaca (acciones) = implementar el adapter, sin tocar el cerebro. Esto **es** parte del showcase de ingeniería.
 
@@ -169,7 +169,7 @@ Notación: **P0** = imprescindible para el MVP · **P1** = mejora fuerte · **P2
 |---|---|
 | Lenguaje | Python |
 | Cerebro agéntico | TradingAgents (Apache-2.0) sobre LangGraph |
-| LLMs | API hosted (config por rol); Ollama/OpenAI-compatible como opción local |
+| LLMs | DeepSeek V4 Flash (API hosted, unificado para todos los roles) |
 | Datos / ejecución cripto | `ccxt` |
 | Backend | FastAPI |
 | Persistencia | Cloud SQL (Postgres) — alternativa: BigQuery para analítica |
@@ -402,7 +402,7 @@ Estimación con DeepSeek V3 (`deepseek-chat`, junio 2026) — cloud mode unifica
 ## 12. Roadmap / trabajo futuro
 - **Portar dashboard a Odysseus UI:** convertir Hermes en agente nativo dentro del workspace Odysseus (post-MVP).
 - **Acciones vía Alpaca** (paga el dividendo del diseño agnóstico al activo).
-- **Serving local** de modelos en Odysseus (Ollama) como modo de bajo costo.
+- **Serving local** de modelos hosted en Odysseus como modo de bajo costo.
 - Más agentes / estrategias múltiples / memoria de largo plazo / modelos de régimen más sofisticados (cambio de Markov).
 
 ---

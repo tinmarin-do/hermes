@@ -54,7 +54,7 @@ Cambiar Binance por Alpaca (acciones) = implementar el adapter, sin tocar el cer
 
 | | `HERMES_MODE=local` | `HERMES_MODE=cloud` |
 |---|---|---|
-| LLM | Ollama (localhost) | DeepSeek + GPT |
+| LLM | DeepSeek V4 Flash (API) | DeepSeek + GPT |
 | Base de datos | DuckDB (archivo local) | Cloud SQL (Postgres) |
 | Exchange | Paper (simulado) | Binance testnet / live |
 | Infra | Docker Compose | GCP + Terraform |
@@ -68,7 +68,7 @@ Cambiar Binance por Alpaca (acciones) = implementar el adapter, sin tocar el cer
 # Prerequisitos: Docker, uv, direnv
 direnv allow && uv sync --extra dev
 
-# Levantar stack (Ollama + DuckDB + dashboard)
+# Levantar stack (DuckDB + dashboard)
 # Escribe en Claude Code:
 /infra:local-up
 
@@ -139,7 +139,7 @@ El éxito del proyecto es el **proceso riguroso + la transparencia**, incluyendo
 |------|-----------|
 | Lenguaje | Python 3.12 |
 | Pipeline agéntico | LangGraph (sobre LangChain) |
-| LLMs | DeepSeek V4 Flash (analysts) + GPT-5.4 Mini (PM) / Ollama (local) |
+| LLMs | DeepSeek V4 Flash (todos los roles) |
 | Datos / exchange | ccxt |
 | Data warehouse local | DuckDB |
 | Backend | FastAPI + Jinja2 + htmx |
@@ -193,7 +193,7 @@ Al alcanzar el cap de LLM, las corridas se pausan automáticamente.
 - [ ] **Semana 3:** Dashboard público desplegado en GCP con Terraform
 - [ ] **Semana 4:** Flip a live mínimo + panel MLOps + README/case study
 
-**Post-MVP:** Acciones vía Alpaca · Serving local con Ollama · Integración con Odysseus UI
+**Post-MVP:** Acciones vía Alpaca · Integración con Odysseus UI
 
 ---
 

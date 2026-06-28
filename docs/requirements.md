@@ -98,7 +98,7 @@ Sub-pipeline de clustering de eventos de noticias (ver PRD §8.7). Todo local, $
 | `DEEPSEEK_API_KEY` | DeepSeek V4 Flash (analysts, trader, risk) | `HERMES_MODE=cloud` |
 | `OPENAI_API_KEY` | GPT-5.4 Mini (Portfolio Manager) | `HERMES_MODE=cloud` |
 
-> En `HERMES_MODE=local` se usa Ollama — sin API keys.
+> En `HERMES_MODE=local` se usa DeepSeek V4 Flash via API.
 
 ### Noticias — CryptoPanic
 | Variable | Descripción | Cuándo se necesita |

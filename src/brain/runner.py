@@ -1,9 +1,22 @@
-"""Entry point for one pipeline run."""
-import uuid
-import json
+"""Entry point for one pipeline run — brain → execution."""
 import os
+import uuid
+
 from src.brain.graph import hermes_graph
 from src.data.gold.aggregate import aggregate
+
+
+def _get_adapter():
+    exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+    if exchange_mode == "live":
+        from src.execution.binance import BinanceAdapter
+        return BinanceAdapter(mode="live")
+    elif exchange_mode == "testnet":
+        from src.execution.binance import BinanceAdapter
+        return BinanceAdapter(mode="testnet")
+    else:
+        from src.execution.adapter import PaperAdapter
+        return PaperAdapter()
 
 
 def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
@@ -15,12 +28,15 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
     if not gold_signals:
         raise RuntimeError("No Gold signals available — run data:aggregate-gold first")
 
+    run_id = str(uuid.uuid4())
+
     initial_state: dict = {
-        "run_id": str(uuid.uuid4()),
+        "run_id": run_id,
         "symbols": symbols,
         "timeframe": timeframe,
         "gold_signals": gold_signals,
         "regime_summary": "",
+        "quant_signal": {},
         "analyst_reports": [],
         "bull_argument": "",
         "bear_argument": "",
@@ -36,17 +52,17 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
         "messages": [],
     }
 
-    # Stream node-by-node for visibility (Ollama local es lento; .invoke() era una
-    # caja negra). "updates" da el nombre del nodo + delta; "values" da el estado
-    # acumulado completo, cuyo último valor es el estado final.
-    print(f"[runner] streaming · run_id={initial_state['run_id']} · symbols={symbols}", flush=True)
+    print(f"[runner] streaming · run_id={run_id} · symbols={symbols}", flush=True)
     final_state: dict = initial_state
     for mode, chunk in hermes_graph.stream(initial_state, stream_mode=["updates", "values"]):
         if mode == "updates":
             for node, update in (chunk or {}).items():
                 detail = ""
                 if update:
-                    if "debate_round_count" in update:
+                    if "quant_signal" in update:
+                        qs = update["quant_signal"]
+                        detail = f" · {qs.get('direction', '?')} ${qs.get('size_usd', 0):.2f}"
+                    elif "debate_round_count" in update:
                         detail = f" · round={update['debate_round_count']}"
                     elif "debate_verdict" in update:
                         detail = f" · verdict={update['debate_verdict']} conf={update.get('debate_confidence')}"
@@ -55,16 +71,49 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
                     elif "risk_approved" in update:
                         detail = f" · approved={update['risk_approved']}"
                 print(f"  ▸ {node}{detail}", flush=True)
-        else:  # "values" → estado acumulado; el último es el final
+        else:
             final_state = chunk
 
     pm = final_state.get("pm_decision", {})
     print(f"\n{'='*60}")
-    print(f"Run ID  : {initial_state['run_id']}")
+    print(f"Run ID  : {run_id}")
     print(f"Verdict : {final_state.get('debate_verdict')} "
           f"(conf {final_state.get('debate_confidence', 0):.0%})")
     print(f"Decision: {pm.get('action')} {pm.get('symbol')} ${pm.get('size_usd', 0):.2f}")
     print(f"Risk    : {'✅ APPROVED' if final_state.get('risk_approved') else '❌ REJECTED'}")
+
+    approved = final_state.get("risk_approved", False)
+    adapter = _get_adapter()
+    exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+
+    if approved and pm.get("action", "HOLD") != "HOLD":
+        print(f"\n[execution] sending order via {exchange_mode} adapter", flush=True)
+        result = adapter.execute(pm, run_id)
+        print(f"[execution] order_id={result.order_id} status={result.status} "
+              f"{result.symbol} {result.action} qty={result.quantity} "
+              f"price={result.price} cost=${result.cost_usd:.2f}", flush=True)
+        if result.error:
+            print(f"[execution] error: {result.error}", flush=True)
+        final_state["order_result"] = {
+            "order_id": result.order_id, "status": result.status,
+            "action": result.action, "symbol": result.symbol,
+            "quantity": result.quantity, "price": result.price,
+            "cost_usd": result.cost_usd, "fee_usd": result.fee_usd,
+            "error": result.error,
+        }
+    else:
+        print(f"[execution] no order — approved={approved}, action={pm.get('action', 'HOLD')}", flush=True)
+        final_state["order_result"] = None
+
+    positions = adapter.get_positions()
+    balance = adapter.get_balance()
+    print(f"[execution] {len(positions)} open positions · balance=${balance:.2f}")
+    final_state["positions"] = [{
+        "symbol": p.symbol, "action": p.action, "quantity": p.quantity,
+        "entry_price": p.entry_price, "unrealized_pnl": p.unrealized_pnl,
+    } for p in positions]
+    final_state["balance"] = balance
+
     print(f"{'='*60}")
     print(f"PM rationale: {pm.get('rationale', '')[:300]}")
 

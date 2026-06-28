@@ -1,16 +1,24 @@
-"""Hermes LangGraph brain — full multi-agent pipeline."""
-import os
-from langgraph.graph import StateGraph, START, END
+"""Hermes LangGraph brain — full multi-agent pipeline.
 
-from src.brain.state import HermesState
-from src.brain.agents.regime import regime_classifier
+§8.7.2: quant_core runs BEFORE LLM agents. Agents verify, reduce, or veto — never originate.
+"""
+import os
+
+from langgraph.graph import END, START, StateGraph
+
 from src.brain.agents.analyst import make_analyst
-from src.brain.agents.researcher import (
-    bull_researcher, bear_researcher, debate_facilitator, should_continue_debate,
-)
-from src.brain.agents.trader import trader
-from src.brain.agents.risk import make_risk_agent, risk_facilitator, PERSPECTIVES
 from src.brain.agents.pm import portfolio_manager
+from src.brain.agents.quant import quant_core_node
+from src.brain.agents.regime import regime_classifier
+from src.brain.agents.researcher import (
+    bear_researcher,
+    bull_researcher,
+    debate_facilitator,
+    should_continue_debate,
+)
+from src.brain.agents.risk import PERSPECTIVES, make_risk_agent, risk_facilitator
+from src.brain.agents.trader import trader
+from src.brain.state import HermesState
 
 
 def build_graph(symbols: list[str] | None = None) -> StateGraph:
@@ -22,6 +30,7 @@ def build_graph(symbols: list[str] | None = None) -> StateGraph:
 
     # ── Nodes ─────────────────────────────────────────────────────────────────
     g.add_node("regime_classifier", regime_classifier)
+    g.add_node("quant_core", quant_core_node)
 
     for sym in symbols:
         node_name = f"analyst_{sym.replace('/', '_')}"
@@ -39,13 +48,14 @@ def build_graph(symbols: list[str] | None = None) -> StateGraph:
     g.add_node("portfolio_manager", portfolio_manager)
 
     # ── Edges ─────────────────────────────────────────────────────────────────
-    # START → regime classifier
+    # START → regime → quant_core (§8.7.2: cuant DETERMINISTA antes que LLM)
     g.add_edge(START, "regime_classifier")
+    g.add_edge("regime_classifier", "quant_core")
 
-    # regime → all analysts in parallel
+    # quant_core → all analysts in parallel
     analyst_nodes = [f"analyst_{s.replace('/', '_')}" for s in symbols]
     for node in analyst_nodes:
-        g.add_edge("regime_classifier", node)
+        g.add_edge("quant_core", node)
 
     # all analysts → bull + bear (parallel)
     for node in analyst_nodes:

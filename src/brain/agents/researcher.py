@@ -1,7 +1,12 @@
 """Bull and Bear researchers + debate facilitator (TradingAgents-inspired)."""
+import os as _os
+
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from src.brain.llm import get_llm
 from src.brain.state import HermesState
+
+DEBATE_ROUNDS = int(_os.environ.get("DEBATE_ROUNDS", "3"))
 
 BULL_SYSTEM = """You are a bullish crypto researcher. Given analyst reports and market context,
 construct the strongest possible case FOR entering a long position. Cite specific signals.
@@ -12,24 +17,21 @@ construct the strongest possible case AGAINST entering a position (or for shorti
 Cite specific risks, volatility, and unfavorable signals. Be rigorous."""
 
 FACILITATOR_SYSTEM = """You are a debate facilitator for a crypto trading firm.
-Your default position is the DIRECTION indicated by the analyst consensus, NOT HOLD.
-You are looking for reasons to OVERTHROW or WEAKEN that view, not to default to inaction.
-HOLD is the exception: only use it when the debate reveals genuine deadlock or both sides
-present EQUALLY compelling evidence that cancels out a directional signal.
+A QUANT THESIS (LightGBM, deterministic — direction + size) has already been produced.
+Your job is to EVALUATE it as red-team: verify, weaken, or overturn via debate.
 
 Rules:
-1. If one side clearly outweighs the other → BUY or SELL.
-2. If the bear case is weak and the bull case is strong → BUY (same for bear → SELL).
-3. HOLD only when: (a) no clear edge emerges OR (b) the opposing case is AS strong as the analyst consensus.
-4. Confidence reflects signal strength, not balance: HIGH = clear edge, MEDIUM = edge exists, LOW = uncertain.
+1. The quant thesis provides DIRECTION (BUY or SELL) and SIZE.
+2. Your verdict means: AGREE with quant direction, DISAGREE (opposite), or VETO (HOLD).
+3. AGREE means the bull/bear support the quant direction — use BUY or SELL matching quant.
+4. HOLD means: the debate found compelling evidence AGAINST the quant thesis → VETO.
+5. NEVER produce a BUY/SELL that contradicts the quant direction.
+6. Confidence reflects signal strength: HIGH = strong agreement, MEDIUM = moderate, LOW = uncertain.
 
 Format: VERDICT: <BUY|SELL|HOLD> | CONFIDENCE: <LOW|MEDIUM|HIGH>
-Then provide a 2-3 sentence rationale explaining WHY one side won (or why deadlock)."""
+Then provide rationale explaining WHY you agree or disagree with the quant thesis."""
 
 HOLD_THRESHOLD = 0.40  # minimum confidence to avoid HOLD verdict
-
-import os as _os
-DEBATE_ROUNDS = int(_os.environ.get("DEBATE_ROUNDS", "3"))
 
 
 def _analyst_consensus(state: HermesState) -> str:
@@ -83,6 +85,7 @@ def debate_facilitator(state: HermesState) -> dict:
     llm = get_llm("decision")
     rounds = state.get("debate_rounds", [])
     round_num = state.get("debate_round_count", 0) + 1
+    quant = state.get("quant_signal", {})
 
     # Each round: bull responds to bear, bear responds to bull
     if round_num <= DEBATE_ROUNDS:
@@ -116,23 +119,29 @@ def debate_facilitator(state: HermesState) -> dict:
             ],
         }
 
-    # Final facilitation
+    # Final facilitation — evaluate the quant thesis
     debate_text = "\n\n".join(
         f"Round {r['round']} — Bull: {r['bull']}\nBear: {r['bear']}"
         for r in rounds
     )
 
     analyst_consensus = _analyst_consensus(state)
+    quant_dir = quant.get("direction", "HOLD")
+    quant_rationale = quant.get("rationale", "No quant thesis available")
+    quant_size = quant.get("size_usd", 0.0)
 
     response = llm.invoke([
         SystemMessage(content=FACILITATOR_SYSTEM),
         HumanMessage(content=(
+            f"QUANT THESIS (to be verified by debate):\n"
+            f"  Direction: {quant_dir}\n"
+            f"  Size: ${quant_size:.2f}\n"
+            f"  Basis: {quant_rationale}\n\n"
             f"Analyst consensus direction: {analyst_consensus}\n\n"
             f"Initial bull: {state.get('bull_argument', '')}\n"
             f"Initial bear: {state.get('bear_argument', '')}\n\n"
             f"Debate rounds:\n{debate_text}\n\n"
-            f"Default: {analyst_consensus}. Only override to HOLD if the opposing "
-            "case is EQUALLY strong. Declare the verdict."
+            f"Declare your verdict: AGREE (match quant direction), or HOLD (veto)."
         )),
     ])
 
