@@ -185,3 +185,39 @@ def persist_run(meter: CostMeter) -> None:
         )
     finally:
         con.close()
+
+
+def mark_logged(run_id: str) -> int:
+    """Flip `logged_to_ledger=TRUE` after `/cost:log` appended the run to the
+    markdown ledger, so `/cost:status` stops flagging it as unregistered.
+
+    Accepts a full run_id or a unique prefix — the markdown ledger stores the
+    short 8-char form while DuckDB keeps the full UUID. Only unlogged matches are
+    touched (idempotent). Returns the number of rows updated.
+    """
+    from src.data.db import get_connection
+
+    con = get_connection()
+    try:
+        _ensure_table(con)
+        rows = con.execute(
+            "UPDATE llm_cost_runs SET logged_to_ledger = TRUE "
+            "WHERE run_id LIKE ? AND NOT logged_to_ledger RETURNING run_id",
+            [f"{run_id}%"],
+        ).fetchall()
+        return len(rows)
+    finally:
+        con.close()
+
+
+if __name__ == "__main__":
+    import sys
+
+    # `--mark-logged <run_id>` flips the DuckDB ledger flag — invoked by the
+    # /cost:log skill right after it appends the row to the markdown ledger.
+    if len(sys.argv) >= 3 and sys.argv[1] == "--mark-logged":
+        n = mark_logged(sys.argv[2])
+        print(f"[cost_meter] marked {n} run(s) as logged_to_ledger for '{sys.argv[2]}'")
+    else:
+        print("usage: python -m src.brain.cost_meter --mark-logged <run_id>")
+        sys.exit(2)
