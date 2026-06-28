@@ -1,6 +1,7 @@
 """Pull OHLCV from ccxt and store in DuckDB Bronze layer."""
+
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 import ccxt
 import pandas as pd
@@ -47,12 +48,14 @@ def ingest(symbol: str, timeframe: str, since: datetime, until: datetime) -> int
     df["ts"] = pd.to_datetime(df["ts_ms"], unit="ms", utc=True).dt.tz_localize(None)
     df["symbol"] = symbol
     df["timeframe"] = timeframe
-    df["ingested_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
+    df["ingested_at"] = datetime.now(UTC).replace(tzinfo=None)
     df = df.drop_duplicates(subset=["ts"])
 
     con = get_connection()
-    con.execute("DELETE FROM bronze_ohlcv WHERE symbol = ? AND timeframe = ? AND ts >= ? AND ts <= ?",
-                [symbol, timeframe, since.replace(tzinfo=None), until.replace(tzinfo=None)])
+    con.execute(
+        "DELETE FROM bronze_ohlcv WHERE symbol = ? AND timeframe = ? AND ts >= ? AND ts <= ?",
+        [symbol, timeframe, since.replace(tzinfo=None), until.replace(tzinfo=None)],
+    )
     con.execute("""
         INSERT INTO bronze_ohlcv (symbol, timeframe, ts, open, high, low, close, volume, ingested_at)
         SELECT symbol, timeframe, ts, open, high, low, close, volume, ingested_at FROM df

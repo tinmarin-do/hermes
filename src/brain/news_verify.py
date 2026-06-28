@@ -6,15 +6,16 @@ Consumed ONLY by Risk and PM, never by Analysts or the bull/bear debate.
 
 Golden rule (§8.7.1): only categorical features reach here — never raw news text.
 """
+
 import os
 
 # Cluster → directional lean. Conservative mapping; "macro"/"other" stay neutral.
 BULLISH_CLUSTERS = {"protocol_upgrade", "listing"}
 BEARISH_CLUSTERS = {"regulatory", "hack"}
 
-CONFIRM_MAX = 1.2      # news confirming the thesis can boost confidence (capped)
-CONTRADICT_MOD = 0.6   # news contradicting the thesis cuts confidence
-LOW_TRUST_MOD = 0.7    # uncorroborated news is discounted further
+CONFIRM_MAX = 1.2  # news confirming the thesis can boost confidence (capped)
+CONTRADICT_MOD = 0.6  # news contradicting the thesis cuts confidence
+LOW_TRUST_MOD = 0.7  # uncorroborated news is discounted further
 
 
 def news_context(signal: dict | None) -> dict | None:

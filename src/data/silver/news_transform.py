@@ -6,17 +6,16 @@ Bronze news → sentence-transformers embeddings → UMAP → clustering evaluat
 Drift-aware: models are persisted and reused. Recalibration fires only when noise/outlier
 rate exceeds a configurable threshold.
 """
-import json
+
 import os
 import pickle
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 import numpy as np
-import pandas as pd
 from sentence_transformers import SentenceTransformer
-from sklearn.cluster import AgglomerativeClustering, DBSCAN, KMeans
+from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
 from sklearn.metrics import (
     calinski_harabasz_score,
     davies_bouldin_score,
@@ -85,7 +84,9 @@ def _load_or_fit_umap(embeddings: np.ndarray, force_recalibrate: bool = False) -
     return reducer
 
 
-def _load_or_fit_hdbscan(reduced: np.ndarray, force_recalibrate: bool = False) -> tuple[Any, np.ndarray]:
+def _load_or_fit_hdbscan(
+    reduced: np.ndarray, force_recalibrate: bool = False
+) -> tuple[Any, np.ndarray]:
     import hdbscan
 
     model_path = _ensure_model_dir() / "hdbscan_model.pkl"
@@ -110,9 +111,7 @@ def _load_or_fit_hdbscan(reduced: np.ndarray, force_recalibrate: bool = False) -
     return model, labels
 
 
-def _evaluate_clustering(
-    reduced: np.ndarray, embeddings: np.ndarray
-) -> dict[str, dict[str, Any]]:
+def _evaluate_clustering(reduced: np.ndarray, embeddings: np.ndarray) -> dict[str, dict[str, Any]]:
     """Compare K-Means, HDBSCAN, Agglomerative, DBSCAN using unsupervised metrics.
 
     Returns a dict keyed by method name with {labels, metrics, model}. The best
@@ -136,7 +135,9 @@ def _evaluate_clustering(
     results["kmeans"] = _score_method(scaled, km_labels, "kmeans")
 
     # --- HDBSCAN ---
-    hdb = hdbscan.HDBSCAN(min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom")
+    hdb = hdbscan.HDBSCAN(
+        min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
+    )
     hdb_labels = hdb.fit_predict(scaled)
     results["hdbscan"] = _score_method(scaled, hdb_labels, "hdbscan")
     try:
@@ -157,9 +158,7 @@ def _evaluate_clustering(
     return results
 
 
-def _score_method(
-    scaled: np.ndarray, labels: np.ndarray, name: str
-) -> dict[str, Any]:
+def _score_method(scaled: np.ndarray, labels: np.ndarray, name: str) -> dict[str, Any]:
     unique = set(labels) - {-1}
     n_clusters = len(unique)
     n_noise = int((labels == -1).sum())
@@ -180,11 +179,15 @@ def _score_method(
         except Exception:
             pass
         try:
-            result["davies_bouldin"] = round(float(davies_bouldin_score(scaled[valid], labels[valid])), 4)
+            result["davies_bouldin"] = round(
+                float(davies_bouldin_score(scaled[valid], labels[valid])), 4
+            )
         except Exception:
             pass
         try:
-            result["calinski_harabasz"] = round(float(calinski_harabasz_score(scaled[valid], labels[valid])), 4)
+            result["calinski_harabasz"] = round(
+                float(calinski_harabasz_score(scaled[valid], labels[valid])), 4
+            )
         except Exception:
             pass
 
@@ -248,8 +251,9 @@ def _label_clusters(
     Feeds representative titles per cluster and asks for a short label.
     Falls back to rule-based heuristic if LLM is unavailable.
     """
-    from src.brain.llm import get_llm
     from langchain_core.messages import HumanMessage, SystemMessage
+
+    from src.brain.llm import get_llm
 
     unique = sorted(set(labels) - {-1})
     if not unique:
@@ -262,13 +266,15 @@ def _label_clusters(
     except Exception:
         pass
 
-    system = SystemMessage(content=(
-        "You are a news classifier. Given a set of crypto news headlines that share "
-        "a common theme, respond with a single short label (1-3 words, lowercase, "
-        "snake_case). Pick from: regulatory, hack, protocol_upgrade, listing, macro, "
-        "partnership, adoption, whale_movement, market_sentiment, or other. "
-        "Respond with ONLY the label, nothing else."
-    ))
+    system = SystemMessage(
+        content=(
+            "You are a news classifier. Given a set of crypto news headlines that share "
+            "a common theme, respond with a single short label (1-3 words, lowercase, "
+            "snake_case). Pick from: regulatory, hack, protocol_upgrade, listing, macro, "
+            "partnership, adoption, whale_movement, market_sentiment, or other. "
+            "Respond with ONLY the label, nothing else."
+        )
+    )
 
     for cid in unique:
         mask = labels == cid
@@ -312,7 +318,8 @@ def _heuristic_label(headlines: str) -> str:
 
 
 def _sentiment_from_cluster(cluster_label: str) -> float:
-    from src.brain.news_verify import BULLISH_CLUSTERS, BEARISH_CLUSTERS
+    from src.brain.news_verify import BEARISH_CLUSTERS, BULLISH_CLUSTERS
+
     if cluster_label in BULLISH_CLUSTERS:
         return 0.6
     if cluster_label in BEARISH_CLUSTERS:
@@ -321,8 +328,11 @@ def _sentiment_from_cluster(cluster_label: str) -> float:
 
 
 def _cluster_with_best_method(
-    reduced: np.ndarray, embeddings: np.ndarray, eval_results: dict[str, dict[str, Any]],
-    best_method: str, force_recalibrate: bool,
+    reduced: np.ndarray,
+    embeddings: np.ndarray,
+    eval_results: dict[str, dict[str, Any]],
+    best_method: str,
+    force_recalibrate: bool,
 ) -> np.ndarray:
     """Run the winning clustering method (or HDBSCAN as default) and return labels."""
     import hdbscan
@@ -334,7 +344,9 @@ def _cluster_with_best_method(
     labels: np.ndarray
 
     if best_method == "hdbscan":
-        hdb = hdbscan.HDBSCAN(min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom")
+        hdb = hdbscan.HDBSCAN(
+            min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
+        )
         labels = hdb.fit_predict(scaled)
     elif best_method == "kmeans":
         k = eval_results["kmeans"].get("n_clusters", max(2, int(np.sqrt(len(reduced) / 2))))
@@ -348,7 +360,9 @@ def _cluster_with_best_method(
         db = DBSCAN(eps=0.5, min_samples=2, metric="euclidean")
         labels = db.fit_predict(scaled)
     else:
-        hdb = hdbscan.HDBSCAN(min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom")
+        hdb = hdbscan.HDBSCAN(
+            min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
+        )
         labels = hdb.fit_predict(scaled)
 
     np.save(str(labels_path), labels)
@@ -386,7 +400,9 @@ def transform_news(force_recalibrate: bool = False) -> dict:
     eval_results = _evaluate_clustering(reduced, embeddings)
     best_method = _select_best_method(eval_results)
 
-    labels = _cluster_with_best_method(reduced, embeddings, eval_results, best_method, force_recalibrate)
+    labels = _cluster_with_best_method(
+        reduced, embeddings, eval_results, best_method, force_recalibrate
+    )
 
     noise_frac = round(float((labels == -1).sum()) / max(len(labels), 1), 4)
 
@@ -408,24 +424,35 @@ def transform_news(force_recalibrate: bool = False) -> dict:
 
 
 def _persist_clusters(
-    con, items: list[dict], labels: np.ndarray,
-    cluster_map: dict[int, str], trust_scores: list[float],
+    con,
+    items: list[dict],
+    labels: np.ndarray,
+    cluster_map: dict[int, str],
+    trust_scores: list[float],
 ) -> int:
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     count = 0
     for it, label, trust in zip(items, labels, trust_scores):
         cid = int(label)
         is_noise = cid == -1
         cluster_label = cluster_map.get(cid) if not is_noise else None
 
-        con.execute("""
+        con.execute(
+            """
             INSERT OR REPLACE INTO silver_news_clusters
                 (id, source, published_at, cluster_id, cluster_label, is_noise, trust_score, computed_at)
             VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-        """, [
-            it["id"], it["source"], it["published_at"],
-            cid, cluster_label, is_noise, trust if not is_noise else 0.0,
-            now,
-        ])
+        """,
+            [
+                it["id"],
+                it["source"],
+                it["published_at"],
+                cid,
+                cluster_label,
+                is_noise,
+                trust if not is_noise else 0.0,
+                now,
+            ],
+        )
         count += 1
     return count

@@ -1,5 +1,6 @@
 """Compute Silver features: returns, Hurst, GARCH vol, spread, regime."""
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 import numpy as np
 import pandas as pd
@@ -8,9 +9,9 @@ from hurst import compute_Hc
 
 from src.data.db import get_connection
 
-HURST_WINDOW = 200   # minimum rows for a meaningful Hurst estimate
-GARCH_WINDOW = 500   # rows used to fit each GARCH model
-MIN_ROWS = 100       # skip symbol if fewer rows available
+HURST_WINDOW = 200  # minimum rows for a meaningful Hurst estimate
+GARCH_WINDOW = 500  # rows used to fit each GARCH model
+MIN_ROWS = 100  # skip symbol if fewer rows available
 
 
 def _classify_regime(h: float) -> tuple[str, float]:
@@ -24,7 +25,7 @@ def _classify_regime(h: float) -> tuple[str, float]:
 def _rolling_hurst(closes: pd.Series, window: int) -> pd.Series:
     result = pd.Series(np.nan, index=closes.index)
     for i in range(window, len(closes) + 1):
-        chunk = closes.iloc[i - window:i].values
+        chunk = closes.iloc[i - window : i].values
         try:
             h, _, _ = compute_Hc(chunk, kind="price", simplified=True)
             result.iloc[i - 1] = h
@@ -36,7 +37,7 @@ def _rolling_hurst(closes: pd.Series, window: int) -> pd.Series:
 def _rolling_garch_vol(log_returns: pd.Series, window: int) -> pd.Series:
     result = pd.Series(np.nan, index=log_returns.index)
     for i in range(window, len(log_returns) + 1):
-        chunk = log_returns.iloc[i - window:i].dropna()
+        chunk = log_returns.iloc[i - window : i].dropna()
         if len(chunk) < 50:
             continue
         try:
@@ -76,7 +77,7 @@ def transform(symbol: str, timeframe: str) -> int:
     df = df.reset_index()
     df["symbol"] = symbol
     df["timeframe"] = timeframe
-    df["computed_at"] = datetime.now(timezone.utc).replace(tzinfo=None)
+    df["computed_at"] = datetime.now(UTC).replace(tzinfo=None)
 
     con.execute(
         "DELETE FROM silver_features WHERE symbol = ? AND timeframe = ?",

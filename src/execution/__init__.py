@@ -4,6 +4,10 @@ from src.execution.kill import kill_switch
 from src.execution.models import OrderResult, Position
 
 __all__ = [
-    "ExecutionAdapter", "PaperAdapter", "BinanceAdapter",
-    "kill_switch", "OrderResult", "Position",
+    "ExecutionAdapter",
+    "PaperAdapter",
+    "BinanceAdapter",
+    "kill_switch",
+    "OrderResult",
+    "Position",
 ]

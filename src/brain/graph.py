@@ -2,6 +2,7 @@
 
 §8.7.2: quant_core runs BEFORE LLM agents. Agents verify, reduce, or veto — never originate.
 """
+
 import os
 
 from langgraph.graph import END, START, StateGraph

@@ -5,11 +5,12 @@ inference or LLM calls on page load). Focus of this build: the SHAP
 explainability panel for the quant core, plus a minimal MLOps/cost panel and
 open positions. Equity curve / debate viewer are TODO.
 """
+
 from __future__ import annotations
 
 import json
 import os
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
@@ -53,11 +54,12 @@ def _cost_panel() -> dict[str, Any]:
     con = get_connection()
     try:
         try:
-            total, n_runs, unlogged = con.execute(
+            row = con.execute(
                 "SELECT COALESCE(SUM(cost_usd),0), COUNT(*), "
                 "COALESCE(SUM(CASE WHEN NOT logged_to_ledger THEN 1 ELSE 0 END),0) "
                 "FROM llm_cost_runs"
             ).fetchone()
+            total, n_runs, unlogged = row if row else (0, 0, 0)
             recent = con.execute(
                 "SELECT run_id, ts, total_tokens, cost_usd, logged_to_ledger "
                 "FROM llm_cost_runs ORDER BY ts DESC LIMIT 10"
@@ -74,8 +76,13 @@ def _cost_panel() -> dict[str, Any]:
         "unlogged_runs": int(unlogged),
         "budget_usd": 150.0,
         "recent": [
-            {"run_id": r[0][:8], "ts": str(r[1]), "tokens": int(r[2]),
-             "cost_usd": round(float(r[3]), 4), "logged": bool(r[4])}
+            {
+                "run_id": r[0][:8],
+                "ts": str(r[1]),
+                "tokens": int(r[2]),
+                "cost_usd": round(float(r[3]), 4),
+                "logged": bool(r[4]),
+            }
             for r in recent
         ],
     }
@@ -85,15 +92,21 @@ def _positions_panel() -> dict[str, Any]:
     """Open paper positions + balance."""
     try:
         from src.execution.adapter import PaperAdapter
+
         pa = PaperAdapter()
         positions = pa.get_positions()
         return {
             "available": True,
             "balance_usd": pa.get_balance(),
             "open": [
-                {"symbol": p.symbol, "action": p.action, "quantity": p.quantity,
-                 "entry_price": p.entry_price, "current_price": p.current_price,
-                 "unrealized_pnl": p.unrealized_pnl}
+                {
+                    "symbol": p.symbol,
+                    "action": p.action,
+                    "quantity": p.quantity,
+                    "entry_price": p.entry_price,
+                    "current_price": p.current_price,
+                    "unrealized_pnl": p.unrealized_pnl,
+                }
                 for p in positions
             ],
         }
@@ -104,7 +117,7 @@ def _positions_panel() -> dict[str, Any]:
 def build_snapshot(timeframe: str = "1h") -> dict[str, Any]:
     symbols = _symbols()
     return {
-        "generated_at": datetime.now(timezone.utc).isoformat(),
+        "generated_at": datetime.now(UTC).isoformat(),
         "symbols": symbols,
         "timeframe": timeframe,
         "shap": _shap_panel(symbols, timeframe),
@@ -123,10 +136,14 @@ def main() -> int:
     shap = snapshot["shap"]
     n_shap = len(shap.get("symbols", {})) if shap.get("available") else 0
     print(f"✅ Snapshot generado → {SNAPSHOT_PATH}")
-    print(f"   SHAP: {'sí' if shap.get('available') else 'no — ' + shap.get('reason', '')} "
-          f"({n_shap} símbolos)")
-    print(f"   Costo LLM total: ${snapshot['cost'].get('total_usd', 0):.4f} "
-          f"({snapshot['cost'].get('runs', 0)} corridas)")
+    print(
+        f"   SHAP: {'sí' if shap.get('available') else 'no — ' + shap.get('reason', '')} "
+        f"({n_shap} símbolos)"
+    )
+    print(
+        f"   Costo LLM total: ${snapshot['cost'].get('total_usd', 0):.4f} "
+        f"({snapshot['cost'].get('runs', 0)} corridas)"
+    )
     return 0
 
 

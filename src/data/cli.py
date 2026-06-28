@@ -7,14 +7,15 @@ Usage:
   python -m src.data.cli validate-silver BTC/USDT 1h
   python -m src.data.cli backfill BTC/USDT,ETH/USDT 1h --from 2024-01-01 --to 2026-06-27
 """
+
 import argparse
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
 
 def _parse_date(s: str) -> datetime:
-    return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=timezone.utc)
+    return datetime.strptime(s, "%Y-%m-%d").replace(tzinfo=UTC)
 
 
 def cmd_ingest_bronze(args: argparse.Namespace) -> None:
@@ -76,8 +77,10 @@ def cmd_ingest_news(args: argparse.Namespace) -> None:
     sources = [s.strip() for s in args.sources.split(",")] if args.sources else None
     print(f"[news] fetching {symbols} from {sources or 'all configured sources'}")
     summary = ingest_news(symbols, sources, limit=args.limit, scan_injection=not args.no_scan)
-    print(f"[news] fetched={summary['fetched']} stored={summary['stored']} "
-          f"injection_flagged={summary['flagged']}")
+    print(
+        f"[news] fetched={summary['fetched']} stored={summary['stored']} "
+        f"injection_flagged={summary['flagged']}"
+    )
     print(f"[news] by source: {summary['by_source']}")
 
 

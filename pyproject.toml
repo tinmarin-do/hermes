@@ -72,10 +72,37 @@ target-version = "py312"
 select = ["E", "F", "I", "UP", "S", "B"]
 ignore = ["S101"]
 
+# Documented, intentional exceptions in pre-existing modules (mostly the data
+# pipeline + LLM agents, which entered lint when src/data/ became tracked).
+[tool.ruff.lint.per-file-ignores]
+"src/brain/agents/*.py" = ["E501"]          # long LLM system-prompt string literals
+"src/brain/news_verify.py" = ["E501"]
+"src/brain/runner.py" = ["E501"]            # formatted cost/decision print lines
+"src/data/bronze/ingest.py" = ["E501"]
+"src/data/bronze/news_sources.py" = ["S324", "S314"]  # sha1 = content dedup id (not security); RSS XML from configured feeds
+"src/data/gold/aggregate.py" = ["B905"]     # zip over column lists aligned by construction
+"src/data/silver/news_transform.py" = ["E501", "S301", "S110", "B905"]  # local model pickle + best-effort parses
+"src/data/silver/transform.py" = ["S110"]   # best-effort feature calc, failures are non-fatal
+"src/execution/binance.py" = ["S110"]       # best-effort exchange cleanup on kill
+
 [tool.mypy]
 python_version = "3.12"
 strict = true
 ignore_missing_imports = true
+
+# Gradual typing: strict stays on for new/core code (execution, cost_meter,
+# quant_core, dashboard, runner). Pre-existing, never-typed modules (the data
+# pipeline + LLM agents + LangGraph state/graph) are excluded until typed.
+[[tool.mypy.overrides]]
+module = [
+    "src.data.*",
+    "src.brain.agents.*",
+    "src.brain.state",
+    "src.brain.graph",
+    "src.brain.news_verify",
+    "src.brain.calibrate",
+]
+ignore_errors = true
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

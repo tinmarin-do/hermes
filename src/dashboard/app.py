@@ -6,10 +6,12 @@ $0. The SHAP panel explains the quant core's latest prediction per symbol.
 Run locally:
     uv run uvicorn src.dashboard.app:app --reload --port 8080
 """
+
 from __future__ import annotations
 
 import json
 from pathlib import Path
+from typing import Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, JSONResponse
@@ -27,11 +29,12 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
-def _load_snapshot() -> dict | None:
+def _load_snapshot() -> dict[str, Any] | None:
     if not SNAPSHOT_PATH.exists():
         return None
     try:
-        return json.loads(SNAPSHOT_PATH.read_text())
+        data: dict[str, Any] = json.loads(SNAPSHOT_PATH.read_text())
+        return data
     except (json.JSONDecodeError, OSError):
         return None
 
@@ -81,5 +84,5 @@ def api_explain(base: str) -> JSONResponse:
 
 
 @app.get("/healthz")
-def healthz() -> dict:
+def healthz() -> dict[str, Any]:
     return {"status": "ok", "has_snapshot": SNAPSHOT_PATH.exists()}

@@ -1,4 +1,5 @@
 """LLM factory — returns DeepSeek V4 Flash via OpenAI-compatible API."""
+
 import os
 
 from langchain_core.language_models import BaseChatModel

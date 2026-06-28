@@ -4,6 +4,7 @@
 This node runs BEFORE any LLM agent. Its output is the maximum trade — agents can only
 reduce or veto, never originate or amplify.
 """
+
 import os
 from pathlib import Path
 
@@ -23,6 +24,7 @@ def quant_core_node(state: HermesState) -> dict:
     kelly_frac = float(os.environ.get("HERMES_KELLY_FRACTION", "0.10"))
 
     from src.brain.quant_core import QuantCore
+
     model_path = Path("data/models/quant_core_lgbm.pkl")
     if model_path.exists():
         core = QuantCore.load(model_path)

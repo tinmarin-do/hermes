@@ -3,18 +3,21 @@
 All tests run against an isolated temp DuckDB and temp kill-switch file —
 no network, no real exchange. BinanceAdapter (ccxt) is not exercised here.
 """
-from datetime import datetime, timezone
+
+from datetime import UTC, datetime
 
 import pytest
 
 from src.data.db import get_connection
 from src.execution.kill import kill_switch
 
+pytestmark = pytest.mark.unit
+
 
 def _seed_price(symbol: str, price: float) -> None:
     """Insert one bronze_ohlcv row so PaperAdapter has a fill price."""
     con = get_connection()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     try:
         con.execute(
             """INSERT INTO bronze_ohlcv
@@ -34,6 +37,7 @@ def paper(tmp_path, monkeypatch):
     kill_switch.deactivate()  # ensure alive (active=False)
 
     from src.execution.adapter import PaperAdapter
+
     return PaperAdapter(initial_balance=500.0)
 
 

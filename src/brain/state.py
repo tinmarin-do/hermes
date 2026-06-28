@@ -1,4 +1,5 @@
 """Global agent state — single source of truth across all nodes."""
+
 import operator
 from typing import Annotated
 
@@ -19,7 +20,7 @@ class HermesState(TypedDict):
     regime_summary: str
 
     # Quant core (§8.7.2) — deterministic direction + sizing BEFORE LLM verification
-    quant_signal: dict                # {direction, confidence, size_usd, rationale}
+    quant_signal: dict  # {direction, confidence, size_usd, rationale}
 
     # Analyst reports (one per symbol) — written by parallel analyst nodes,
     # so it needs an additive reducer to merge concurrent branches.
@@ -30,11 +31,11 @@ class HermesState(TypedDict):
     bear_argument: str
     debate_rounds: list[dict]
     debate_round_count: int
-    debate_verdict: str               # "BUY" | "SELL" | "HOLD"
+    debate_verdict: str  # "BUY" | "SELL" | "HOLD"
     debate_confidence: float
 
     # Trader — synthesizes quant_signal + debate → clamped decision
-    trader_decision: dict             # {action, symbol, size_usd, rationale}
+    trader_decision: dict  # {action, symbol, size_usd, rationale}
 
     # Risk team (3 perspectives) — written by parallel risk nodes, additive reducer.
     risk_reports: Annotated[list[dict], operator.add]
@@ -42,7 +43,7 @@ class HermesState(TypedDict):
     risk_approved: bool
 
     # Portfolio Manager final call
-    pm_decision: dict                 # {action, symbol, size_usd, rationale}
+    pm_decision: dict  # {action, symbol, size_usd, rationale}
 
     # Message history (for audit / dashboard visor de debate)
     messages: Annotated[list, add_messages]

@@ -1,5 +1,6 @@
 """Execution domain models — OrderResult and Position."""
-from dataclasses import dataclass, field
+
+from dataclasses import dataclass
 from datetime import datetime
 
 
@@ -22,7 +23,7 @@ class OrderResult:
 class Position:
     id: int | None = None
     symbol: str = ""
-    action: str = "BUY"   # BUY (long) | SELL (short)
+    action: str = "BUY"  # BUY (long) | SELL (short)
     quantity: float = 0.0
     entry_price: float = 0.0
     current_price: float | None = None
