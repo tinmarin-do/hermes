@@ -137,13 +137,21 @@ hermes/
 
 ## Testing
 
+Por default `pytest` corre SOLO unit (rápido, offline, $0). Las suites pagas/externas
+(e2e invoca DeepSeek real ~$0.01/corrida; integration pega a Binance testnet) están
+**deseleccionadas por marker** vía `addopts` — hay que pedirlas a propósito.
+
 ```bash
-uv run pytest tests/unit/           # sin dependencias externas
-uv run pytest tests/integration/    # requiere BINANCE_TESTNET_* en .env
-uv run pytest tests/e2e/            # pipeline completo, paper mode
+uv run pytest                       # SOLO unit (default seguro — sin red, sin costo)
+uv run pytest -m integration        # Binance testnet — requiere BINANCE_TESTNET_* en .env
+uv run pytest -m e2e                # pipeline completo, paper mode — PAGA LLM: cotizar
+                                    #   + /cost:gate ANTES (regla #6). NO usar `pytest tests/`.
 ```
 
-CI bloquea en: tests + cost-check + security scan.
+⚠️ NUNCA correr `pytest tests/` esperando “solo tests” — el marker filter del default lo
+mantiene seguro, pero la suite paga se dispara con `-m e2e` explícito y nada más. Cotizá antes.
+
+CI bloquea en: tests (`-m unit`) + cost-check + security scan.
 
 ## GitFlow
 

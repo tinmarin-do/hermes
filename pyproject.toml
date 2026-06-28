@@ -107,6 +107,13 @@ ignore_errors = true
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
+# Default run EXCLUDES the paid/external suites: e2e invokes the real DeepSeek API
+# (~$0.01/run) and integration hits Binance testnet. So a bare `pytest` / `pytest
+# tests/` stays free and offline. To run them on purpose, override the marker:
+#   uv run pytest -m e2e          (paga LLM — cotizar/gatear antes, regla #6)
+#   uv run pytest -m integration  (requiere BINANCE_TESTNET_*)
+# CI passes `-m unit` explicitly, so it's unaffected.
+addopts = "-m 'not e2e and not integration'"
 markers = [
     "unit: unit tests (no external deps)",
     "integration: integration tests (Binance testnet required)",
