@@ -9,7 +9,7 @@ en GCP con Terraform. **Proyecto experimental y educativo — no asesoría finan
 
 | Modo | LLM | Base de datos | Exchange | Infra |
 |------|-----|---------------|----------|-------|
-| `local` | Ollama (localhost:11434) | DuckDB (archivo local) | Paper (simulado) | Docker Compose |
+| `local` | DeepSeek V4 Flash (API) | DuckDB (archivo local) | Paper (simulado) | Docker Compose |
 | `cloud` | API hosted (DeepSeek/GPT) | Cloud SQL (Postgres) | Binance testnet/live | GCP + Terraform |
 
 Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defecto: `local`.
@@ -49,7 +49,7 @@ Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defect
 | `/infra:teardown` | Destruye recursos GCP con gate |
 | `/infra:gcloud` | Ad-hoc `gcloud <cmd>` con cotización y gate |
 | `/infra:state` | Estado actual de Terraform |
-| `/infra:local-up` | Levanta stack local (Docker + DuckDB + Ollama) |
+| `/infra:local-up` | Levanta stack local (Docker + DuckDB + dashboard) |
 | `/infra:local-down` | Baja stack local |
 | `/infra:local-status` | Estado del stack local |
 
@@ -70,6 +70,11 @@ Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defect
 | `/agents:run` | Dispara UNA corrida completa del pipeline |
 | `/agents:debug` | Inspecciona transcripción de UNA corrida por ID |
 | `/agents:status` | Estado de la corrida activa o última |
+
+### `brain:*` — Calibración y análisis
+| Command | Acción |
+|---------|--------|
+| `/brain:calibrate-risk` | Backtest cuant + validación LLM para calibrar guardrails (Kelly, VaR, loss limit) |
 
 ### `execution:*` — Órdenes y posiciones
 | Command | Acción |
@@ -125,7 +130,7 @@ hermes/
 │   ├── cost_ledger_gcp.md   # NO editar manualmente
 │   └── cost_ledger_llm.md   # NO editar manualmente
 ├── docker-compose.yml       # Stack cloud-mode local
-├── docker-compose.local.yml # Stack local-mode (DuckDB + Ollama)
+├── docker-compose.local.yml # Stack local-mode (DuckDB + dashboard)
 ├── pyproject.toml
 └── .envrc
 ```

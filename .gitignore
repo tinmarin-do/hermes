@@ -18,8 +18,8 @@ dist/
 coverage.xml
 htmlcov/
 
-# Data (local DuckDB)
-data/
+# Data lake (local DuckDB, models) — root-relative so it does NOT match src/data/
+/data/
 *.duckdb
 
 # Terraform
@@ -41,3 +41,7 @@ terraform/.terraform.lock.hcl
 # OS
 .DS_Store
 Thumbs.db
+
+# Claude Code — settings personales (heartbeat, etc.)
+.claude/settings.local.json
+src/dashboard/static/data/snapshot.json
