@@ -71,26 +71,41 @@ def test_asymmetric_veto_invariant(pipeline_run):
         assert pipeline_run["pm_decision"]["action"] == "HOLD"
 
 
-def test_no_trade_without_risk_approval(pipeline_run):
-    """A live order may only exist when risk approved AND action isn't HOLD."""
-    pm = pipeline_run["pm_decision"]
-    if not pipeline_run["risk_approved"] or pm["action"] == "HOLD":
-        assert pipeline_run["order_result"] is None
+def test_allocations_present(pipeline_run):
+    """§8.8: el allocator emite un vector de legs sobre los símbolos permitidos."""
+    allocs = pipeline_run["allocations"]
+    assert isinstance(allocs, list)
+    for a in allocs:
+        assert a["action"] in ACTIONS
+        assert a["symbol"] in SYMBOLS
 
 
-def test_hold_executes_no_order(pipeline_run):
-    if pipeline_run["pm_decision"]["action"] == "HOLD":
-        assert pipeline_run["order_result"] is None
+def test_global_brake_zeroes_new_exposure(pipeline_run):
+    """§8.8: si riesgo rechaza o el debate dice HOLD → no se despliega budget nuevo."""
+    if not pipeline_run["risk_approved"] or pipeline_run["debate_verdict"] == "HOLD":
+        assert all(a["target_usd"] == 0.0 for a in pipeline_run["allocations"])
 
 
-def test_order_consistent_with_decision(pipeline_run):
-    """If an order was placed, it must match the PM decision."""
-    order = pipeline_run["order_result"]
-    if order is not None:
-        pm = pipeline_run["pm_decision"]
-        assert order["action"] == pm["action"]
-        assert order["symbol"] == pm["symbol"]
-        assert pipeline_run["risk_approved"] is True
+def test_short_exposure_capped(pipeline_run):
+    """§8.8: la exposición corta agregada nunca supera el 10% del budget."""
+    short_w = sum(
+        -a["target_weight"] for a in pipeline_run["allocations"] if a["target_weight"] < 0
+    )
+    assert short_w <= 0.10 + 1e-9
+
+
+def test_order_results_consistent(pipeline_run):
+    """Cada orden ejecutada corresponde a un leg activo del allocator (mismo símbolo+acción)."""
+    legs = {a["symbol"]: a for a in pipeline_run["allocations"]}
+    for o in pipeline_run["order_results"]:
+        assert o["symbol"] in legs
+        assert o["action"] == legs[o["symbol"]]["action"]
+
+
+def test_no_new_long_without_approval(pipeline_run):
+    """Sin aprobación de riesgo no se abre exposición nueva (no hay BUYs)."""
+    if not pipeline_run["risk_approved"]:
+        assert all(o["action"] != "BUY" for o in pipeline_run["order_results"])
 
 
 def test_paper_account_state_present(pipeline_run):

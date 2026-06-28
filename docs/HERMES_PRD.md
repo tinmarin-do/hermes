@@ -341,6 +341,21 @@ Debate bull/bear (red-team) + Noticias (cluster/sentiment/trust) → Risk (3 per
 - Hermes opera **capital propio** como automatización personal/educativa. Ofrecerlo a terceros lo convertiría en asesor de inversiones (en MX: terreno de la **CNBV**) — **fuera de alcance**.
 - Las ganancias/pérdidas en cripto pueden tener **implicaciones fiscales en México**. No es asesoría fiscal; consultar a un profesional.
 
+### 8.8 Asignación de portafolio y short conservador (POC $1 → $50)
+
+> **Estado:** diseño aprobado (2026-06-28), **pendiente de implementación**. Detalle completo en `docs/DESIGN_portfolio_allocator.md`.
+
+Hermes pasa de **decisor de una sola apuesta** (*winner-takes-all*: hoy elige el símbolo de mayor convicción y ejecuta una orden) a **asignador de cartera**: reparte un budget fijo entre los 6 símbolos permitidos, **rebalanceado a diario**, sin tocar la jerarquía de 15 nodos (§8.7.2).
+
+- **Budget.** Local/paper: **$1 imaginario** (día 0 arranca con $1 en cash). Cloud/real: **$50 USD** de capital de trading — bolsillo **distinto** del cap operativo POC ($50 = GCP $10 + LLM $40); entra **testnet primero** y no opera live sin guardrails (regla #4).
+- **Mecanismo — rebalanceo por pesos objetivo.** Cada día: `quant_core` scorea los 6 → el `allocator` (nodo nuevo) normaliza a pesos objetivo `w_i ∝ confidence_i / garch_vol_i` sobre el budget → la ejecución es el **delta vs el libro actual** (objetivo > actual → BUY, < → SELL, ≈ → HOLD, =0 con tenencia → SELL). El día 0 (todo cash → todo BUY) es un caso del mismo mecanismo. **Requiere** inyectar las posiciones actuales al estado **antes** del grafo (hoy el brain es *stateless*).
+- **Short — ultra-conservador, data-first.** Habilitado pero asimétricamente penalizado:
+  - *Origen* (`quant_core`, umbrales asimétricos): short **solo si** `P ≤ 0.25` **y** confianza `≥ 0.50` **y** confirmación de régimen bajista. Si no → HOLD.
+  - *Portero* (comité de riesgo): **cap de exposición corta ≤ 10% del budget**, VaR más ajustado + stop-loss obligatorio, sin shorts correlacionados, veto duro si la confianza es baja.
+  - *Freno* (debate/PM): el bear debe **citar la evidencia cuant**; los LLM jamás originan un short.
+  - *Venue*: short real = **futuros** (spot no puede); en **paper se simula**; en **live arranca OFF** y se habilita opt-in solo tras calibrar con `/brain:calibrate-risk`.
+- **Cadencia diaria + costo.** Una corrida programada no puede gatear interactivo (regla #6) → **pre-autorizar una línea de budget diario** en el ledger (~$0.0075/día ≈ $0.23/mes vs cap $40); el cron consume contra ella y se frena si la supera. Costo LLM **plano** (una pasada del grafo sobre la cartera, no una por símbolo).
+
 ---
 
 ## 9. Plan de ejecución — Sprint de 4 semanas
@@ -411,8 +426,9 @@ Estimación con DeepSeek V3 (`deepseek-chat`, junio 2026) — cloud mode unifica
 - **Exchange**: se recomienda **Binance** (testnet estable, acepta MX, máxima liquidez). Portafolio POC: **BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT, AVAX/USDT, MATIC/USDT** (6 símbolos). Confirmado.
 - **Semana 0**: evaluar TradingAgents vs LangGraph nativo. **Decidido: LangGraph nativo**, adoptando la estructura de debate bull/bear de TradingAgents. Hermes es más riguroso en riesgo (Hurst, GARCH, VaR, Kelly); TradingAgents cubre sentiment/fundamentals de equities que no aplican a crypto.
 - **¿Quién decide el número? Cuant, no LLM. Decidido.** El núcleo de decisión (dirección + sizing) es una columna cuantitativa determinista (régimen → LightGBM → GARCH → Kelly/VaR), backtesteable con purged + embargoed walk-forward. Los agentes LLM se reposicionan a **verificación/explicación** (red-team del debate + síntesis de noticias + rationale), nunca deciden ni originan. Razón: un LLM es no-determinista, no backtesteable barato y alucina confianza — herramienta equivocada para *ser* el decisor numérico (ver §8.7.2). Evita además el riesgo de proyectar un wrapper agéntico en vez de rigor cuantitativo. **Estado actual (junio 2026):** el núcleo LightGBM está pendiente de implementación. El backtest de calibración usa una heurística cuantitativa (5 filtros: régimen, Hurst, retorno mínimo, cap de volatilidad, confianza mínima) + validación LLM (DeepSeek vía API) como proxy. Calibración sobre ~2.5 años encuentra Kelly 0.10 y daily loss limit 0.01 como óptimo preliminar (F1=76%, precision=63%). Ver `src/brain/calibrate.py` y `docs/calibration_report.md`.
+- **¿Cómo se reparte el capital? Cartera, no una sola apuesta. Decidido (2026-06-28).** Hermes pasa de *winner-takes-all* a **asignador de cartera**: reparte el budget entre los 6 símbolos (`conf × inverse-vol`), **rebalanceado a diario** por delta vs el libro actual. **Short habilitado pero ultra-conservador** (`P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; cap 10%; futuros-only en real; OFF por default en live). Budget: **$1 paper local** ahora, **$50 reales en cloud** al despegar. Pendiente de implementación — ver §8.8 y `docs/DESIGN_portfolio_allocator.md`.
 - Niveles de modelo exactos por rol y **tope de gasto**: $150/mes confirmado.
-- Monto de capital para la fase live mínima: recomendado $500–2,000.
+- Monto de capital para la fase live mínima: recomendado $500–2,000. **POC arranca con $50** (ver §8.8).
 
 ---
 

@@ -23,7 +23,9 @@ def _get_adapter() -> ExecutionAdapter:
     else:
         from src.execution.adapter import PaperAdapter
 
-        return PaperAdapter()
+        # Paper sandbox: el balance se siembra con el budget de trading (§8.8 — $1 local).
+        budget = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+        return PaperAdapter(initial_balance=budget)
 
 
 def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, Any]:
@@ -47,6 +49,22 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
         flush=True,
     )
 
+    # Inyectar el libro ACTUAL al estado ANTES del grafo (§8.8): el allocator rebalancea
+    # por delta contra lo que ya se tiene. El mismo adapter se reutiliza para ejecutar.
+    adapter = _get_adapter()
+    positions_before = adapter.get_positions()
+    current_positions = [
+        {
+            "symbol": p.symbol,
+            "action": p.action,
+            "quantity": p.quantity,
+            "entry_price": p.entry_price,
+            "current_price": p.current_price,
+            "unrealized_pnl": p.unrealized_pnl,
+        }
+        for p in positions_before
+    ]
+
     initial_state: dict[str, Any] = {
         "run_id": run_id,
         "symbols": symbols,
@@ -54,6 +72,9 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
         "gold_signals": gold_signals,
         "regime_summary": "",
         "quant_signal": {},
+        "quant_signals": [],
+        "current_positions": current_positions,
+        "allocations": [],
         "analyst_reports": [],
         "bull_argument": "",
         "bear_argument": "",
@@ -94,47 +115,65 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
             final_state = chunk
 
     pm = final_state.get("pm_decision", {})
+    allocations = final_state.get("allocations", [])
+    exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+
     print(f"\n{'=' * 60}")
     print(f"Run ID  : {run_id}")
     print(
         f"Verdict : {final_state.get('debate_verdict')} "
         f"(conf {final_state.get('debate_confidence', 0):.0%})"
     )
-    print(f"Decision: {pm.get('action')} {pm.get('symbol')} ${pm.get('size_usd', 0):.2f}")
+    print(f"Lead    : {pm.get('action')} {pm.get('symbol')} ${pm.get('size_usd', 0):.2f}")
     print(f"Risk    : {'✅ APPROVED' if final_state.get('risk_approved') else '❌ REJECTED'}")
 
-    approved = final_state.get("risk_approved", False)
-    adapter = _get_adapter()
-    exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+    # ── Ejecución del portafolio (§8.8): el allocator repartió el budget; ejecutamos el vector ──
+    budget = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+    active = [a for a in allocations if a.get("action") != "HOLD" and a.get("size_usd", 0) > 0]
+    print(
+        f"\n[allocator] budget=${budget:.2f} · {len(active)}/{len(allocations)} legs activos · {exchange_mode}"
+    )
+    for a in allocations:
+        print(
+            f"  • {a['symbol']:12s} w={a['target_weight']:+.3f} "
+            f"target=${a['target_usd']:.4f} → {a['action']} ${a['size_usd']:.4f}"
+        )
 
-    if approved and pm.get("action", "HOLD") != "HOLD":
-        print(f"\n[execution] sending order via {exchange_mode} adapter", flush=True)
-        result = adapter.execute(pm, run_id)
+    if current_positions:
         print(
-            f"[execution] order_id={result.order_id} status={result.status} "
-            f"{result.symbol} {result.action} qty={result.quantity} "
-            f"price={result.price} cost=${result.cost_usd:.2f}",
+            "[execution] ⚠️ libro no vacío — el neteo real de rebalanceo requiere upgrade del "
+            "PaperAdapter; v1 ejecuta despliegue tipo día-0 (ver docs/DESIGN_portfolio_allocator.md)",
             flush=True,
         )
-        if result.error:
-            print(f"[execution] error: {result.error}", flush=True)
-        final_state["order_result"] = {
-            "order_id": result.order_id,
-            "status": result.status,
-            "action": result.action,
-            "symbol": result.symbol,
-            "quantity": result.quantity,
-            "price": result.price,
-            "cost_usd": result.cost_usd,
-            "fee_usd": result.fee_usd,
-            "error": result.error,
-        }
-    else:
+
+    order_results: list[dict[str, Any]] = []
+    for a in active:
+        result = adapter.execute(
+            {"action": a["action"], "symbol": a["symbol"], "size_usd": a["size_usd"]},
+            run_id,
+        )
         print(
-            f"[execution] no order — approved={approved}, action={pm.get('action', 'HOLD')}",
+            f"[execution] {result.action} {result.symbol} ${a['size_usd']:.4f} "
+            f"→ {result.status} qty={result.quantity}"
+            + (f" · {result.error}" if result.error else ""),
             flush=True,
         )
-        final_state["order_result"] = None
+        order_results.append(
+            {
+                "order_id": result.order_id,
+                "status": result.status,
+                "action": result.action,
+                "symbol": result.symbol,
+                "quantity": result.quantity,
+                "price": result.price,
+                "cost_usd": result.cost_usd,
+                "fee_usd": result.fee_usd,
+                "error": result.error,
+            }
+        )
+    if not active:
+        print("[execution] sin legs para ejecutar — freno global o todo HOLD", flush=True)
+    final_state["order_results"] = order_results
 
     positions = adapter.get_positions()
     balance = adapter.get_balance()

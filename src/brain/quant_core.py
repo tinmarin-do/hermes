@@ -4,7 +4,10 @@
 Fija dirección y tamaño sin LLM. Validado con purged + embargoed walk-forward.
 
 El modelo aprende P(forward_return > 0) sobre features de régimen. En inferencia:
-  P > 0.65 → BUY,  P < 0.35 → SELL,  resto → HOLD.
+  P > 0.65 → BUY,  P ≤ 0.25 → SELL (short),  resto → HOLD.
+Umbrales ASIMÉTRICOS (§8.8): el short exige más evidencia que el long porque es la
+operación más riesgosa (P≤0.25 ⟺ confianza≥0.50). La confirmación de régimen bajista
+y el cap de exposición corta se aplican aguas arriba (nodo quant) y en el allocator.
 Confianza = |P - 0.5| × 2.  Sizing = capital × kelly_fraction × conf × vol_scalar.
 """
 
@@ -415,12 +418,16 @@ class QuantCore:
 
 
 def _prob_to_signal(
-    prob: float, buy_threshold: float = 0.65, sell_threshold: float = 0.35
+    prob: float, buy_threshold: float = 0.65, sell_threshold: float = 0.25
 ) -> tuple[str, float]:
-    """Convert model probability to (direction, confidence)."""
+    """Convert model probability to (direction, confidence).
+
+    Asymmetric thresholds (§8.8): SELL/short requires P ≤ 0.25 (vs 0.65 for BUY), which is
+    equivalent to demanding confidence ≥ 0.50 for a short — shorts need stronger evidence.
+    """
     if prob > buy_threshold:
         return "BUY", round((prob - 0.5) * 2, 4)
-    if prob < sell_threshold:
+    if prob <= sell_threshold:
         return "SELL", round((0.5 - prob) * 2, 4)
     return "HOLD", 0.0
 
