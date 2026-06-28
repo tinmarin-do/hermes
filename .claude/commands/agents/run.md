@@ -15,8 +15,12 @@ en `src.brain.runner` — TODO si se quiere simular sin invocar modelos.
 2. Leer ledger LLM para verificar presupuesto disponible.
    Si acumulado_mes >= $150: abortar con mensaje de pausa.
 
-3. Llamar `/cost:gate` con:
-   `llm: 1 corrida completa — ~$0.13 (free analysts) o ~$0.80 (modelos fuertes)`
+3. Obtener el estimado data-driven (promedio de corridas pasadas, sin invocar modelos):
+   ```bash
+   EST=$(uv run python -m src.brain.runner --estimate)
+   ```
+   Llamar `/cost:gate` con:
+   `llm: 1 corrida completa — ~$<EST> USD (estimado por src.brain.cost_meter)`
 
 4. Si autorizado: ejecutar pipeline:
    ```bash
@@ -30,8 +34,11 @@ en `src.brain.runner` — TODO si se quiere simular sin invocar modelos.
    Si `RiskCheck.approved=true` y no `--dry-run`: llamar `/execution:paper` o `/execution:live`
    según `EXCHANGE_MODE`.
 
-6. Llamar `/cost:log` con:
-   `llm|<fecha>|run_id <run_id>|<costo_real>|auto`
+6. Llamar `/cost:log` con el costo REAL. El runner imprime la línea exacta al final:
+   `[cost] registrar en ledger:  /cost:log llm|<fecha>|run_id <run_id>|<costo_real>|auto`
+   Copiar ese argumento tal cual. El costo real sale de los tokens medidos por
+   `src.brain.cost_meter` (no estimar). También queda persistido en la tabla DuckDB
+   `llm_cost_runs` (con `logged_to_ledger=FALSE` hasta registrarlo aquí).
 
 7. Mostrar resumen de la corrida:
    ```

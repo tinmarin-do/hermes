@@ -1,6 +1,7 @@
 """Entry point for one pipeline run — brain → execution."""
 import os
 import uuid
+from datetime import datetime, timezone
 
 from src.brain.graph import hermes_graph
 from src.data.gold.aggregate import aggregate
@@ -29,6 +30,12 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
         raise RuntimeError("No Gold signals available — run data:aggregate-gold first")
 
     run_id = str(uuid.uuid4())
+
+    from src.brain.cost_meter import estimate_cost_usd, persist_run, start_run
+    meter = start_run(run_id)
+    est = estimate_cost_usd()
+    print(f"[cost] estimado LLM de esta corrida: ~${est:.4f} USD "
+          f"(autorizar via /cost:gate antes de corridas programadas)", flush=True)
 
     initial_state: dict = {
         "run_id": run_id,
@@ -114,6 +121,15 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
     } for p in positions]
     final_state["balance"] = balance
 
+    cost = meter.summary()
+    persist_run(meter)
+    final_state["cost"] = cost
+    print(f"[cost] real LLM: ${cost['cost_usd']:.4f} USD · "
+          f"{cost['total_tokens']:,} tokens · {cost['n_calls']} llamadas")
+    print(f"[cost] registrar en ledger:  /cost:log "
+          f"llm|{datetime.now(timezone.utc):%Y-%m-%d}|run_id {run_id}|"
+          f"{cost['cost_usd']:.4f}|auto")
+
     print(f"{'='*60}")
     print(f"PM rationale: {pm.get('rationale', '')[:300]}")
 
@@ -121,4 +137,12 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict:
 
 
 if __name__ == "__main__":
-    run()
+    import sys
+
+    # `--estimate` prints the pre-run LLM cost estimate and exits (no models
+    # invoked) — used by /agents:run to feed /cost:gate BEFORE running.
+    if "--estimate" in sys.argv:
+        from src.brain.cost_meter import estimate_cost_usd
+        print(f"{estimate_cost_usd():.4f}")
+    else:
+        run()

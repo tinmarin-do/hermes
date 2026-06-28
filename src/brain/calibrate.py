@@ -643,12 +643,33 @@ def run_calibration(
         print("=" * 60)
         print("PHASE 2: LLM Validation")
         print("=" * 60)
+
+        from src.brain.cost_meter import (
+            estimate_cost_usd,
+            persist_run,
+            start_run,
+        )
+        n_dates = len(_top_volatile_dates(quant_result["points"]))
+        est_total = round(estimate_cost_usd() * n_dates, 4)
+        print(f"[cost] estimado LLM de la calibracion: ~${est_total:.4f} USD "
+              f"({n_dates} fechas × ~${estimate_cost_usd():.4f}) — "
+              f"autorizar via /cost:gate antes de correr")
+        meter = start_run(f"calibrate-{datetime.now(UTC):%Y%m%dT%H%M%S}")
+
         llm_results = llm_validation(
             quant_result["points"], symbols, timeframe,
             concurrency=llm_concurrency, debate_rounds=debate_rounds,
         )
         t2 = time.time()
         print(f"[calibrate] Phase 2 done in {t2 - t1:.0f}s")
+
+        cost = meter.summary()
+        persist_run(meter)
+        print(f"[cost] real LLM calibracion: ${cost['cost_usd']:.4f} USD · "
+              f"{cost['total_tokens']:,} tokens · {cost['n_calls']} llamadas")
+        print(f"[cost] registrar en ledger:  /cost:log "
+              f"llm|{datetime.now(UTC):%Y-%m-%d}|calibracion {meter.run_id}|"
+              f"{cost['cost_usd']:.4f}|auto")
 
     generate_report(quant_result, llm_results)
     total = time.time() - t0
