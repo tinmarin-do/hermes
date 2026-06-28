@@ -12,15 +12,38 @@ construct the strongest possible case AGAINST entering a position (or for shorti
 Cite specific risks, volatility, and unfavorable signals. Be rigorous."""
 
 FACILITATOR_SYSTEM = """You are a debate facilitator for a crypto trading firm.
-You have heard the bull and bear arguments. Your job is to:
-1. Identify the strongest points from each side.
-2. Declare a prevailing view: BUY, SELL, or HOLD.
-3. State a confidence level: LOW (<50%), MEDIUM (50-70%), HIGH (>70%).
+Your default position is the DIRECTION indicated by the analyst consensus, NOT HOLD.
+You are looking for reasons to OVERTHROW or WEAKEN that view, not to default to inaction.
+HOLD is the exception: only use it when the debate reveals genuine deadlock or both sides
+present EQUALLY compelling evidence that cancels out a directional signal.
+
+Rules:
+1. If one side clearly outweighs the other → BUY or SELL.
+2. If the bear case is weak and the bull case is strong → BUY (same for bear → SELL).
+3. HOLD only when: (a) no clear edge emerges OR (b) the opposing case is AS strong as the analyst consensus.
+4. Confidence reflects signal strength, not balance: HIGH = clear edge, MEDIUM = edge exists, LOW = uncertain.
+
 Format: VERDICT: <BUY|SELL|HOLD> | CONFIDENCE: <LOW|MEDIUM|HIGH>
-Then provide a 2-3 sentence rationale."""
+Then provide a 2-3 sentence rationale explaining WHY one side won (or why deadlock)."""
+
+HOLD_THRESHOLD = 0.40  # minimum confidence to avoid HOLD verdict
 
 import os as _os
-DEBATE_ROUNDS = int(_os.environ.get("DEBATE_ROUNDS", "2"))
+DEBATE_ROUNDS = int(_os.environ.get("DEBATE_ROUNDS", "3"))
+
+
+def _analyst_consensus(state: HermesState) -> str:
+    reports = state.get("analyst_reports", [])
+    if not reports:
+        return "HOLD"
+    biases = [r["bias"] for r in reports]
+    bullish = sum(1 for b in biases if b == "BULLISH")
+    bearish = sum(1 for b in biases if b == "BEARISH")
+    if bullish > bearish:
+        return "BUY"
+    if bearish > bullish:
+        return "SELL"
+    return "HOLD"
 
 
 def _reports_text(state: HermesState) -> str:
@@ -98,18 +121,23 @@ def debate_facilitator(state: HermesState) -> dict:
         f"Round {r['round']} — Bull: {r['bull']}\nBear: {r['bear']}"
         for r in rounds
     )
+
+    analyst_consensus = _analyst_consensus(state)
+
     response = llm.invoke([
         SystemMessage(content=FACILITATOR_SYSTEM),
         HumanMessage(content=(
+            f"Analyst consensus direction: {analyst_consensus}\n\n"
             f"Initial bull: {state.get('bull_argument', '')}\n"
             f"Initial bear: {state.get('bear_argument', '')}\n\n"
             f"Debate rounds:\n{debate_text}\n\n"
-            "Declare the verdict."
+            f"Default: {analyst_consensus}. Only override to HOLD if the opposing "
+            "case is EQUALLY strong. Declare the verdict."
         )),
     ])
 
     text = response.content
-    verdict = "HOLD"
+    verdict = analyst_consensus if analyst_consensus != "HOLD" else "HOLD"
     confidence = 0.5
     for v in ["BUY", "SELL", "HOLD"]:
         if f"VERDICT: {v}" in text.upper():
@@ -120,6 +148,9 @@ def debate_facilitator(state: HermesState) -> dict:
         confidence = 0.60
     elif "LOW" in text.upper():
         confidence = 0.40
+
+    if confidence < HOLD_THRESHOLD and verdict != "HOLD":
+        verdict = "HOLD"
 
     return {
         "debate_verdict": verdict,
