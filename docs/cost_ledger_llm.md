@@ -17,3 +17,5 @@ Referencia de precios (DeepSeek V4 Flash unificado — todos los roles, junio 20
 |-------|------------|-----------|---------------|----------------|-----------|---------------------|--------------------|
 | — | — | — | — | — | — | 0.00 | 150.00 |
 | 2026-06-28 | 99a9066d | DeepSeek V4 Flash | all (18 llamadas) | 36927 | 0.0069 | 0.0069 | 149.9931 |
+| 2026-06-28 | f4ff8143 | DeepSeek V4 Flash | all (18 llamadas) | 37225 | 0.0070 | 0.0139 | 149.9861 |
+| 2026-06-28 | 86bd66ac | DeepSeek V4 Flash | all (e2e test) | 33320 | 0.0062 | 0.0201 | 149.9799 |
