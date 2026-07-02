@@ -258,24 +258,68 @@ def _default_symbols() -> list[str]:
     return [s.strip() for s in raw.split(",")]
 
 
+def _bronze_stamps(symbols: list[str], timeframe: str, freq: str) -> list[datetime]:
+    """Weekly rebalance stamps from BRONZE availability — for price-only strategies.
+
+    The silver-based ``_generate_weekly_timestamps`` requires regime features, which a
+    bronze-only backfill (e.g. a wide cross-sectional alt universe) does not have. Here we
+    take the union span of each symbol's close series; per-symbol gaps are handled downstream
+    (a symbol with no price at a date is simply dropped from that date's ranking).
+    """
+    import pandas as pd
+
+    earliest: datetime | None = None
+    latest: datetime | None = None
+    for sym in symbols:
+        ts_list, _ = _cached_series(sym, timeframe)
+        if not ts_list:
+            continue
+        first, last = ts_list[0], ts_list[-1]
+        if earliest is None or first < earliest:
+            earliest = first
+        if latest is None or last > latest:
+            latest = last
+    if earliest is None or latest is None:
+        raise RuntimeError("No bronze price data for any symbol")
+
+    start = earliest.replace(minute=0, second=0, microsecond=0) + timedelta(days=7)
+    end = latest.replace(minute=0, second=0, microsecond=0) - timedelta(days=7)
+    rng = pd.date_range(start=start, end=end, freq=freq)
+    return [d.to_pydatetime() for d in rng]
+
+
 def _iteration_stamps(
-    symbols: list[str], timeframe: str, freq: str, until: str | None, since: str | None = None
+    symbols: list[str],
+    timeframe: str,
+    freq: str,
+    until: str | None,
+    since: str | None = None,
+    price_only: bool = False,
 ) -> list[datetime]:
     """Rebalance stamps within a window: iteration (``until``) or holdout (``since``).
 
     ``until`` keeps data strictly before it (iteration); ``since`` keeps data at/after it
-    (holdout 2025-06-28→). They can combine to bound an arbitrary range.
+    (holdout 2025-06-28→). They can combine to bound an arbitrary range. ``price_only`` draws
+    the span from bronze (close prices) instead of silver — for rules that need no regime.
     """
-    from src.brain.calibrate import _generate_weekly_timestamps
+    if price_only:
+        stamps: list[datetime] | None = _bronze_stamps(symbols, timeframe, freq)
+    else:
+        from src.brain.calibrate import _generate_weekly_timestamps
 
-    stamps = _generate_weekly_timestamps(symbols, timeframe, freq=freq)
+        stamps = _generate_weekly_timestamps(symbols, timeframe, freq=freq)
     if not stamps:
         raise RuntimeError("No timestamps available for backtest")
-    tz = stamps[0].tzinfo
+
+    # Normalize to naive UTC. Bronze/Silver store ts tz-naive (UTC); stamps arrive tz-aware.
+    # Passing an aware datetime to DuckDB silently converts it to the host's local tz (here
+    # UTC-6), shifting EVERY as-of lookup by 6h. Stripping tz once at the source keeps the
+    # whole stack — trailing returns, aggregate_at, forward returns — comparing naive-UTC
+    # vs naive-UTC at the true rebalance hour, with no train/realize inconsistency.
+    stamps = [s.replace(tzinfo=None) if s.tzinfo is not None else s for s in stamps]
 
     def _cut(s: str) -> datetime:
-        c = datetime.fromisoformat(s)
-        return c.replace(tzinfo=tz) if (tz is not None and c.tzinfo is None) else c
+        return datetime.fromisoformat(s).replace(tzinfo=None)
 
     if since:
         sc = _cut(since)
@@ -330,6 +374,18 @@ def _evaluate(
         leg_counts.append(len(active))
         period_ts.append(ts_iso)
 
+    return _metrics_from_returns(returns, leg_counts, period_ts, n_trials)
+
+
+def _metrics_from_returns(
+    returns: list[float], leg_counts: list[int], period_ts: list[str], n_trials: int
+) -> tuple[BacktestResult, list[float], list[float], list[str]]:
+    """Build the PSR/DSR metrics + equity curve from a per-period return series.
+
+    Shared tail for every strategy — whether the per-period return came from the §8.8
+    allocator (``_evaluate``) or a bespoke book (cross-sectional long-short, which is
+    dollar-neutral and bypasses the long-biased allocator's 10% short cap on purpose).
+    """
     if len(returns) < 2:
         raise RuntimeError(f"Only {len(returns)} tradable periods — not enough for statistics")
 
@@ -362,27 +418,30 @@ def _evaluate(
 MOM_SCALE = 0.20  # un movimiento de 20% en el lookback → confianza máxima (fijo a priori)
 
 
-def _past_return(symbol: str, timeframe: str, ts: datetime, periods: int) -> float | None:
-    """Trailing return over ``periods`` candles ending at ts (uses only past data)."""
-    from src.data.db import get_connection
+# Module-level price cache: load each symbol's close series ONCE (not per lookup).
+# A rule backtest does thousands of trailing-return reads; opening a DuckDB connection
+# per read dominated the runtime. The series is immutable for a run → safe to memoize.
+_PRICE_CACHE: dict[tuple[str, str], tuple[list[Any], list[float]]] = {}
 
-    con = get_connection()
-    try:
-        now = con.execute(
-            "SELECT close FROM bronze_ohlcv WHERE symbol=? AND timeframe=? AND ts<=? "
-            "ORDER BY ts DESC LIMIT 1",
-            [symbol, timeframe, ts],
-        ).fetchone()
-        then = con.execute(
-            "SELECT close FROM bronze_ohlcv WHERE symbol=? AND timeframe=? AND ts<=? "
-            "ORDER BY ts DESC LIMIT 1",
-            [symbol, timeframe, ts - timedelta(hours=periods)],
-        ).fetchone()
-    finally:
-        con.close()
-    if not now or not then or not then[0]:
+
+def _cached_series(symbol: str, timeframe: str) -> tuple[list[Any], list[float]]:
+    key = (symbol, timeframe)
+    if key not in _PRICE_CACHE:
+        _PRICE_CACHE[key] = _price_series(symbol, timeframe)
+    return _PRICE_CACHE[key]
+
+
+def _past_return(symbol: str, timeframe: str, ts: datetime, periods: int) -> float | None:
+    """Trailing return over ``periods`` candles ending at ts (uses only past data).
+
+    In-memory as-of lookups over the cached series — no per-call DB connection.
+    """
+    ts_list, cl = _cached_series(symbol, timeframe)
+    now = _asof(ts_list, cl, ts)
+    then = _asof(ts_list, cl, ts - timedelta(hours=periods))
+    if not now or not then:
         return None
-    return float(now[0]) / float(then[0]) - 1.0
+    return now / then - 1.0
 
 
 def run_momentum_backtest(
@@ -615,6 +674,84 @@ def run_logistic_backtest(
     return _evaluate(by_ts, timeframe, budget, short_cap_pct, n_trials, fee_rate)
 
 
+# ── H8: cross-sectional momentum (rank symbols against each other) ─────────────
+
+
+def run_cross_sectional_backtest(
+    symbols: list[str] | None = None,
+    timeframe: str = "1h",
+    freq: str = "W-MON",
+    budget: float = 1.0,
+    n_trials: int = 1,
+    until: str | None = None,
+    since: str | None = None,
+    lookback: int = 720,
+    n_side: int = 2,
+    market_neutral: bool = True,
+    fee_rate: float = 0.0,
+) -> tuple[BacktestResult, list[float], list[float], list[str]]:
+    """H8: cross-sectional momentum — rank the universe by trailing return, long the
+    strongest, short the weakest. Orthogonal to time-series momentum: it earns from the
+    winner-loser *spread*, so it can pay even when the whole market is flat (or falling).
+
+    A priori, NOT tuned: ``lookback`` 720h=30d (same as the H5 winner), ``n_side`` 2
+    (top-2 / bottom-2 of the 5 majors), equal-weight within each sleeve (fewest DOF).
+
+    ``market_neutral``: long sleeve = +budget/2, short sleeve = -budget/2 → gross=budget,
+    net=0 (pure spread). This is the canonical Jegadeesh-Titman book and **deliberately
+    bypasses the §8.8 10% short cap** — the cap is a deployment guardrail (regla #8), but
+    here we first measure whether the orthogonal alpha *exists*. The long-only variant
+    (``market_neutral=False``: just long the top-2) is what spot can deploy today, and
+    isolating it tells us whether the edge lives in the longs, the shorts, or the spread.
+    No ML, no LLM ($0).
+    """
+    from src.brain.quant_core import FORWARD_PERIODS
+    from src.data.gold.aggregate import get_forward_return
+
+    if symbols is None:
+        symbols = _default_symbols()
+    stamps = _iteration_stamps(symbols, timeframe, freq, until, since, price_only=True)
+
+    need = 2 * n_side if market_neutral else n_side
+    long_w = (budget / 2 if market_neutral else budget) / n_side
+    short_w = -(budget / 2) / n_side if market_neutral else 0.0
+
+    returns: list[float] = []
+    leg_counts: list[int] = []
+    period_ts: list[str] = []
+    for ts in stamps:
+        scored = [
+            (sym, pr)
+            for sym in symbols
+            if (pr := _past_return(sym, timeframe, ts, lookback)) is not None
+        ]
+        if len(scored) < need:
+            continue
+        scored.sort(key=lambda x: x[1], reverse=True)
+        book = [(sym, long_w) for sym, _ in scored[:n_side]]
+        if market_neutral:
+            book += [(sym, short_w) for sym, _ in scored[-n_side:]]
+
+        port_ret = 0.0
+        gross = 0.0
+        n_active = 0
+        for sym, w in book:
+            fwd = get_forward_return(sym, timeframe, ts, FORWARD_PERIODS)
+            if fwd is None:
+                continue
+            port_ret += (w / budget) * fwd
+            gross += abs(w / budget)
+            n_active += 1
+        if n_active == 0:
+            continue
+        port_ret -= fee_rate * 2.0 * gross  # round-trip on gross exposure
+        returns.append(port_ret)
+        leg_counts.append(n_active)
+        period_ts.append(ts.isoformat())
+
+    return _metrics_from_returns(returns, leg_counts, period_ts, n_trials)
+
+
 def _find_signal(
     sig_by_key: dict[tuple[str, str], dict[str, Any]], symbol: str, ts: datetime
 ) -> dict[str, Any] | None:
@@ -643,14 +780,30 @@ if __name__ == "__main__":
     p.add_argument(
         "--strategy",
         default="lightgbm",
-        choices=["lightgbm", "momentum", "multimom", "logistic"],
+        choices=["lightgbm", "momentum", "multimom", "logistic", "crosssec"],
     )
     p.add_argument("--mom-lookback", type=int, default=720, help="momentum lookback in candles")
     p.add_argument("--fee", type=float, default=0.0, help="per-side transaction cost (e.g. 0.001)")
+    p.add_argument("--cs-side", type=int, default=2, help="cross-sectional legs per sleeve")
+    p.add_argument(
+        "--cs-longonly", action="store_true", help="cross-sectional: long top-k only (no shorts)"
+    )
     p.add_argument("--timeframe", default="1h")
     args = p.parse_args()
 
-    if args.strategy == "logistic":
+    if args.strategy == "crosssec":
+        res, rets, equity, _pts = run_cross_sectional_backtest(
+            timeframe=args.timeframe,
+            freq=args.freq,
+            budget=args.budget,
+            n_trials=args.n_trials,
+            until=args.until,
+            lookback=args.mom_lookback,
+            n_side=args.cs_side,
+            market_neutral=not args.cs_longonly,
+            fee_rate=args.fee,
+        )
+    elif args.strategy == "logistic":
         res, rets, equity, _pts = run_logistic_backtest(
             timeframe=args.timeframe,
             freq=args.freq,
