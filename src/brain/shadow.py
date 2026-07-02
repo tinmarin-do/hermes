@@ -1,10 +1,11 @@
-"""Shadow mode — persistencia de señales del challenger (PRD v0.3 §5.2/§8.9).
+"""Signal log — persistencia de señales champion + challenger (PRD v0.3 §5.2/§8.9).
 
-El challenger corre en paralelo al champion SIN ejecutar órdenes: sus señales
-hipotéticas se guardan por corrida para comparar equity hipotética vs real en el
-dashboard (panel champion vs shadow, Fase 3). El protocolo de research §8.9 usa
-este track record — datos del futuro real, imposibles de overfittear — como juez
-final para promover un candidato a señal ejecutora.
+Tabla `shadow_signals`: una fila por (run, modelo, símbolo). El **champion**
+(`model='champion-multimom'`) registra lo que la señal ejecutora dijo en cada
+corrida; los **challengers** (LightGBM hoy, regresión mañana) registran señales
+hipotéticas que JAMÁS ejecutan. El panel champion-vs-shadow del dashboard y el
+protocolo de research §8.9 comparan ambos streams — datos del futuro real,
+imposibles de overfittear — para decidir promociones.
 """
 
 from datetime import UTC, datetime
