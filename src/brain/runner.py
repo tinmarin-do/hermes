@@ -24,7 +24,7 @@ def _get_adapter() -> ExecutionAdapter:
         from src.execution.adapter import PaperAdapter
 
         # Paper sandbox: el balance se siembra con el budget de trading (§8.8 — $1 local).
-        budget = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+        budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
         return PaperAdapter(initial_balance=budget)
 
 
@@ -128,7 +128,7 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     print(f"Risk    : {'✅ APPROVED' if final_state.get('risk_approved') else '❌ REJECTED'}")
 
     # ── Ejecución del portafolio (§8.8): el allocator repartió el budget; ejecutamos el vector ──
-    budget = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+    budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     active = [a for a in allocations if a.get("action") != "HOLD" and a.get("size_usd", 0) > 0]
     print(
         f"\n[allocator] budget=${budget:.2f} · {len(active)}/{len(allocations)} legs activos · {exchange_mode}"

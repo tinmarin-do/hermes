@@ -3,9 +3,17 @@
 > **Disclaimer:** Proyecto experimental y educativo. No constituye asesoría financiera.
 > Opera únicamente con capital de riesgo que se puede perder por completo.
 
-Hermes es una "firma de trading" simulada por **múltiples agentes LLM** que colaboran y
-debaten para tomar decisiones sobre criptoactivos, ejecutadas automáticamente en Binance.
-Corre 24/7 en GCP, mantiene un track record auditable y se expone en un dashboard público.
+Hermes es dos cosas a la vez: un **overlay defensivo de momentum** sobre criptoactivos —
+una señal cuantitativa determinista repartida como cartera, verificada por un equipo de
+**agentes LLM (LangGraph) que actúan como red-team** (confirman, vetan o recortan; jamás
+deciden el número) — y un **laboratorio de research anti-overfit** cuyo
+[`EXPERIMENT_LOG`](docs/EXPERIMENT_LOG.md) documenta con método qué funciona y qué no
+(4 hipótesis falsificadas antes de cualquier deploy). Corre 24/7 en GCP, mantiene un track
+record auditable y se expone en un dashboard público.
+
+> **Claim honesta (validada out-of-sample en un crash de −40%):** la señal desplegada no
+> genera alpha absoluto — preserva capital en bear markets (+2.2% con la mitad del drawdown
+> del mercado). El éxito del proyecto es el proceso riguroso, no un número de retorno.
 
 ---
 
@@ -34,12 +42,14 @@ ccxt (mercado) ──▶ Bronze (raw OHLCV)
          ┌─────────────────────────────────┐
          │  Pipeline multiagente (LangGraph)│
          │  RegimeClassifier               │
-         │  QuantCore (LightGBM+GARCH+Kelly)│  ← decide dirección/tamaño (sin LLM)
+         │  QuantCore (momentum multi-     │  ← decide dirección/tamaño (sin LLM)
+         │   escala 7/14/30/90d + GARCH)*  │
+         │  ── shadow: challenger regresión │  ← persiste, NO ejecuta (research)
          │  Analysts ×3 (condicionados)    │
          │  Debate alcista/bajista         │
          │  Trader → Risk (VaR + Kelly)    │
-         │  Allocator (pesos por símbolo)* │  ← reparte el budget entre los 6
          │  Portfolio Manager              │
+         │  Allocator (pesos conf×inv-vol) │  ← reparte el budget entre los 6
          └──────────────┬──────────────────┘
                         ↓
               ExecutionAdapter (paper | testnet | live)
@@ -50,9 +60,11 @@ ccxt (mercado) ──▶ Bronze (raw OHLCV)
 **Principio clave:** cada capa vive detrás de una interfaz agnóstica.
 Cambiar Binance por Alpaca (acciones) = implementar el adapter, sin tocar el cerebro.
 
-> `*` **Allocator** = diseño aprobado, **pendiente de implementación**. Reparte un budget de
-> trading entre los 6 símbolos como cartera (`conf × inverse-vol`), rebalanceado a diario.
-> Hoy el motor es *winner-takes-all* (una sola apuesta). Ver `docs/DESIGN_portfolio_allocator.md`.
+> `*` **Allocator implementado** (PR #10): reparte el budget entre los 6 símbolos como
+> cartera (`conf × inverse-vol`, cap short 10%), rebalanceado a diario por delta vs libro.
+> **QuantCore migra a la señal momentum multi-escala** (única validada en holdout — Fase 1
+> del PRD v0.3); el LightGBM falsificado pasa a shadow. Pendiente: neteo del PaperAdapter
+> (Fase 2) y vista de cartera (Fase 3). Ver `docs/HERMES_PRD.md` §9 y `docs/DESIGN_portfolio_allocator.md`.
 
 ---
 
@@ -120,7 +132,7 @@ Ver `CLAUDE.md` para la referencia completa.
 
 Ninguna orden se ejecuta sin pasar por el Risk agent:
 
-- **Kelly fraccional** — sizing basado en confianza del PM y volatilidad actual (0.10 calibrado)
+- **Kelly fraccional** — sizing basado en confianza y volatilidad (interim 0.10; el valor definitivo sale de re-calibrar sobre la señal momentum — PRD §8.2)
 - **VaR pre-trade** — rechaza si pérdida 2σ excede el límite diario
 - **Correlación** — rechaza si corr > 0.7 con posiciones abiertas
 - **Short ultra-conservador** — solo si `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10%** del budget; futuros-only en real; **OFF por default en live** (diseño, ver `docs/DESIGN_portfolio_allocator.md`)
@@ -133,6 +145,7 @@ Ninguna orden se ejecuta sin pasar por el Risk agent:
 
 Con muestra pequeña (< 60 trades), Hermes reporta:
 - **PSR** (Probabilistic Sharpe Ratio) — ajusta por no-normalidad y tamaño muestral
+- **DSR** (Deflated Sharpe) — deflacta por número de configuraciones probadas (anti data-snooping)
 - **Intervalo de credibilidad bayesiano** del Sharpe: `0.4 [90% CI: -0.8, 1.6]`
 - **Sortino**, **max drawdown**, **win rate**, **profit factor**
 
@@ -195,15 +208,18 @@ Al alcanzar el cap de LLM, las corridas se pausan automáticamente.
 
 ---
 
-## Roadmap
+## Roadmap (runbook por fases — PRD v0.3 §9)
 
-- [ ] **Semana 0:** Evaluar TradingAgents vs LangGraph nativo; primer backtest local
-- [ ] **Semana 1:** Pipeline completo corriendo local sobre cripto (paper)
-- [ ] **Semana 2:** ExecutionAdapter testnet + guardrails + corridas programadas
-- [ ] **Semana 3:** Dashboard público desplegado en GCP con Terraform
-- [ ] **Semana 4:** Flip a live mínimo + panel MLOps + README/case study
+- [x] **Base:** pipeline LangGraph 15 nodos + allocator de cartera + framework de research (PSR/DSR)
+- [ ] **Fase 0:** higiene — whitelist XRP, alineación de guardrails, backfill
+- [ ] **Fase 1:** señal momentum multi-escala en producción; LightGBM a shadow
+- [ ] **Fase 2:** neteo del PaperAdapter (rebalanceo diario real)
+- [ ] **Fase 3:** dashboard de cartera + panel champion vs shadow
+- [ ] **Fase 4:** noticias P0 (multi-fuente + anti prompt-injection + clustering)
+- [ ] **Fase 5:** deploy GCP (Terraform) + corridas diarias programadas
+- [ ] **Fase 6:** testnet → live mínimo $50 (long-only, Kelly re-calibrado)
 
-**Post-MVP:** Acciones vía Alpaca · Integración con Odysseus UI
+**Post-MVP:** challenger de regresión promovible · Acciones vía Alpaca · Odysseus UI
 
 ---
 

@@ -29,7 +29,7 @@ import pandas as pd
 MODEL_DIR = Path("data/models")
 MODEL_PATH = MODEL_DIR / "quant_core_lgbm.pkl"
 
-CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
 FORWARD_PERIODS = 168  # 7 days in 1h candles
 PURGE_PERIODS = 500  # GARCH window — longest rolling feature
 EMBARGO_PERIODS = 168  # 1 week — avoid forward return leakage

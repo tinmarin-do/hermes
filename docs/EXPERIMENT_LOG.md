@@ -219,6 +219,80 @@ alpha"**: preserva capital en bear markets, que es la propiedad clásica y docum
 **Dónde NO ir (final):**
 13. **No vender el momentum como alpha** — su valor probado es defensivo (downside protection), no retorno absoluto.
 
+---
+
+## Experimento H8 — Cross-sectional momentum (rankear los símbolos ENTRE SÍ)
+
+**Fecha:** 2026-06-28 · **Estado:** ❌ **muere en iteración** (DSR < 0.90 a priori) · 🐛 **bug de timezone hallado y corregido**.
+
+**Hipótesis:** un eje **ortogonal** al time-series momentum — rankear los 5 majors por retorno
+trailing y ir **long los más fuertes / short los más débiles** — gana del *spread* ganador-perdedor,
+así que puede pagar aunque el mercado esté plano o cayendo. Es el alpha cross-sectional documentado
+(Jegadeesh-Titman). Si el spread market-neutral tiene edge, es retorno absoluto, no solo defensa.
+
+**Setup (fijo a priori, NO tuneado):** lookback 30d (=H5), top-2/bottom-2 de 5, equal-weight por
+sleeve, perf 7d, fee 10bps/lado, `<2025-06-28`, n_trials=10. Dos variantes: **market-neutral**
+(long+budget/2, short−budget/2 → gross=budget, net=0; spread puro, **bypassa el cap short 10%** a
+propósito — primero medir si el alpha existe) y **long-only** (solo top-2, desplegable en spot).
+
+| Variante | Sharpe | PSR(0) | DSR | ret | maxDD | win | skew |
+|---|---|---|---|---|---|---|---|
+| **market-neutral (spread)** | 0.50 | 0.865 | **0.29** ❌ | +76% | −61% | 0.49 | +1.58 |
+| **long-only (top-2)** | 1.15 | 0.998 | **0.84** ❌ | +2430% | −80% | 0.55 | +2.37 |
+
+**Conclusión:**
+- **El spread market-neutral — el test honesto de alpha ortogonal — es DÉBIL** (Sharpe 0.50, DSR 0.29).
+  El ranking ganador-vs-perdedor **no agrega alpha tradeable robusto** en este universo.
+- El Sharpe alto del long-only (1.15) es **beta de mercado + concentración**, NO alpha neutral:
+  maxDD −80%, vol enorme, es literalmente "holdear los 2 majors más fuertes". Misma enfermedad de
+  beta que el TS momentum; y DSR 0.84 igual no llega a 0.90.
+- **CAUSA RAÍZ — el universo es la restricción, no la señal.** 5 majors ultra-correlacionados
+  (~0.7-0.9). El cross-sectional necesita **dispersión amplia y diversa** para explotar; long-2/short-2
+  de 5 nombres correlacionados deja un spread casi nulo.
+- Por el protocolo a priori (DSR>0.90 para tocar el holdout), **se descarta en iteración. Holdout NO gastado.**
+
+🐛 **Bug de timezone (hallado y corregido acá):** el backtest pasaba stamps **tz-aware UTC** a DuckDB,
+que los convertía a la tz local del host (**UTC−6**), corriendo **6h cada lookup as-of**. Era **benigno**
+para H5/H6 (el shift afectaba trailing Y forward por igual = rebalanceo a otra hora, internamente
+consistente) pero real. Corregido **en la fuente** (`_iteration_stamps` hace strip de tz → todo el
+stack naive-UTC en la hora verdadera). Los números del campeón (multiescala) conviene **re-validarlos**
+a la hora correcta. Además: las reglas ahora **cachean la serie de precios en memoria** (sin abrir una
+conexión DuckDB por lookup) → iteración mucho más rápida.
+
+**Dónde NO ir (actualizado):**
+14. **Cross-sectional sobre un universo chico y correlacionado = sin alpha ortogonal.** El Sharpe del
+    long-only es beta disfrazada. Hipótesis a testear: ¿un universo **más amplio y diverso** lo rescata?
+
+### H8-wide — universo ampliado a 28 nombres → **FALSIFICA la hipótesis del universo**
+
+**Fecha:** 2026-06-28 · **Estado:** ❌ ampliar el universo **NO rescata** el cross-sectional.
+
+**Setup:** backfill de bronze 2021→2026 de **23 alts** (XRP ADA DOGE DOT ATOM NEAR ALGO FTM TRX EOS
+LINK UNI AAVE MKR SNX COMP LTC BCH ETC XLM FIL SAND MANA — varios colapsaron −90% en 2022, buena
+dispersión; FTM/EOS/MKR con historia parcial por delisting). Universo total **28**. Quintil long-short
+(top-5/bot-5), lookback 30d, equal-weight, perf 7d, fee 10bps, `<2025-06-28`. La regla cross-sectional
+sólo usa precios → bronze alcanza (nuevo `_bronze_stamps`/`price_only`, sin correr Silver).
+
+| Spread market-neutral | Sharpe | PSR(0) | DSR | maxDD | avg_legs |
+|---|---|---|---|---|---|
+| 5 majors | 0.50 | 0.865 | 0.29 | −61% | 4.0 |
+| **28 nombres** | 0.53 | 0.876 | **0.31** | −37% | 9.9 |
+
+**Conclusión:** el spread **apenas se movió** (Sharpe 0.50→0.53, DSR 0.29→**0.31**, sigue lejísimos de
+0.90). Lo único que mejoró fue el drawdown (−61%→−37%, por diversificación). **La hipótesis "la
+restricción es el universo" queda FALSIFICADA:** con 28 nombres diversos el ranking ganador-perdedor
+tampoco tiene alpha. El long-only top-5 (Sharpe 1.01, maxDD −84%) sigue siendo beta concentrada.
+
+**Cierre del arco cross-sectional:** 4 ejes probados (ML ×3, TS momentum, regime-logística,
+cross-sectional narrow+wide) convergen en lo mismo — **sobre cripto líquida no hay alpha direccional
+absoluto robusto con señales de precio; el único valor validado es defensivo** (overlay de momentum).
+El método honesto y desplegable que la evidencia soporta es el overlay defensivo, no un generador de alpha.
+
+**Dónde NO ir (actualizado):**
+15. **Ampliar el universo no crea alpha cross-sectional** donde no lo hay — el spread quedó plano con 28
+    nombres. La debilidad es de la señal de precio, no del tamaño del universo. (Variante canónica sin
+    probar: momentum "12-1" con *skip* de la última semana para evitar reversal — única bala a priori que queda.)
+
 > Cada una se corre solo sobre datos de iteración (< 2025-06-28), cuenta para `n_trials`, y se anota acá.
 
 - **H1 — Label triple-barrier / meta-labeling (López de Prado):** reemplazar `fwd>0` binario por
