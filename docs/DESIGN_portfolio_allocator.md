@@ -113,8 +113,8 @@ Una corrida **programada no puede pasar por `/cost:gate` interactivo** → choca
 | 5 | `src/brain/graph.py` | cablear `allocator` después del PM. | ✅ hecho |
 | 6 | `src/brain/agents/{risk,pm}.py` | El cap/veto de short se enforce **determinísticamente en el allocator** (más estricto y data-first que un LLM); risk/pm quedan como freno global vía `risk_approved`/`debate_verdict`. | ✅ (vía allocator) |
 | 7 | `tests/unit/test_allocator.py` + `tests/e2e/test_pipeline.py` | tests del allocator (9) + e2e adaptado al contrato de cartera. | ✅ hecho |
-| 8 | `src/execution/adapter.py` | **neteo/reciclaje de caja** para rebalanceo diario real (hoy append-only). | ⏳ diferido |
-| 9 | `src/dashboard/build.py` | vista de cartera (pesos, P&L por símbolo, cash). | ⏳ diferido |
+| 8 | `src/execution/adapter.py` | **neteo/reciclaje de caja** — posición neta única por símbolo (reduce el lado opuesto con P&L realizado, entry promedio ponderado al extender), caja firmada (BUY out / SELL in), `get_equity()`, kill liquida con órdenes de cierre. Runner ejecuta SELLs antes que BUYs. Libro paper reseteado a era-$1 (2026-07-02; respaldo en `execution_*_archive_20260702`). | ✅ hecho (Fase 2) |
+| 9 | `src/dashboard/build.py` | vista de cartera (pesos, P&L por símbolo, cash). | ⏳ diferido (Fase 3) |
 
 ## 8. Costo y métricas
 

@@ -143,6 +143,8 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     # ── Ejecución del portafolio (§8.8): el allocator repartió el budget; ejecutamos el vector ──
     budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     active = [a for a in allocations if a.get("action") != "HOLD" and a.get("size_usd", 0) > 0]
+    # SELLs primero: liberan la caja que los BUYs del mismo rebalanceo necesitan (§8.8)
+    active.sort(key=lambda a: 0 if a["action"] == "SELL" else 1)
     print(
         f"\n[allocator] budget=${budget:.2f} · {len(active)}/{len(allocations)} legs activos · {exchange_mode}"
     )
@@ -150,13 +152,6 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
         print(
             f"  • {a['symbol']:12s} w={a['target_weight']:+.3f} "
             f"target=${a['target_usd']:.4f} → {a['action']} ${a['size_usd']:.4f}"
-        )
-
-    if current_positions:
-        print(
-            "[execution] ⚠️ libro no vacío — el neteo real de rebalanceo requiere upgrade del "
-            "PaperAdapter; v1 ejecuta despliegue tipo día-0 (ver docs/DESIGN_portfolio_allocator.md)",
-            flush=True,
         )
 
     order_results: list[dict[str, Any]] = []
