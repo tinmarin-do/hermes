@@ -49,7 +49,7 @@ FORWARD_PERIODS = 168  # 7 days in 1h candles
 VOLLATILITY_TOP_N = 20
 GRID_KELLY = [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
 GRID_LOSS_LIMIT = [0.01, 0.02, 0.03, 0.04, 0.05]
-CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
 
 # Heuristic signal quality filters — reduce false positives at source
 MIN_CONFIDENCE = 0.25  # floor: below this the signal isn't even worth risk review
@@ -569,7 +569,7 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
         "",
         "| Parameter | Value |",
         "|---|---|",
-        f"| `HERMES_KELLY_FRACTION` | **{params.get('kelly_fraction', 0.25)}** |",
+        f"| `HERMES_KELLY_FRACTION` | **{params.get('kelly_fraction', 0.10)}** |",
         f"| `HERMES_DAILY_LOSS_LIMIT_PCT` | **{params.get('daily_loss_limit_pct', 0.02)}** |",
         "",
         "### Performance Metrics (at optimum)",

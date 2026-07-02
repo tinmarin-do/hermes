@@ -96,7 +96,7 @@ def compute_allocations(
 
 def allocator_node(state: dict) -> dict:
     """LangGraph node: derive the global brake from the committee, then split the budget."""
-    budget = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+    budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     short_cap = float(os.environ.get("HERMES_SHORT_CAP_PCT", "0.10"))
 
     risk_approved = state.get("risk_approved", False)

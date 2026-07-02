@@ -29,7 +29,7 @@ def portfolio_manager(state: HermesState) -> dict:
     decision = state.get("trader_decision", {})
     approved = state.get("risk_approved", False)
     verdict = state.get("debate_verdict", "HOLD")
-    max_positions = int(os.environ.get("HERMES_MAX_POSITIONS", "2"))
+    max_positions = int(os.environ.get("HERMES_MAX_POSITIONS", "6"))
 
     response = llm.invoke(
         [

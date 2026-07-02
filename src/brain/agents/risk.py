@@ -50,7 +50,7 @@ def _var_check(garch_vol: float | None, size_usd: float, daily_limit_pct: float)
     if garch_vol is None:
         return True
     var_2sigma = size_usd * garch_vol * 2 * math.sqrt(24)
-    daily_limit = float(os.environ.get("HERMES_CAPITAL_USD", "500")) * daily_limit_pct
+    daily_limit = float(os.environ.get("HERMES_CAPITAL_USD", "1")) * daily_limit_pct
     return var_2sigma <= daily_limit
 
 
@@ -58,9 +58,9 @@ def make_risk_agent(perspective: str, description: str):
     def risk_agent(state: HermesState) -> dict:
         decision = state.get("trader_decision", {})
         confidence = state.get("debate_confidence", 0.5)
-        capital = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+        capital = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
         daily_limit = float(os.environ.get("HERMES_DAILY_LOSS_LIMIT_PCT", "0.02"))
-        kelly_fraction = float(os.environ.get("HERMES_KELLY_FRACTION", "0.25"))
+        kelly_fraction = float(os.environ.get("HERMES_KELLY_FRACTION", "0.10"))
 
         symbol = decision.get("symbol", "NONE")
         action = decision.get("action", "HOLD")
