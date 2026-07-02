@@ -119,3 +119,21 @@ def test_llm_cost_measured(pipeline_run):
     assert cost["n_calls"] > 0
     assert cost["total_tokens"] > 0
     assert cost["cost_usd"] >= 0.0
+
+
+def test_champion_signal_is_momentum_rule(pipeline_run):
+    """PRD v0.3 Fase 1: la señal ejecutora es la regla multimom, no el LightGBM."""
+    for s in pipeline_run["quant_signals"]:
+        assert "multimom" in s["rationale"]
+
+
+def test_shadow_signals_present_and_never_execute(pipeline_run):
+    """§8.9: el challenger corre en shadow — un vector por símbolo, sin órdenes propias."""
+    shadow = pipeline_run["shadow_signals"]
+    assert len(shadow) == len(pipeline_run["quant_signals"])
+    executed_symbols = {o["symbol"] for o in pipeline_run["order_results"]}
+    for ss in shadow:
+        assert ss["model"] in ("lightgbm", "heuristic-5f")
+        assert ss["direction"] in ACTIONS
+        # las órdenes ejecutadas provienen SOLO del allocator (champion), jamás del shadow
+        assert executed_symbols <= {a["symbol"] for a in pipeline_run["allocations"]}

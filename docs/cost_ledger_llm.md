@@ -20,3 +20,7 @@ Referencia de precios (DeepSeek V4 Flash unificado — todos los roles, junio 20
 | 2026-06-28 | f4ff8143 | DeepSeek V4 Flash | all (18 llamadas) | 37225 | 0.0070 | 0.0139 | 149.9861 |
 | 2026-06-28 | 86bd66ac | DeepSeek V4 Flash | all (e2e test) | 33320 | 0.0062 | 0.0201 | 149.9799 |
 | 2026-06-28 | 19469923 | DeepSeek V4 Flash | all (e2e via pytest tests/ — NO gateada) | 54053 | 0.0101 | 0.0302 | 149.9698 |
+| CIERRE-MES | 2026-06 | — | — | — | 0.0302 | 0.00 | REINICIO → 150.00 |
+| 2026-07-02 | APERTURA-MES | — | — | — | 0.00 | 0.00 | 150.00 |
+| 2026-07-02 | 672f54f0 | DeepSeek V4 Flash | all (e2e suite Fase 1 — gateada) | 55364 | 0.0104 | 0.0104 | 149.9896 |
+| 2026-07-02 | 40b2cb70 | DeepSeek V4 Flash | all (run 6 símbolos Fase 1 — gateada) | 55656 | 0.0103 | 0.0207 | 149.9793 |

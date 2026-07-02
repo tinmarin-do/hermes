@@ -293,7 +293,27 @@ El método honesto y desplegable que la evidencia soporta es el overlay defensiv
     nombres. La debilidad es de la señal de precio, no del tamaño del universo. (Variante canónica sin
     probar: momentum "12-1" con *skip* de la última semana para evitar reversal — única bala a priori que queda.)
 
-> Cada una se corre solo sobre datos de iteración (< 2025-06-28), cuenta para `n_trials`, y se anota acá.
+---
+
+## Registro operativo — SWITCH DE SEÑAL EN PRODUCCIÓN (Fase 1, PRD v0.3)
+
+**Fecha:** 2026-07-02 · **Tipo:** operación (no experimento — no suma a `n_trials`).
+
+Consecuencia directa del veredicto del arco H0–H8: la señal ejecutora del pipeline pasa de
+**LightGBM (falsificado, Exp. 0)** a la **regla momentum multi-escala (H6, validada en holdout
+como overlay defensivo)**.
+
+- **Champion:** `src/brain/quant_rule.py` — mismo voto de signo 7/14/30/90d del backtest H6,
+  mismo contrato `QuantSignal` (P mapeado con la inversa de `_prob_to_signal`, preserva la
+  equivalencia asimétrica del short conf≥0.50 ⟺ P≤0.25). El gate de short del nodo
+  (conf + confirmación de régimen bajista) queda intacto.
+- **Shadow (§8.9):** el LightGBM/heurística sigue corriendo por corrida como challenger
+  placeholder; sus señales se persisten en la tabla `shadow_signals` (DuckDB) vía
+  `src/brain/shadow.py` y **jamás ejecutan**. Este track record hipotético es el juez del
+  protocolo v2 para cualquier candidato futuro (p. ej. la regresión continua).
+- El slot shadow queda listo para el challenger de regresión sin tocar el grafo.
+
+> Cada una se corre solo sobre datos de iteración, cuenta para `n_trials`, y se anota acá.
 
 - **H1 — Label triple-barrier / meta-labeling (López de Prado):** reemplazar `fwd>0` binario por
   barreras (TP/SL/tiempo) ajustadas por volatilidad. Hipótesis: el label binario crudo es ruido; un
