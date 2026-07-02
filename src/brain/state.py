@@ -22,6 +22,7 @@ class HermesState(TypedDict):
     # Quant core (§8.7.2) — deterministic direction + sizing BEFORE LLM verification
     quant_signal: dict  # {direction, confidence, size_usd, rationale} — best single (lead thesis)
     quant_signals: list[dict]  # per-symbol signals for the portfolio allocator (§8.8)
+    shadow_signals: list[dict]  # challenger hipotético (§8.9) — se persiste, JAMÁS ejecuta
 
     # Portfolio allocator (§8.8) — deterministic budget split across symbols
     current_positions: list[dict]  # open book injected by the runner BEFORE the graph

@@ -73,6 +73,7 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
         "regime_summary": "",
         "quant_signal": {},
         "quant_signals": [],
+        "shadow_signals": [],
         "current_positions": current_positions,
         "allocations": [],
         "analyst_reports": [],
@@ -117,6 +118,18 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     pm = final_state.get("pm_decision", {})
     allocations = final_state.get("allocations", [])
     exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+
+    # ── Shadow mode (§8.9): persistir las señales hipotéticas del challenger ──
+    shadow = final_state.get("shadow_signals", [])
+    if shadow:
+        from src.brain.shadow import persist_shadow_signals
+
+        n_shadow = persist_shadow_signals(run_id, shadow)
+        print(
+            f"[shadow] {n_shadow} señales del challenger "
+            f"({shadow[0].get('model', '?')}) persistidas — no ejecutan",
+            flush=True,
+        )
 
     print(f"\n{'=' * 60}")
     print(f"Run ID  : {run_id}")
