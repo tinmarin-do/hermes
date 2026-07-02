@@ -1,9 +1,14 @@
 # Hermes — Claude Code Instructions
 
 ## Qué es Hermes
-Sistema multiagente de trading con IA. Múltiples agentes LLM (LangGraph) colaboran para
-decidir operaciones sobre criptoactivos, ejecutadas automáticamente en Binance. Desplegado
-en GCP con Terraform. **Proyecto experimental y educativo — no asesoría financiera.**
+**Overlay defensivo de momentum + laboratorio de research anti-overfit** (identidad v0.3,
+2026-07-02). Una señal cuantitativa determinista (momentum multi-escala, única validada en
+holdout) reparte un budget como cartera; agentes LLM (LangGraph) la **verifican como
+red-team** (confirman/vetan/recortan — jamás deciden el número). El research continúa vía
+shadow mode (challenger de regresión). Ejecuta en Binance, desplegado en GCP con Terraform.
+**Proyecto experimental y educativo — no asesoría financiera.** La claim pública es honesta:
+sin alpha absoluto; valor defensivo validado (`docs/EXPERIMENT_LOG.md`).
+**Fuente de verdad de ejecución: `docs/HERMES_PRD.md` v0.3 — runbook §9, fases en orden.**
 
 ## Modo de ejecución (`HERMES_MODE`)
 
@@ -14,7 +19,7 @@ en GCP con Terraform. **Proyecto experimental y educativo — no asesoría finan
 
 Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defecto: `local`.
 
-## Portafolio y budget de trading (diseño 2026-06-28 — pendiente de implementar)
+## Portafolio y budget de trading (estado 2026-07-02)
 
 Hermes reparte un **budget de trading** entre los 6 símbolos permitidos como **cartera**
 (no una sola apuesta), **rebalanceado a diario**. Es un bolsillo **distinto** de los caps
@@ -25,9 +30,14 @@ operativos (GCP + LLM) de la sección Presupuestos.
 | `local` / paper | **$1 imaginario** | Sandbox; día 0 arranca con $1 en cash. |
 | `cloud` / real | **$50 USD reales** | Testnet primero; live solo con guardrails (regla #4). |
 
+- **Whitelist (6):** BTC, ETH, SOL, BNB, AVAX, **XRP** /USDT (XRP reemplazó a MATIC, delistado).
 - **Pesos:** `conf × inverse-vol`, normalizados al budget. El delta vs el libro actual define buy/sell/hold.
 - **Short:** ultra-conservador (`P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10%**). Futuros-only en real, simulado en paper, **OFF por default en live** (regla #8).
-- **Estado:** *winner-takes-all* hoy en código; el allocator + short son **diseño aprobado, sin implementar**. Fuente de verdad: `docs/DESIGN_portfolio_allocator.md` y §8.8 del PRD.
+- **Kelly:** interim **0.10**; el definitivo sale de `/brain:calibrate-risk` sobre la señal momentum (PRD §8.2).
+- **Estado:** allocator + capa de decisión **implementados** (PR #10). Pendiente (PRD §9):
+  Fase 1 = migrar `quant_core` de LightGBM (falsificado) a la **regla momentum multi-escala**;
+  Fase 2 = neteo del PaperAdapter; Fase 3 = vista de cartera en dashboard.
+  Fuentes de verdad: PRD v0.3 §8.8/§9 y `docs/DESIGN_portfolio_allocator.md`.
 
 ## Reglas críticas (no negociables)
 
