@@ -119,17 +119,34 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     allocations = final_state.get("allocations", [])
     exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
 
-    # ── Shadow mode (§8.9): persistir las señales hipotéticas del challenger ──
+    # ── Signal log (§8.9): persistir champion (ejecuta) + challenger (shadow) ──
     shadow = final_state.get("shadow_signals", [])
-    if shadow:
+    champion_rows = [
+        {
+            "model": "champion-multimom",
+            "symbol": s["symbol"],
+            "direction": s["direction"],
+            "confidence": s.get("confidence"),
+            "raw_probability": s.get("raw_probability"),
+            "size_usd": s.get("size_usd"),
+        }
+        for s in final_state.get("quant_signals", [])
+    ]
+    if shadow or champion_rows:
         from src.brain.shadow import persist_shadow_signals
 
-        n_shadow = persist_shadow_signals(run_id, shadow)
+        n_logged = persist_shadow_signals(run_id, champion_rows + shadow)
         print(
-            f"[shadow] {n_shadow} señales del challenger "
-            f"({shadow[0].get('model', '?')}) persistidas — no ejecutan",
+            f"[signal-log] {len(champion_rows)} champion + {len(shadow)} shadow "
+            f"({shadow[0].get('model', '?') if shadow else '—'}) persistidas "
+            f"({n_logged} filas) — el shadow no ejecuta",
             flush=True,
         )
+
+    # ── Transcripción auditable de la corrida (visor de debate, §5.4) ──
+    from src.brain.transcript import persist_transcript
+
+    persist_transcript(run_id, final_state)
 
     print(f"\n{'=' * 60}")
     print(f"Run ID  : {run_id}")
