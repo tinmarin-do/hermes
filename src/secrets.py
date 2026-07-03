@@ -60,6 +60,9 @@ def get_secret(name: str, project: str | None = None) -> str:
 
     import base64
 
-    val = base64.b64decode(resp.json()["payload"]["data"]).decode()
+    # strip: los one-liners de carga (`echo | gcloud secrets versions add`) dejan un
+    # \n final que invalida la firma HMAC del exchange — las keys jamás llevan
+    # whitespace legítimo en los bordes.
+    val = base64.b64decode(resp.json()["payload"]["data"]).decode().strip()
     os.environ[name] = val  # cache de proceso; jamás persistir a disco
     return val

@@ -18,9 +18,11 @@ class FakeExchange:
         balances: dict[str, float] | None = None,
         maker_fills: bool = True,
         price: float = 100.0,
+        async_market_fill: bool = False,
     ):
         self.price = price
         self.maker_fills = maker_fills
+        self.async_market_fill = async_market_fill
         self.balances = balances or {"USDT": 1000.0, "USD": 500.0}
         self.orders: dict[str, dict[str, Any]] = {}
         self.created: list[dict[str, Any]] = []
@@ -65,6 +67,11 @@ class FakeExchange:
             "status": "closed" if filled else "open",
         }
         self.orders[oid] = order
+        if type_ == "market" and self.async_market_fill:
+            # Bitso real: el response del create llega SIN fill (asíncrono); la
+            # verdad vive en fetch_order (self.orders ya la tiene completa).
+            self.created.append({**order, "filled": 0.0, "average": 0.0})
+            return {**order, "filled": 0.0, "average": 0.0, "status": "open"}
         self.created.append(order)
         return order
 
@@ -160,6 +167,16 @@ def test_maker_timeout_falls_back_to_market(tmp_db):
     types = [o["type"] for o in fake.created]
     assert types == ["limit", "market"]  # limit sin fill → cancel → market
     assert fake.cancelled == ["o1"]
+
+
+def test_async_market_fill_not_reported_rejected(tmp_db):
+    # Bug cazado por live-validation-1 (2026-07-03): Bitso responde el create del
+    # market SIN fill (asíncrono) — el adapter debe consultar la orden real antes
+    # de declarar REJECTED (la orden HABÍA llenado: 0.2438 SOL @ 82.335).
+    fake = FakeExchange(maker_fills=False, async_market_fill=True)
+    r = _adapter(fake).execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 20}, "r1")
+    assert r.status == "FILLED"
+    assert r.quantity > 0
 
 
 # ── Seguridad ──────────────────────────────────────────────────────────────────

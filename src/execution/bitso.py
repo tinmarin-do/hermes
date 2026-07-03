@@ -183,7 +183,14 @@ class BitsoAdapter(ExecutionAdapter):
                     print(f"[bitso] cancel {order_id}: {exc} (continúa fallback)")
                 mkt = self._exchange.create_order(pair, "market", action.lower(), remainder)
                 mkt_filled = float(mkt.get("filled", 0) or 0)
-                mkt_avg = float(mkt.get("average", 0) or 0) or ref_price
+                mkt_avg = float(mkt.get("average", 0) or 0)
+                mkt_id = str(mkt.get("id", ""))
+                if mkt_filled <= 0 and mkt_id:
+                    # Bitso responde el create SIN fill (asíncrono) — consultar la orden
+                    # real antes de declarar rechazo (bug cazado por live-validation-1:
+                    # la orden llenó pero el response inmediato decía filled=0).
+                    mkt_filled, mkt_avg = self._wait_fill(pair, mkt_id)
+                mkt_avg = mkt_avg or ref_price
                 if mkt_filled > 0:
                     total = filled + mkt_filled
                     avg_price = (
