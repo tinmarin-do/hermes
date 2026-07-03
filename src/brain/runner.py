@@ -12,7 +12,12 @@ from src.execution.adapter import ExecutionAdapter
 
 def _get_adapter() -> ExecutionAdapter:
     exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
+    exchange_id = os.environ.get("EXCHANGE_ID", "bitso")
     if exchange_mode == "live":
+        if exchange_id == "bitso":
+            from src.execution.bitso import BitsoAdapter
+
+            return BitsoAdapter()
         from src.execution.binance import BinanceAdapter
 
         return BinanceAdapter(mode="live")
