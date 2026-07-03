@@ -94,7 +94,8 @@ def main() -> int:
         con.close()
 
     if cloud:
-        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path)
+        # timeout amplio: ~120MB desde uplink doméstico excede el default de 120s
+        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path, timeout=600)
         os.unlink(tmp_path)
         print(f"[cloud] estado migrado subido a gs://{bucket.name}/hermes.duckdb")
     print("✅ era-$400 lista: libro en cash, equity curve fresca; shadow_signals intacto")
