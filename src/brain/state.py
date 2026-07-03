@@ -27,6 +27,8 @@ class HermesState(TypedDict):
     # Portfolio allocator (§8.8) — deterministic budget split across symbols
     current_positions: list[dict]  # open book injected by the runner BEFORE the graph
     allocations: list[dict]  # target legs {symbol, target_weight, target_usd, action, size_usd}
+    pocket_free: dict  # caja libre por bolsillo de quote (live/Bitso) — runner pre-graph
+    symbol_pocket: dict  # símbolo canónico → bolsillo de quote (USDT/USD)
 
     # Analyst reports (one per symbol) — written by parallel analyst nodes,
     # so it needs an additive reducer to merge concurrent branches.

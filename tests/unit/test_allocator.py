@@ -156,6 +156,96 @@ def test_fee_reserve_zero_is_backward_compatible():
     assert sum(a["target_usd"] for a in legs) == pytest.approx(1.0, abs=1e-3)
 
 
+# ── Cap por bolsillo de quote (hallazgo 2026-07-03, corrida live 29cb1a50) ────
+
+_POCKETS = {
+    "BTC/USDT": "USDT",
+    "ETH/USDT": "USDT",
+    "SOL/USDT": "USDT",
+    "XRP/USDT": "USDT",
+    "LINK/USDT": "USD",
+    "AVAX/USDT": "USD",
+}
+
+
+def test_buy_capped_by_quote_pocket():
+    # Reproduce el rebote real: equity 566 pero USDT libre 367 → el BUY de SOL
+    # (target ~430) debe achicarse a lo que el bolsillo puede pagar, no rebotar.
+    sigs = [_sig("SOL/USDT", "BUY", 0.95, 0.004)]
+    legs = compute_allocations(
+        sigs,
+        [],
+        budget=566.0,
+        global_mult=0.8,
+        pocket_free={"USDT": 367.0, "USD": 178.0},
+        symbol_pocket=_POCKETS,
+    )
+    sol = next(a for a in legs if a["symbol"] == "SOL/USDT")
+    assert sol["action"] == "BUY"
+    assert sol["size_usd"] <= 367.0
+
+
+def test_pockets_are_independent():
+    # SOL (USDT) y LINK (USD) se capean cada uno contra SU bolsillo
+    sigs = [
+        _sig("SOL/USDT", "BUY", 0.5, 0.004),
+        _sig("LINK/USDT", "BUY", 0.5, 0.004),
+    ]
+    legs = compute_allocations(
+        sigs,
+        [],
+        budget=1000.0,
+        global_mult=1.0,
+        pocket_free={"USDT": 100.0, "USD": 50.0},
+        symbol_pocket=_POCKETS,
+    )
+    by = {a["symbol"]: a for a in legs}
+    assert by["SOL/USDT"]["size_usd"] <= 100.0
+    assert by["LINK/USDT"]["size_usd"] <= 50.0
+
+
+def test_sell_proceeds_recycle_within_pocket():
+    # un SELL de BTC (USDT) financia parte del BUY de SOL (mismo bolsillo)
+    book = [{"symbol": "BTC/USDT", "action": "BUY", "quantity": 200.0, "current_price": 1.0}]
+    sigs = [_sig("SOL/USDT", "BUY", 0.9, 0.004)]
+    legs = compute_allocations(
+        sigs,
+        book,
+        budget=400.0,
+        global_mult=1.0,
+        pocket_free={"USDT": 50.0, "USD": 0.0},
+        symbol_pocket=_POCKETS,
+    )
+    by = {a["symbol"]: a for a in legs}
+    assert by["BTC/USDT"]["action"] == "SELL"  # sin señal → sale
+    # disponible ≈ 50 cash + ~200 del SELL > solo-cash → el BUY supera los 50
+    assert by["SOL/USDT"]["size_usd"] > 50.0
+    assert by["SOL/USDT"]["size_usd"] <= 50.0 + 200.0
+
+
+def test_no_pockets_means_no_cap():
+    # paper / sin info de bolsillos → comportamiento original intacto
+    sigs = [_sig("SOL/USDT", "BUY", 0.95, 0.004)]
+    legs = compute_allocations(sigs, [], budget=566.0, global_mult=0.8)
+    sol = next(a for a in legs if a["symbol"] == "SOL/USDT")
+    assert sol["size_usd"] > 367.0  # sin cap — el escenario que rebotó en live
+
+
+def test_empty_pocket_holds_instead_of_buying():
+    sigs = [_sig("LINK/USDT", "BUY", 0.9, 0.004)]
+    legs = compute_allocations(
+        sigs,
+        [],
+        budget=400.0,
+        global_mult=1.0,
+        pocket_free={"USDT": 400.0, "USD": 0.0},
+        symbol_pocket=_POCKETS,
+    )
+    link = next(a for a in legs if a["symbol"] == "LINK/USDT")
+    assert link["action"] == "HOLD"
+    assert link["size_usd"] == 0.0
+
+
 # ── Umbral asimétrico de short (§8.8) ─────────────────────────────────────────
 
 

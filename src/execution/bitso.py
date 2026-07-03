@@ -145,7 +145,9 @@ class BitsoAdapter(ExecutionAdapter):
             if action == "BUY":
                 free_quote = self._free(quote)
                 taker_fee = float(market.get("taker", 0.0036))
-                affordable = free_quote / (ref_price * (1 + taker_fee))
+                # 0.995: headroom para no morir en el borde exacto del balance
+                # (corrida 29cb1a50: rechazo por centavos/carrera del cancel)
+                affordable = free_quote * 0.995 / (ref_price * (1 + taker_fee))
                 if affordable < amount:
                     amount = affordable
             else:
@@ -330,6 +332,21 @@ class BitsoAdapter(ExecutionAdapter):
             return usdt + usd
         except Exception:
             return 0.0
+
+    def get_pockets(self) -> tuple[dict[str, float], dict[str, str]]:
+        """(caja libre por bolsillo de quote, símbolo canónico → bolsillo).
+
+        Alimenta el cap por bolsillo del allocator: los BUYs de cada quote no
+        pueden exceder su caja (hallazgo 2026-07-03: equity $566 pero USDT $367
+        no pagan un target de $430 en un par /USDT).
+        """
+        try:
+            bal = self._exchange.fetch_balance()
+        except Exception:
+            return {}, {}
+        pockets = {q: float((bal.get(q) or {}).get("free", 0) or 0) for q in ("USDT", "USD")}
+        mapping = {f"{a}/USDT": _quote_of(_venue_pair(f"{a}/USDT")) for a in _BASE_ASSETS}
+        return pockets, mapping
 
     def get_equity(self) -> float:
         """Equity total = caja (USDT+USD) + tenencias marcadas a precio actual.
