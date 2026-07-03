@@ -3,7 +3,8 @@ resource "google_cloud_run_v2_service" "dashboard" {
   location = var.region
   project  = var.project_id
 
-  ingress = "INGRESS_TRAFFIC_ALL"
+  ingress             = "INGRESS_TRAFFIC_ALL"
+  deletion_protection = false # POC — sin protección para permitir replace
 
   template {
     service_account = var.runtime_sa_email
@@ -41,7 +42,8 @@ resource "google_cloud_run_v2_service" "brain" {
   location = var.region
   project  = var.project_id
 
-  ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  ingress             = "INGRESS_TRAFFIC_INTERNAL_ONLY"
+  deletion_protection = false # POC
 
   template {
     service_account = var.runtime_sa_email
