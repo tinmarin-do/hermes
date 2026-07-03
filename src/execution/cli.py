@@ -14,6 +14,12 @@ from src.execution.adapter import ExecutionAdapter, PaperAdapter
 
 def _build_adapter(mode: str) -> ExecutionAdapter:
     """Pick an adapter from an EXCHANGE_MODE-style string."""
+    import os
+
+    if mode == "live" and os.environ.get("EXCHANGE_ID", "bitso") == "bitso":
+        from src.execution.bitso import BitsoAdapter
+
+        return BitsoAdapter()
     if mode in ("testnet", "live"):
         from src.execution.binance import BinanceAdapter
 

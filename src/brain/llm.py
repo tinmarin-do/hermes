@@ -1,7 +1,5 @@
 """LLM factory — returns DeepSeek V4 Flash via OpenAI-compatible API."""
 
-import os
-
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
@@ -17,10 +15,11 @@ def get_llm(role: str = "analyst") -> BaseChatModel:  # noqa: ARG001
     from langchain_openai import ChatOpenAI
 
     from src.brain.cost_meter import CostCallbackHandler
+    from src.secrets import get_secret
 
     return ChatOpenAI(
         model="deepseek-chat",
-        api_key=SecretStr(os.environ.get("DEEPSEEK_API_KEY", "")),
+        api_key=SecretStr(get_secret("DEEPSEEK_API_KEY")),
         base_url="https://api.deepseek.com/v1",
         temperature=0.3,
         callbacks=[CostCallbackHandler()],
