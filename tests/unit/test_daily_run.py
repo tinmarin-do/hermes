@@ -25,7 +25,8 @@ def test_budget_guard_blocks_when_line_exhausted(tmp_db, monkeypatch):
     daily_run._record_run("r2", 0.015, "OK")
     assert daily_run._month_daily_spend() == pytest.approx(0.045)
     # 0.045 + est 0.011 > 0.05 → el main debe frenar ANTES de tocar red/LLM
-    rc = daily_run.main()
+    # (force=True bypassa el guard anti-duplicado; el freno de budget NO se bypassa)
+    rc = daily_run.main(force=True)
     assert rc == 2
 
 
@@ -50,6 +51,51 @@ def test_blocked_runs_are_recorded(tmp_db, monkeypatch):
     assert status == "BLOCKED_BUDGET"
 
 
+# ── Guard anti-duplicado (1 corrida OK/día — hallazgo 2026-07-03) ─────────────
+
+
+def test_duplicate_guard_blocks_second_run_same_day(tmp_db):
+    from scripts import daily_run
+
+    daily_run._record_run("r1", 0.01, "OK")
+    assert daily_run._ran_ok_today() is True
+    rc = daily_run.main()
+    assert rc == 3
+
+
+def test_duplicate_guard_records_blocked_attempt(tmp_db):
+    import duckdb
+
+    from scripts import daily_run
+
+    daily_run._record_run("r1", 0.01, "OK")
+    daily_run.main()
+    con = duckdb.connect(str(tmp_db / "daily.duckdb"))
+    statuses = [r[0] for r in con.execute("SELECT status FROM daily_run_log").fetchall()]
+    con.close()
+    assert "BLOCKED_DUPLICATE" in statuses
+
+
+def test_duplicate_guard_ignores_failed_and_blocked_runs(tmp_db):
+    from scripts import daily_run
+
+    daily_run._record_run("(skipped)", 0.0, "BLOCKED_BUDGET")
+    daily_run._record_run("(failed)", 0.0, "FAILED: boom")
+    # sin corrida OK hoy → el guard NO bloquea (un fallo previo no debe matar el día)
+    assert daily_run._ran_ok_today() is False
+
+
+def test_duplicate_guard_force_env_bypasses(tmp_db, monkeypatch):
+    from scripts import daily_run
+
+    daily_run._record_run("r1", 0.01, "OK")
+    monkeypatch.setenv("HERMES_FORCE_RUN", "1")
+    monkeypatch.setattr(daily_run, "DAILY_LINE_CAP_USD", 0.0)
+    # force salta el dup-guard; el freno de budget (cap 0) atrapa después → rc=2, no 3
+    rc = daily_run.main()
+    assert rc == 2
+
+
 # ── Silver incremental (transform_tail) ───────────────────────────────────────
 
 
@@ -62,9 +108,7 @@ def _seed_bronze(symbol: str, hours: int, start: datetime) -> None:
         ts = start + timedelta(hours=i)
         px = 100.0 + i * 0.1
         rows.append([symbol, "1h", ts, px, px + 1, px - 1, px, 10.0, start])
-    con.executemany(
-        "INSERT OR REPLACE INTO bronze_ohlcv VALUES (?,?,?,?,?,?,?,?,?)", rows
-    )
+    con.executemany("INSERT OR REPLACE INTO bronze_ohlcv VALUES (?,?,?,?,?,?,?,?,?)", rows)
     con.close()
 
 
@@ -73,12 +117,8 @@ def cheap_rollers(monkeypatch):
     """Los rollers reales (Hurst/GARCH) tardan minutos — para unit se stubbean."""
     import src.data.silver.transform as t
 
-    monkeypatch.setattr(
-        t, "_rolling_hurst", lambda closes, w: pd.Series(0.55, index=closes.index)
-    )
-    monkeypatch.setattr(
-        t, "_rolling_garch_vol", lambda lr, w: pd.Series(0.005, index=lr.index)
-    )
+    monkeypatch.setattr(t, "_rolling_hurst", lambda closes, w: pd.Series(0.55, index=closes.index))
+    monkeypatch.setattr(t, "_rolling_garch_vol", lambda lr, w: pd.Series(0.005, index=lr.index))
     return t
 
 

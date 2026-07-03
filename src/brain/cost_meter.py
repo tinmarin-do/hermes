@@ -210,14 +210,55 @@ def mark_logged(run_id: str) -> int:
         con.close()
 
 
+def mark_logged_cloud(run_id: str) -> int:
+    """`mark_logged` contra el DuckDB de GCS (las corridas cloud viven ahí, no en el
+    archivo local — gap detectado 2026-07-03). Baja SOLO el blob del DB a un tmp,
+    flipea el flag y lo re-sube; jamás toca el snapshot (evita pisar el del dashboard
+    con uno local viejo). Ventana de carrera con una corrida en vuelo: aceptable en
+    POC (1 corrida/día + versioning del bucket)."""
+    import tempfile
+
+    from src.brain.state_sync import _bucket
+
+    bucket = _bucket()
+    blob = bucket.blob("hermes.duckdb")
+    if not blob.exists():
+        raise RuntimeError("gs://.../hermes.duckdb no existe — nada que marcar")
+
+    with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as tmp:
+        tmp_path = tmp.name
+    blob.download_to_filename(tmp_path)
+
+    prev = os.environ.get("HERMES_DUCKDB_PATH")
+    os.environ["HERMES_DUCKDB_PATH"] = tmp_path
+    try:
+        n = mark_logged(run_id)
+    finally:
+        if prev is None:
+            del os.environ["HERMES_DUCKDB_PATH"]
+        else:
+            os.environ["HERMES_DUCKDB_PATH"] = prev
+
+    if n > 0:
+        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path)
+    os.unlink(tmp_path)
+    return n
+
+
 if __name__ == "__main__":
     import sys
 
-    # `--mark-logged <run_id>` flips the DuckDB ledger flag — invoked by the
-    # /cost:log skill right after it appends the row to the markdown ledger.
+    # `--mark-logged <run_id> [--cloud]` flips the DuckDB ledger flag — invoked by the
+    # /cost:log skill right after it appends the row to the markdown ledger. `--cloud`
+    # targets the GCS state DB (corridas del brain en Cloud Run).
     if len(sys.argv) >= 3 and sys.argv[1] == "--mark-logged":
-        n = mark_logged(sys.argv[2])
-        print(f"[cost_meter] marked {n} run(s) as logged_to_ledger for '{sys.argv[2]}'")
+        rid = sys.argv[2]
+        if "--cloud" in sys.argv[3:]:
+            n = mark_logged_cloud(rid)
+            print(f"[cost_meter] (cloud) marked {n} run(s) as logged_to_ledger for '{rid}'")
+        else:
+            n = mark_logged(rid)
+            print(f"[cost_meter] marked {n} run(s) as logged_to_ledger for '{rid}'")
     else:
-        print("usage: python -m src.brain.cost_meter --mark-logged <run_id>")
+        print("usage: python -m src.brain.cost_meter --mark-logged <run_id> [--cloud]")
         sys.exit(2)

@@ -112,6 +112,50 @@ def test_delta_below_min_trade_is_hold():
     assert legs[0]["action"] == "HOLD"
 
 
+# ── Freno = CONGELAR, no liquidar (decisión 2026-07-03) ──────────────────────
+
+
+def test_freeze_keeps_book_untouched():
+    # verdict HOLD con posiciones abiertas → 0 órdenes; el libro queda como está
+    # (la semántica vieja liquidaba todo: target $0 → SELL del libro entero)
+    book = [{"symbol": "SOL/USDT", "action": "BUY", "quantity": 0.8, "current_price": 1.0}]
+    sigs = [_sig("SOL/USDT", "SELL", 0.9, 0.004)]  # ni una señal contraria mueve el libro
+    legs = compute_allocations(sigs, book, budget=1.0, global_mult=0.0, freeze=True)
+    by = {a["symbol"]: a for a in legs}
+    assert by["SOL/USDT"]["action"] == "HOLD"
+    assert by["SOL/USDT"]["size_usd"] == 0.0
+    assert by["SOL/USDT"]["target_usd"] == pytest.approx(0.8, abs=1e-3)
+
+
+def test_freeze_empty_book_no_legs():
+    sigs = [_sig("BTC/USDT", "BUY", 0.9, 0.004)]
+    legs = compute_allocations(sigs, [], budget=1.0, global_mult=0.0, freeze=True)
+    assert legs == []  # nada que congelar, nada que desplegar
+
+
+def test_freeze_short_position_also_held():
+    book = [{"symbol": "ETH/USDT", "action": "SELL", "quantity": 0.1, "current_price": 1.0}]
+    legs = compute_allocations([], book, budget=1.0, global_mult=0.0, freeze=True)
+    assert legs[0]["action"] == "HOLD"
+    assert legs[0]["current_usd"] == pytest.approx(-0.1, abs=1e-3)
+
+
+# ── Reserva de fees (escala $400: el último BUY no debe rebotar) ─────────────
+
+
+def test_fee_reserve_shrinks_deployable():
+    sigs = [_sig("BTC/USDT", "BUY", 0.6, 0.004)]
+    legs = compute_allocations(sigs, [], budget=400.0, global_mult=1.0, fee_reserve_pct=0.005)
+    # target = 400 × (1 − 0.005) = 398 → quedan $2 de headroom para fees
+    assert sum(a["target_usd"] for a in legs) == pytest.approx(398.0, abs=0.01)
+
+
+def test_fee_reserve_zero_is_backward_compatible():
+    sigs = [_sig("BTC/USDT", "BUY", 0.6, 0.004)]
+    legs = compute_allocations(sigs, [], budget=1.0, global_mult=1.0, fee_reserve_pct=0.0)
+    assert sum(a["target_usd"] for a in legs) == pytest.approx(1.0, abs=1e-3)
+
+
 # ── Umbral asimétrico de short (§8.8) ─────────────────────────────────────────
 
 

@@ -22,6 +22,12 @@ ENV PATH="/app/.venv/bin:$PATH" \
 RUN python -c "from sentence_transformers import SentenceTransformer; SentenceTransformer('all-MiniLM-L6-v2')" && \
     python -c "from transformers import pipeline; pipeline('text-classification', model='protectai/deberta-v3-base-prompt-injection')"
 
+# Forzar offline en runtime: sin esto, huggingface_hub igual intenta un HEAD a
+# huggingface.co en cada carga y solo cae al caché horneado si esa llamada falla
+# rápido — un 429 la deja reintentando con backoff varios minutos.
+ENV HF_HUB_OFFLINE=1 \
+    TRANSFORMERS_OFFLINE=1
+
 COPY src/ ./src/
 COPY scripts/ ./scripts/
 

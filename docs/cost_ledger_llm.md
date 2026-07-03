@@ -25,3 +25,5 @@ Referencia de precios (DeepSeek V4 Flash unificado — todos los roles, junio 20
 | 2026-07-02 | 672f54f0 | DeepSeek V4 Flash | all (e2e suite Fase 1 — gateada) | 55364 | 0.0104 | 0.0104 | 149.9896 |
 | 2026-07-02 | 40b2cb70 | DeepSeek V4 Flash | all (run 6 símbolos Fase 1 — gateada) | 55656 | 0.0103 | 0.0207 | 149.9793 |
 | 2026-07-02 | PRE-AUTORIZACIÓN | DeepSeek V4 Flash | línea corridas diarias julio (cap $0.50; ~$0.0105/día × ~29d; el cron se frena al superarla — §8.8) | — | ≤0.50 | 0.0207 | 149.9793 |
+| 2026-07-03 | 7bb92650 | DeepSeek V4 Flash | all (22 llamadas — corrida on-demand cloud, gcloud scheduler jobs run manual) | 46985 | 0.0087 | 0.0294 | 149.9706 |
+| 2026-07-03 | ccec96c6 | DeepSeek V4 Flash | all (22 llamadas — corrida DUPLICADA, solapó con el trigger manual; ejecutó BUY SOL/USDT $0.03 real; cae bajo línea diaria pre-autorizada) | 64547 | 0.0120 | 0.0414 | 149.9586 |

@@ -49,7 +49,7 @@ module "cloud_run" {
     HERMES_STATE_BUCKET       = google_storage_bucket.state.name
     HERMES_DUCKDB_PATH        = "/tmp/hermes.duckdb"
     HERMES_ALLOWED_SYMBOLS    = "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT"
-    HERMES_CAPITAL_USD        = "1"
+    HERMES_CAPITAL_USD        = "400" # era-$400 paper (decisión 2026-07-03; live tras F6+calibración)
     HERMES_KELLY_FRACTION     = "0.10"
     HERMES_MAX_POSITIONS      = "6"
     EXCHANGE_MODE             = "paper"
