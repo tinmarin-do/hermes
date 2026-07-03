@@ -25,6 +25,8 @@ def compute_allocations(
     min_trade_frac: float = 0.01,
     fee_reserve_pct: float = 0.0,
     freeze: bool = False,
+    pocket_free: dict[str, float] | None = None,
+    symbol_pocket: dict[str, str] | None = None,
 ) -> list[dict]:
     """Target-weight rebalancing (§8.8).
 
@@ -115,6 +117,32 @@ def compute_allocations(
                 "size_usd": round(abs(delta), 4),
             }
         )
+
+    # ── Cap por bolsillo de quote (hallazgo 2026-07-03, corrida 29cb1a50): el budget
+    # es UNO (equity) pero la caja vive en bolsillos por moneda de quote (Bitso:
+    # USDT para BTC/ETH/SOL/XRP · USD para LINK/AVAX). Los BUYs de un bolsillo no
+    # pueden exceder su caja libre + lo que liberan los SELLs del MISMO bolsillo
+    # (el runner ejecuta SELLs primero). El excedente queda en cash — determinista,
+    # sin redistribuir a otros símbolos.
+    if pocket_free and symbol_pocket:
+        for pocket in set(symbol_pocket.values()):
+            in_pocket = [a for a in legs if symbol_pocket.get(a["symbol"]) == pocket]
+            sell_proceeds = sum(a["size_usd"] for a in in_pocket if a["action"] == "SELL") * (
+                1.0 - max(0.0, min(1.0, fee_reserve_pct))
+            )
+            available = max(0.0, pocket_free.get(pocket, 0.0)) + sell_proceeds
+            buys = [a for a in in_pocket if a["action"] == "BUY"]
+            need = sum(a["size_usd"] for a in buys)
+            if need > available > 0:
+                scale = available / need
+                for a in buys:
+                    a["size_usd"] = round(a["size_usd"] * scale, 4)
+                    a["target_usd"] = round(a["current_usd"] + a["size_usd"], 4)
+                    if a["size_usd"] < min_trade:
+                        a["action"], a["size_usd"] = "HOLD", 0.0
+            elif need > 0 and available <= 0:
+                for a in buys:
+                    a["action"], a["size_usd"] = "HOLD", 0.0
     return legs
 
 
@@ -142,5 +170,7 @@ def allocator_node(state: dict) -> dict:
         short_cap_pct=short_cap,
         fee_reserve_pct=fee_reserve,
         freeze=brake,
+        pocket_free=state.get("pocket_free"),
+        symbol_pocket=state.get("symbol_pocket"),
     )
     return {"allocations": legs}

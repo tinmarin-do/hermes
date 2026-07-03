@@ -88,7 +88,17 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
         for p in positions_before
     ]
 
+    # Bolsillos de quote (live/Bitso): el allocator capea los BUYs por bolsillo.
+    pocket_free: dict[str, float] = {}
+    symbol_pocket: dict[str, str] = {}
+    if hasattr(adapter, "get_pockets"):
+        pocket_free, symbol_pocket = adapter.get_pockets()
+        if pocket_free:
+            print(f"[budget] bolsillos: {pocket_free}", flush=True)
+
     initial_state: dict[str, Any] = {
+        "pocket_free": pocket_free,
+        "symbol_pocket": symbol_pocket,
         "run_id": run_id,
         "symbols": symbols,
         "timeframe": timeframe,
