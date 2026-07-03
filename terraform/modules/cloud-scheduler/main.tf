@@ -6,6 +6,11 @@ resource "google_cloud_scheduler_job" "pipeline" {
   region      = var.region
   project     = var.project_id
 
+  # PAUSADO hasta que el brain tenga imagen real con endpoint /run: evita fallos
+  # diarios contra el placeholder Y la doble corrida con el cron WSL (que sigue
+  # siendo el motor). Al desplegar el brain real: quitar y apagar el cron WSL.
+  paused = true
+
   http_target {
     http_method = "POST"
     uri         = "${var.brain_url}/run"
