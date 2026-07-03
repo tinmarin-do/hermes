@@ -26,6 +26,18 @@ variable "brain_secret_env" {
   description = "ENV_VAR → secret_id de Secret Manager (se inyectan como secret_key_ref)"
 }
 
+variable "brain_plain_env" {
+  type        = map(string)
+  default     = {}
+  description = "Env vars NO sensibles del brain (config operacional)"
+}
+
+variable "state_bucket" {
+  type        = string
+  default     = ""
+  description = "Bucket de estado operacional (DuckDB + snapshot del dashboard)"
+}
+
 output "dashboard_url" {
   value = google_cloud_run_v2_service.dashboard.uri
 }

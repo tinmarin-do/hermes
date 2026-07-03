@@ -29,12 +29,36 @@ app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
 templates = Jinja2Templates(directory=str(TEMPLATES_DIR))
 
 
+_gcs_cache: dict[str, Any] = {"ts": 0.0, "data": None}
+_GCS_TTL_S = 60
+
+
 def _load_snapshot() -> dict[str, Any] | None:
+    # Cloud (Fase 5): el brain sube snapshot.json al bucket de estado tras cada
+    # corrida; el dashboard lo lee de ahí con un cache corto ($0 por visitante).
+    import os
+    import time
+
+    bucket_name = os.environ.get("HERMES_STATE_BUCKET", "")
+    if bucket_name:
+        now = time.monotonic()
+        if _gcs_cache["data"] is not None and now - _gcs_cache["ts"] < _GCS_TTL_S:
+            return _gcs_cache["data"]  # type: ignore[no-any-return]
+        try:
+            from google.cloud import storage
+
+            blob = storage.Client().bucket(bucket_name).blob("snapshot.json")
+            data: dict[str, Any] = json.loads(blob.download_as_text())
+            _gcs_cache.update(ts=now, data=data)
+            return data
+        except Exception:
+            return _gcs_cache["data"]  # type: ignore[no-any-return]
+
     if not SNAPSHOT_PATH.exists():
         return None
     try:
-        data: dict[str, Any] = json.loads(SNAPSHOT_PATH.read_text())
-        return data
+        local: dict[str, Any] = json.loads(SNAPSHOT_PATH.read_text())
+        return local
     except (json.JSONDecodeError, OSError):
         return None
 
@@ -84,5 +108,6 @@ def api_explain(base: str) -> JSONResponse:
 
 
 @app.get("/healthz")
+@app.get("/health")  # /healthz es interceptado por el GFE en dominios run.app
 def healthz() -> dict[str, Any]:
-    return {"status": "ok", "has_snapshot": SNAPSHOT_PATH.exists()}
+    return {"status": "ok", "has_snapshot": _load_snapshot() is not None}

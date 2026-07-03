@@ -24,6 +24,11 @@ resource "google_cloud_run_v2_service" "dashboard" {
         name  = "HERMES_MODE"
         value = "cloud"
       }
+
+      env {
+        name  = "HERMES_STATE_BUCKET"
+        value = var.state_bucket # snapshot.json del bucket de estado (cache 60s)
+      }
     }
 
     scaling {
@@ -47,6 +52,7 @@ resource "google_cloud_run_v2_service" "brain" {
 
   template {
     service_account = var.runtime_sa_email
+    timeout         = "3600s" # la corrida diaria completa tarda ~15 min
 
     containers {
       image = var.brain_image != "" ? var.brain_image : "gcr.io/cloudrun/hello"
@@ -54,7 +60,7 @@ resource "google_cloud_run_v2_service" "brain" {
       resources {
         limits = {
           cpu    = "2"
-          memory = "1Gi"
+          memory = "4Gi" # OOM real medido a 2Gi (torch+DeBERTa+UMAP+DuckDB) — 2026-07-03
         }
         cpu_idle = true # solo paga CPU durante la corrida diaria
       }
@@ -62,6 +68,14 @@ resource "google_cloud_run_v2_service" "brain" {
       env {
         name  = "HERMES_MODE"
         value = "cloud"
+      }
+
+      dynamic "env" {
+        for_each = var.brain_plain_env
+        content {
+          name  = env.key
+          value = env.value
+        }
       }
 
       # Secretos como REFERENCIA (secret_key_ref): el valor solo existe dentro
