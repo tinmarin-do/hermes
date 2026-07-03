@@ -54,7 +54,7 @@ module "cloud_run" {
     HERMES_KELLY_FRACTION     = "0.10" # calibrado 2026-07-03 (era interim; el óptimo coincidió)
     HERMES_DAILY_LOSS_LIMIT_PCT = "0.04" # calibrado 2026-07-03 (antes default 0.02)
     HERMES_MAX_POSITIONS      = "6"
-    EXCHANGE_MODE             = "paper"
+    EXCHANGE_MODE             = "live" # flip 2026-07-03 (decisión Erika): daily opera REAL en Bitso
     EXCHANGE_ID               = "bitso"
     TOKENIZERS_PARALLELISM    = "false"
     DATA_EXCHANGE_ID          = "bitso" # Binance geo-bloquea GCP (451)
