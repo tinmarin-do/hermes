@@ -17,7 +17,6 @@ Diseño (decisiones 2026-07-03, PRD §13):
 
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, datetime
 from time import sleep
@@ -56,10 +55,10 @@ class BitsoAdapter(ExecutionAdapter):
 
     @staticmethod
     def _build_exchange() -> Any:
-        api_key = os.environ.get("BITSO_API_KEY", "")
-        secret = os.environ.get("BITSO_API_SECRET", "")
-        if not api_key or not secret:
-            raise RuntimeError("BITSO_API_KEY/SECRET no configuradas (env / Secret Manager)")
+        from src.secrets import get_secret
+
+        api_key = get_secret("BITSO_API_KEY")
+        secret = get_secret("BITSO_API_SECRET")
         return ccxt.bitso({"apiKey": api_key, "secret": secret, "enableRateLimit": True})
 
     # ── helpers ──────────────────────────────────────────────────────────────
