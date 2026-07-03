@@ -1,7 +1,7 @@
 resource "google_cloud_scheduler_job" "pipeline" {
   name        = "hermes-pipeline"
-  description = "Triggers Hermes multi-agent pipeline run every 6 hours"
-  schedule    = "0 */6 * * *"
+  description = "Corrida DIARIA del pipeline (PRD v0.3 §8.8 — consume la línea pre-autorizada)"
+  schedule    = "10 8 * * *" # 08:10 México, misma cadencia que el cron local
   time_zone   = "America/Mexico_City"
   region      = var.region
   project     = var.project_id

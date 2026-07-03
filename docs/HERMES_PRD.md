@@ -50,7 +50,7 @@ El objetivo de portafolio no cambió: una pieza que demuestre **cuatro competenc
 
 ### 3.1 Objetivos de producto
 - **O1.** Sistema multiagente funcional de punta a punta: datos → decisión → ejecución → registro.
-- **O2.** Desplegado y siempre vivo (URL pública demoable a cualquier hora).
+- **O2.** Desplegado y siempre vivo. **Dashboard PRIVADO por default** (IAM, decisión 2026-07-03); flip a público para demos = `terraform apply -var dashboard_public=true` (segundos, reversible).
 - **O3.** Track record transparente y auditable (incluye el shadow challenger).
 - **O4.** Que "hable solo" como evidencia de las 4 competencias.
 - **O5 (nuevo).** Laboratorio de research activo con protocolo anti-overfit respetado al 100% (§8.9).
@@ -118,7 +118,7 @@ Notación: **P0** = imprescindible MVP · **P1** = mejora fuerte · **P2** = roa
 - **P0** Registro de órdenes y posiciones. ✅ hecho.
 
 ### 5.4 Capa de presentación (el showcase)
-- **P0** Dashboard público: equity curve, **vista de cartera** (pesos, P&L por símbolo, cash), historial, visor del debate, **panel champion vs shadow**. ⏳ Fase 3 (base FastAPI+SHAP ya construida).
+- **P0** Dashboard (privado por default, flip a público para demos — O2): equity curve, **vista de cartera** (pesos, P&L por símbolo, cash), historial, visor del debate, **panel champion vs shadow**. ✅ hecho (Fase 3); acceso del owner vía `gcloud run services proxy`.
 - **P0** Panel de métricas: PSR, DSR, Sortino, drawdown. ⏳ Fase 3.
 - **P0** IaC completa con Terraform (Cloud Run, Cloud SQL, Scheduler, Secret Manager, IAM). ✅ módulos escritos; ⏳ deploy Fase 5.
 - **P1** Botón "correr análisis ahora" (rate-limited). P1 Panel MLOps (costo/latencia/uptime).
@@ -409,6 +409,9 @@ Realidad medida por `src/brain/cost_meter.py` (DeepSeek V4 Flash, $0.14/$0.28 po
 ---
 
 ## 13. Registro de decisiones
+
+**2026-07-03:**
+- **Dashboard PRIVADO por default** (IAM en Cloud Run, sin `allUsers`): la historia de usuario del reclutador se sirve con el flip `dashboard_public=true` durante demos, o compartiendo la URL tras un flip temporal. Región cloud: **us-central1** (tier-1). Cadencia Cloud Scheduler: diaria 08:10 MX (reemplaza al cron WSL al desplegar).
 
 **2026-07-02 (v0.3 — re-encuadre por evidencia):**
 - **Identidad = overlay defensivo + laboratorio de research.** La señal de producción es la regla momentum multi-escala (única validada en holdout); el research continúa como track paralelo con protocolo formal (§8.9). La narrativa pública es la honesta: sin alpha absoluto, valor defensivo demostrado.
