@@ -55,6 +55,7 @@ module "cloud_run" {
     EXCHANGE_MODE             = "paper"
     EXCHANGE_ID               = "bitso"
     TOKENIZERS_PARALLELISM    = "false"
+    DATA_EXCHANGE_ID          = "bitso" # Binance geo-bloquea GCP (451)
     NEWS_LABEL_WITH_LLM       = "0"
     HERMES_DAILY_LINE_CAP_USD = "0.50"
   }

@@ -6,10 +6,8 @@ resource "google_cloud_scheduler_job" "pipeline" {
   region      = var.region
   project     = var.project_id
 
-  # PAUSADO hasta que el brain tenga imagen real con endpoint /run: evita fallos
-  # diarios contra el placeholder Y la doble corrida con el cron WSL (que sigue
-  # siendo el motor). Al desplegar el brain real: quitar y apagar el cron WSL.
-  paused = true
+  # ACTIVO (2026-07-03): el brain real está desplegado; el cron WSL queda apagado.
+  paused = false
 
   attempt_deadline = "1800s" # la corrida completa tarda ~15 min
 

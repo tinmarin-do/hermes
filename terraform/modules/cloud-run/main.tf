@@ -60,7 +60,7 @@ resource "google_cloud_run_v2_service" "brain" {
       resources {
         limits = {
           cpu    = "2"
-          memory = "2Gi" # DeBERTa + MiniLM + LightGBM + pandas en memoria
+          memory = "4Gi" # OOM real medido a 2Gi (torch+DeBERTa+UMAP+DuckDB) — 2026-07-03
         }
         cpu_idle = true # solo paga CPU durante la corrida diaria
       }
