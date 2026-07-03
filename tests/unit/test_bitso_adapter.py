@@ -19,10 +19,12 @@ class FakeExchange:
         maker_fills: bool = True,
         price: float = 100.0,
         async_market_fill: bool = False,
+        insufficient_once: bool = False,
     ):
         self.price = price
         self.maker_fills = maker_fills
         self.async_market_fill = async_market_fill
+        self.insufficient_once = insufficient_once
         self.balances = balances or {"USDT": 1000.0, "USD": 500.0}
         self.orders: dict[str, dict[str, Any]] = {}
         self.created: list[dict[str, Any]] = []
@@ -53,6 +55,12 @@ class FakeExchange:
         return f"{price:.2f}"
 
     def create_order(self, pair, type_, side, amount, price=None):
+        if type_ == "market" and self.insufficient_once:
+            # 1er market post-cancel rebota: reserva de la limit aún sin liberar
+            self.insufficient_once = False
+            import ccxt
+
+            raise ccxt.InsufficientFunds('bitso {"error":{"code":"0379"}} Insufficient')
         self._next_id += 1
         oid = f"o{self._next_id}"
         filled = amount if (type_ == "market" or self.maker_fills) else 0.0
@@ -167,6 +175,15 @@ def test_maker_timeout_falls_back_to_market(tmp_db):
     types = [o["type"] for o in fake.created]
     assert types == ["limit", "market"]  # limit sin fill → cancel → market
     assert fake.cancelled == ["o1"]
+
+
+def test_market_retries_once_on_unreleased_reserve(tmp_db):
+    # Carrera cazada por 29cb1a50/c385db10: cancel de la limit → market inmediato
+    # rebota 0379 porque la reserva no se liberó — el retry único debe llenar.
+    fake = FakeExchange(maker_fills=False, insufficient_once=True)
+    r = _adapter(fake).execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 50}, "r1")
+    assert r.status == "FILLED"
+    assert r.quantity > 0
 
 
 def test_async_market_fill_not_reported_rejected(tmp_db):
