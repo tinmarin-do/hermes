@@ -28,7 +28,7 @@ operativos (GCP + LLM) de la sección Presupuestos.
 | Entorno | Capital de trading | Naturaleza |
 |---------|--------------------|------------|
 | `local` / paper | **$1 imaginario** | Sandbox; día 0 arranca con $1 en cash. |
-| `cloud` / real | **$50 USD reales** | Testnet primero; live solo con guardrails (regla #4). |
+| `cloud` | **$400 USD** (decisión 2026-07-03) | **Paper a escala $400 HOY**; live (long-only Bitso) solo tras F6 (BitsoAdapter) + `/brain:calibrate-risk` + stage sandbox + key rotada sin retiro (regla #4). |
 
 - **Whitelist (6):** BTC, ETH, SOL, **LINK**, AVAX, XRP (data `*/USDT` Binance). XRP reemplazó a MATIC (delistado); LINK reemplazó a BNB (no existe en **Bitso**, el venue de EJECUCIÓN decidido 2026-07-03 — data sigue de Binance; Bitso spot-only → live long-only permanente; fees 0.36% taker → preferir maker).
 - **Pesos:** `conf × inverse-vol`, normalizados al budget. El delta vs el libro actual define buy/sell/hold.

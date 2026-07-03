@@ -64,6 +64,23 @@ def _month_daily_spend() -> float:
         con.close()
 
 
+def _ran_ok_today() -> bool:
+    """True si ya hay una corrida OK hoy — el Scheduler y un trigger manual no deben
+    pisarse (2026-07-03: el solape ejecutó un BUY duplicado el mismo día)."""
+    from src.data.db import get_connection
+
+    con = get_connection()
+    try:
+        _ensure_log_table(con)
+        row = con.execute(
+            "SELECT count(*) FROM daily_run_log "
+            "WHERE status = 'OK' AND date_trunc('day', ts) = date_trunc('day', current_date)"
+        ).fetchone()
+        return bool(row and row[0] > 0)
+    finally:
+        con.close()
+
+
 def _record_run(run_id: str, cost_usd: float, status: str) -> None:
     from src.data.db import get_connection
 
@@ -78,10 +95,21 @@ def _record_run(run_id: str, cost_usd: float, status: str) -> None:
         con.close()
 
 
-def main() -> int:
+def main(force: bool = False) -> int:
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     print(f"════ daily_run {stamp} ════", flush=True)
     symbols = _symbols()
+    force = force or os.environ.get("HERMES_FORCE_RUN", "") == "1"
+
+    # ── 0. Guard anti-duplicado: 1 corrida OK por día (salvo force explícito) ──
+    if not force and _ran_ok_today():
+        print(
+            "⛔ DUPLICADO: ya hubo una corrida OK hoy — el Scheduler y los triggers "
+            "manuales no se acumulan. Corrida manual intencional: HERMES_FORCE_RUN=1 "
+            "o POST /run?force=true."
+        )
+        _record_run("(duplicate)", 0.0, "BLOCKED_DUPLICATE")
+        return 3
 
     # ── 1. Freno de budget (regla #6 sin gate interactivo) ──
     spent = _month_daily_spend()
@@ -184,4 +212,4 @@ def main() -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    sys.exit(main(force="--force" in sys.argv))

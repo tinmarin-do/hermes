@@ -24,7 +24,7 @@ def healthz() -> dict[str, Any]:
 
 
 @app.post("/run")
-def run_daily() -> dict[str, Any]:
+def run_daily(force: bool = False) -> dict[str, Any]:
     if not _run_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="corrida en curso — no se duplica")
     try:
@@ -32,12 +32,17 @@ def run_daily() -> dict[str, Any]:
         from src.brain.state_sync import download_state, upload_state
 
         db_path = download_state()
-        rc = daily_main()
+        rc = daily_main(force=force)
         upload_state()
 
-        # rc=2 = freno de budget (la línea pre-autorizada se agotó): NO es un
-        # error de infraestructura — 200 para que el Scheduler no reintente.
-        return {"rc": rc, "db": db_path, "budget_blocked": rc == 2}
+        # rc=2 (freno de budget) y rc=3 (ya corrió hoy) NO son errores de
+        # infraestructura — 200 para que el Scheduler no reintente.
+        return {
+            "rc": rc,
+            "db": db_path,
+            "budget_blocked": rc == 2,
+            "duplicate_blocked": rc == 3,
+        }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)[:500]) from exc
     finally:

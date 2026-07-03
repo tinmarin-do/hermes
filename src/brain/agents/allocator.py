@@ -23,6 +23,8 @@ def compute_allocations(
     global_mult: float,
     short_cap_pct: float = 0.10,
     min_trade_frac: float = 0.01,
+    fee_reserve_pct: float = 0.0,
+    freeze: bool = False,
 ) -> list[dict]:
     """Target-weight rebalancing (§8.8).
 
@@ -31,8 +33,38 @@ def compute_allocations(
     at ``short_cap_pct`` of the budget (freed weight → cash). Each leg's order is the delta
     between its target USD and the current signed notional held; day 0 (empty book) reduces
     to deploying the targets directly.
+
+    ``freeze=True`` = freno global SIN convicción (verdict HOLD / risk rechaza): el libro
+    queda COMO ESTÁ (targets = posiciones actuales → 0 órdenes). Antes esto liquidaba todo
+    (targets $0) — churn/fees en cada día sin convicción. La liquidación de emergencia
+    tiene su propio camino (/execution:kill).
+
+    ``fee_reserve_pct`` recorta el budget desplegable para que el último BUY del rebalanceo
+    no rebote por los fees (BUY debita size+fee; a escala $400 los centavos importan).
     """
+    # ── Libro actual: notional firmado por símbolo (BUY +, SELL/short −) ──
+    current_usd: dict[str, float] = {}
+    for p in current_positions:
+        sgn = 1.0 if p.get("action") == "BUY" else -1.0
+        px = p.get("current_price") or p.get("entry_price") or 0.0
+        qty = p.get("quantity") or 0.0
+        current_usd[p["symbol"]] = current_usd.get(p["symbol"], 0.0) + sgn * qty * px
+
+    if freeze:
+        return [
+            {
+                "symbol": sym,
+                "target_weight": round(current_usd[sym] / budget, 4) if budget > 0 else 0.0,
+                "target_usd": round(current_usd[sym], 4),
+                "current_usd": round(current_usd[sym], 4),
+                "action": "HOLD",
+                "size_usd": 0.0,
+            }
+            for sym in sorted(current_usd)
+        ]
+
     deployable = max(budget, 0.0) * max(0.0, min(1.0, global_mult))
+    deployable *= 1.0 - max(0.0, min(1.0, fee_reserve_pct))
 
     actionable = [
         s
@@ -57,14 +89,6 @@ def compute_allocations(
     if short_sum > short_cap_pct > 0:
         scale = short_cap_pct / short_sum
         target_w = {k: (w * scale if w < 0 else w) for k, w in target_w.items()}
-
-    # ── Libro actual: notional firmado por símbolo (BUY +, SELL/short −) ──
-    current_usd: dict[str, float] = {}
-    for p in current_positions:
-        sgn = 1.0 if p.get("action") == "BUY" else -1.0
-        px = p.get("current_price") or p.get("entry_price") or 0.0
-        qty = p.get("quantity") or 0.0
-        current_usd[p["symbol"]] = current_usd.get(p["symbol"], 0.0) + sgn * qty * px
 
     min_trade = budget * min_trade_frac
     legs: list[dict] = []
@@ -98,14 +122,17 @@ def allocator_node(state: dict) -> dict:
     """LangGraph node: derive the global brake from the committee, then split the budget."""
     budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     short_cap = float(os.environ.get("HERMES_SHORT_CAP_PCT", "0.10"))
+    fee_reserve = float(os.environ.get("HERMES_FEE_RESERVE_PCT", "0.005"))
 
     risk_approved = state.get("risk_approved", False)
     verdict = state.get("debate_verdict", "HOLD")
     debate_conf = state.get("debate_confidence", 0.0)
 
-    # Agentes como freno GLOBAL: si riesgo rechaza o el debate dice HOLD → no se despliega
-    # nada nuevo (todo a cash). Si aprueba → despliega proporcional a la convicción.
-    global_mult = max(0.0, min(1.0, debate_conf)) if (risk_approved and verdict != "HOLD") else 0.0
+    # Agentes como freno GLOBAL: si riesgo rechaza o el debate dice HOLD → el libro se
+    # CONGELA (0 órdenes, nada nuevo se despliega — decisión 2026-07-03, antes liquidaba).
+    # Si aprueba → despliega proporcional a la convicción.
+    brake = not risk_approved or verdict == "HOLD"
+    global_mult = 0.0 if brake else max(0.0, min(1.0, debate_conf))
 
     legs = compute_allocations(
         state.get("quant_signals", []),
@@ -113,5 +140,7 @@ def allocator_node(state: dict) -> dict:
         budget,
         global_mult,
         short_cap_pct=short_cap,
+        fee_reserve_pct=fee_reserve,
+        freeze=brake,
     )
     return {"allocations": legs}

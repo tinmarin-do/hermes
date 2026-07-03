@@ -200,11 +200,11 @@ Notación: **P0** = imprescindible MVP · **P1** = mejora fuerte · **P2** = roa
 ### 8.1 Fases de operación
 1. **Paper local** ($1 imaginario) — valida pipeline + señal + rebalanceo. **← estamos aquí.**
 2. **Testnet** ($50 nominales) — valida ejecución real de órdenes.
-3. **Live mínimo** ($50 reales) — solo con guardrails activos y calibrados, long-only al arranque.
+3. **Live mínimo** ($400 reales — decisión 2026-07-03, antes $50) — solo con guardrails activos y calibrados, long-only al arranque.
 
 ### 8.2 Guardrails de riesgo (P0, no negociables)
 
-- **Capital de trading:** **$1 imaginario** en paper local / **$50 USD** en cloud (bolsillo **distinto** del cap operativo POC $50 = GCP $10 + LLM $40). `HERMES_CAPITAL_USD` es la única fuente del budget.
+- **Capital de trading:** **$1 imaginario** en paper local / **$400 USD** en cloud (decisión 2026-07-03: paper cloud corre a escala $400 YA para que el track record sea realista; live con ese monto solo tras F6 + calibración). Bolsillo **distinto** del cap operativo POC $50 = GCP $10 + LLM $40. `HERMES_CAPITAL_USD` es la única fuente del budget.
 - **Kelly fraccional — TBD con proceso definido:** la calibración vigente (0.10, `calibration_report.md`) se hizo sobre la señal LightGBM ya falsificada → **queda obsoleta**. Regla: **interim = 0.10** (el más conservador de los valores históricos) hasta re-correr `/brain:calibrate-risk` **sobre la señal momentum multi-escala** (Fase 6, antes de testnet). Ningún documento ni env var debe declarar otro valor sin esa calibración.
 - **Pesos de cartera** en vez de apuesta única: `w_i ∝ conf_i / garch_vol_i`, normalizados al budget; `global_mult ∈ [0,1]` de los agentes solo puede reducir (§8.7.2).
 - **VaR/CVaR pre-trade:** pérdida en escenario 2σ; si excede el límite, se rechaza.
@@ -284,11 +284,11 @@ Hermes ejecuta órdenes con dinero: las noticias no confiables son superficie de
 
 **Por qué el núcleo es cuant y no agéntico.** Un LLM es no-determinista, no hace aritmética confiable, alucina confianza y **no se puede backtestear barato**. La columna que fija dirección y sizing es 100% cuantitativa y se valida con purged + embargoed walk-forward. *Construir el sistema multiagente y decidir deliberadamente que no decida el número es la postura de ingeniería que distingue a Hermes de un wrapper agéntico.*
 
-**Asimetría = propiedad de seguridad (freno, nunca acelerador).** Los LLM pueden **vetar o recortar** (`global_mult ∈ [0,1]` hacia 0), **jamás originar ni amplificar**. Una alucinación solo puede costar **oportunidad**, nunca **capital**. El freno global ya está implementado: si risk rechaza o el verdict es HOLD → `global_mult = 0` → no se despliega nada.
+**Asimetría = propiedad de seguridad (freno, nunca acelerador).** Los LLM pueden **vetar o recortar** (`global_mult ∈ [0,1]` hacia 0), **jamás originar ni amplificar**. Una alucinación solo puede costar **oportunidad**, nunca **capital**. El freno global ya está implementado: si risk rechaza o el verdict es HOLD → el libro se **CONGELA** (0 órdenes; nada nuevo se despliega). *Semántica corregida 2026-07-03: antes `global_mult=0` LIQUIDABA el libro entero — un día sin convicción vendía todo y pagaba fees de ida y vuelta. Congelar preserva la asimetría (el freno no origina trades, ni siquiera de salida); la liquidación de emergencia tiene su camino propio (`/execution:kill`), y las salidas ordinarias las originan las señales cuant en días con convicción.*
 
 **Anti-manipulación.** El lenguaje es el eslabón más manipulable; al situarlo como verificación, una noticia falsa o un argumento alucinado no puede *originar* un trade — solo *frenar* uno que los datos ya justificaron.
 
-### 8.8 Asignación de portafolio y short conservador ($1 → $50)
+### 8.8 Asignación de portafolio y short conservador ($1 → $400)
 
 > **Estado (2026-07-02):** capa de decisión **IMPLEMENTADA y mergeada** (PR #10): nodo `allocator` determinista (pesos `conf × inverse-vol`, cap short 10% enforceado en código, delta vs libro), 6 señales por corrida, libro inyectado al estado antes del grafo, ejecución de vector de legs. **Pendiente:** neteo del PaperAdapter (Fase 2) y vista de cartera en dashboard (Fase 3). Detalle: `docs/DESIGN_portfolio_allocator.md`.
 
@@ -357,7 +357,7 @@ El protocolo v1 (holdout histórico intocable) cumplió su ciclo: el holdout `20
 - [ ] Dashboard en Cloud Run (`/dashboard:deploy`); Cloud SQL vía Terraform; secretos a Secret Manager.
 - **Aceptación:** URL pública ≥ 99% uptime en 7 días · corridas diarias automáticas estables · gasto GCP ≤ $10 POC visible en `/cost:status`.
 
-### Fase 6 — Bitso stage → live mínimo ($50) *(venue actualizado 2026-07-03)*
+### Fase 6 — Bitso stage → live mínimo ($400) *(venue 2026-07-03; monto 2026-07-03)*
 **Objetivo:** ejecución real en **Bitso** (spot, cuenta MX de Erika) con guardrails calibrados.
 - [ ] **BitsoAdapter** (ccxt `bitso`): mapping data→ejecución (`LINK/USDT` Binance-data → `LINK/USD` Bitso; AVAX→`AVAX/USD`; resto `*/USDT`), órdenes **maker/limit preferidas** (0.30% vs 0.36% taker — el stress a 36bps dio Sharpe 0.88 vs 1.20 a 10bps: sobrevive pero adelgaza).
 - [ ] API key de Bitso **sin permiso de retiro** (§8.3), en `.env`/Secret Manager.
@@ -415,6 +415,12 @@ Realidad medida por `src/brain/cost_meter.py` (DeepSeek V4 Flash, $0.14/$0.28 po
 ---
 
 ## 13. Registro de decisiones
+
+**2026-07-03 (tarde — hardening Fase A):**
+- **Capital de trading cloud: $50 → $400 USD** (decisión de Erika). Secuencia: el paper cloud pasa YA a escala $400 (track record realista, libro migrado era-$1→era-$400); **live con $400 reales solo tras Fase B**: key Bitso rotada+sin retiro confirmada → F6 BitsoAdapter (maker-first, sandbox stage) → `/brain:calibrate-risk` a escala $400 → días de stage. Reglas #4/#8 intactas.
+- **Semántica del freno global: HOLD = CONGELAR, no liquidar** (§8.7.2). Hallazgo del 2026-07-03: el primer día HOLD cloud vendió toda la posición SOL solo por falta de convicción (churn/fees). El freno ahora emite 0 órdenes y el libro queda como está.
+- **Guard anti-corrida-duplicada:** 1 corrida OK por día (`daily_run` rc=3 si ya corrió; override explícito `HERMES_FORCE_RUN=1` / `POST /run?force=true`). Origen: el Scheduler 08:10 MX y un trigger manual se solaparon el mismo día y el duplicado ejecutó un BUY.
+- **Reserva de fees en el allocator** (`HERMES_FEE_RESERVE_PCT`, default 0.5%): el desplegable se recorta para que el último BUY del rebalanceo no rebote por fees (pendiente conocido de F2 que muerde a escala $400).
 
 **2026-07-03:**
 - **Exchange de EJECUCIÓN = Bitso** (decidido — Erika tiene cuenta fondeada + API; CNBV-regulado, rampa MXN). **La DATA sigue siendo Binance** (bronze 2021→2026, más profundo y líquido); el `ExecutionAdapter` mapea (el diseño agnóstico pagando su dividendo). Consecuencias: **LINK reemplaza a BNB** (no existe en Bitso) · fees 0.36% taker/0.30% maker → stress medido: Sharpe iteración 1.20→0.88, sobrevive pero preferir maker (EXPERIMENT_LOG) · **spot-only → live long-only permanente** · F6 usa el sandbox stage de Bitso, no Binance testnet. Key de Bitso SIN retiro (§8.3).
