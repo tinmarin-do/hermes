@@ -24,3 +24,4 @@ Referencia de precios (DeepSeek V4 Flash unificado — todos los roles, junio 20
 | 2026-07-02 | APERTURA-MES | — | — | — | 0.00 | 0.00 | 150.00 |
 | 2026-07-02 | 672f54f0 | DeepSeek V4 Flash | all (e2e suite Fase 1 — gateada) | 55364 | 0.0104 | 0.0104 | 149.9896 |
 | 2026-07-02 | 40b2cb70 | DeepSeek V4 Flash | all (run 6 símbolos Fase 1 — gateada) | 55656 | 0.0103 | 0.0207 | 149.9793 |
+| 2026-07-02 | PRE-AUTORIZACIÓN | DeepSeek V4 Flash | línea corridas diarias julio (cap $0.50; ~$0.0105/día × ~29d; el cron se frena al superarla — §8.8) | — | ≤0.50 | 0.0207 | 149.9793 |
