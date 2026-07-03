@@ -32,7 +32,7 @@ TAIL_HOURS = int(os.environ.get("HERMES_DAILY_TAIL_HOURS", "48"))
 def _symbols() -> list[str]:
     raw = os.environ.get(
         "HERMES_ALLOWED_SYMBOLS",
-        "BTC/USDT,ETH/USDT,SOL/USDT,BNB/USDT,AVAX/USDT,XRP/USDT",
+        "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT",
     )
     return [s.strip() for s in raw.split(",") if s.strip()]
 
