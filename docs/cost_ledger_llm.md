@@ -28,3 +28,4 @@ Referencia de precios (DeepSeek V4 Flash unificado — todos los roles, junio 20
 | 2026-07-03 | 7bb92650 | DeepSeek V4 Flash | all (22 llamadas — corrida on-demand cloud, gcloud scheduler jobs run manual) | 46985 | 0.0087 | 0.0294 | 149.9706 |
 | 2026-07-03 | ccec96c6 | DeepSeek V4 Flash | all (22 llamadas — corrida DUPLICADA, solapó con el trigger manual; ejecutó BUY SOL/USDT $0.03 real; cae bajo línea diaria pre-autorizada) | 64547 | 0.0120 | 0.0414 | 149.9586 |
 | 2026-07-03 | cfddb499 | DeepSeek V4 Flash | all (22 llamadas — corrida de verificación post-fix HF offline, gateada; sin 429, pesos desde caché) | 46903 | 0.0087 | 0.0501 | 149.9499 |
+| 2026-07-03 | calibrate-20260703T184804 | DeepSeek V4 Flash | calibración F6 (gateada $0.18): 6 símbolos, 20 fechas LLM, 360 llamadas → Kelly=0.10 confirmado, loss_limit 0.04 (intentos previos $0: env sin key) | 494543 | 0.0909 | 0.1410 | 149.8590 |
