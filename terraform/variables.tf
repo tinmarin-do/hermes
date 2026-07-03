@@ -21,6 +21,12 @@ variable "brain_image" {
   default     = ""
 }
 
+variable "dashboard_public" {
+  type        = bool
+  default     = false
+  description = "Dashboard PRIVADO por default (decisión 2026-07-03). Flip a true solo para demos: terraform apply -var dashboard_public=true"
+}
+
 variable "capital_usd" {
   type        = number
   description = "Trading capital in USD"

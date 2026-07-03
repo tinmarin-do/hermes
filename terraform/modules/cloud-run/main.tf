@@ -68,7 +68,22 @@ resource "google_cloud_run_v2_service" "brain" {
   }
 }
 
+# Menor privilegio: la SA del scheduler SOLO invoca el brain (nada más).
+resource "google_cloud_run_v2_service_iam_member" "brain_scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_service.brain.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.scheduler_sa_email}"
+}
+
+# Privacidad del dashboard (decisión 2026-07-03): PRIVADO por default — el binding
+# allUsers solo existe si dashboard_public=true. Flip a público para demos =
+# cambiar la variable + apply (segundos, reversible). Acceso privado del owner:
+#   gcloud run services proxy hermes-dashboard --region <region>
 resource "google_cloud_run_v2_service_iam_member" "dashboard_public" {
+  count = var.dashboard_public ? 1 : 0
+
   project  = var.project_id
   location = var.region
   name     = google_cloud_run_v2_service.dashboard.name
