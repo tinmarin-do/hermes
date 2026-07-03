@@ -20,7 +20,6 @@ from pathlib import Path
 from typing import Any
 
 import numpy as np
-from sentence_transformers import SentenceTransformer
 from sklearn.cluster import DBSCAN, AgglomerativeClustering, KMeans
 from sklearn.metrics import (
     calinski_harabasz_score,
@@ -76,11 +75,15 @@ CLUSTER_METHODS = {
 CLUSTER_DIRECTION: dict[str, str] = {}
 
 
-def _load_model() -> SentenceTransformer:
+def _load_model() -> Any:
+    # Import lazy: sentence-transformers (torch) es del extra `news` — las partes
+    # puras de este módulo deben importar sin él (unit tests / CI --extra dev).
+    from sentence_transformers import SentenceTransformer
+
     return SentenceTransformer(EMBED_MODEL)
 
 
-def _embed_texts(texts: list[str], model: SentenceTransformer) -> np.ndarray:
+def _embed_texts(texts: list[str], model: Any) -> np.ndarray:
     return model.encode(texts, show_progress_bar=False, batch_size=32, normalize_embeddings=True)
 
 
