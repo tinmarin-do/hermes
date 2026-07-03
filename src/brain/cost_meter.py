@@ -240,7 +240,8 @@ def mark_logged_cloud(run_id: str) -> int:
             os.environ["HERMES_DUCKDB_PATH"] = prev
 
     if n > 0:
-        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path)
+        # timeout amplio: ~120MB desde uplink doméstico excede el default de 120s
+        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path, timeout=600)
     os.unlink(tmp_path)
     return n
 
