@@ -331,6 +331,18 @@ class BitsoAdapter(ExecutionAdapter):
         except Exception:
             return 0.0
 
+    def get_equity(self) -> float:
+        """Equity total = caja (USDT+USD) + tenencias marcadas a precio actual.
+
+        Es la fuente del budget dinámico (HERMES_BUDGET_SOURCE=wallet): el budget
+        de cada corrida ES la cartera real de Bitso, deposite lo que deposite Erika.
+        MXN residual queda fuera a propósito (no es moneda operable del sistema).
+        """
+        equity = self.get_balance()
+        for p in self.get_positions():
+            equity += p.quantity * (p.current_price or 0.0)
+        return equity
+
     def kill(self) -> None:
         kill_switch.activate("BitsoAdapter kill called")
         for canonical in [f"{a}/USDT" for a in _BASE_ASSETS]:

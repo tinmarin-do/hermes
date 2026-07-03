@@ -49,7 +49,8 @@ module "cloud_run" {
     HERMES_STATE_BUCKET       = google_storage_bucket.state.name
     HERMES_DUCKDB_PATH        = "/tmp/hermes.duckdb"
     HERMES_ALLOWED_SYMBOLS    = "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT"
-    HERMES_CAPITAL_USD        = "400" # era-$400 paper (decisión 2026-07-03; live tras F6+calibración)
+    HERMES_CAPITAL_USD        = "400"    # fallback/paper; en live manda el wallet (abajo)
+    HERMES_BUDGET_SOURCE      = "wallet" # live: budget = equity real de Bitso (decisión 2026-07-03)
     HERMES_KELLY_FRACTION     = "0.10" # calibrado 2026-07-03 (era interim; el óptimo coincidió)
     HERMES_DAILY_LOSS_LIMIT_PCT = "0.04" # calibrado 2026-07-03 (antes default 0.02)
     HERMES_MAX_POSITIONS      = "6"

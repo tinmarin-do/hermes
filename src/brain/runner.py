@@ -57,6 +57,24 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     # Inyectar el libro ACTUAL al estado ANTES del grafo (§8.8): el allocator rebalancea
     # por delta contra lo que ya se tiene. El mismo adapter se reutiliza para ejecutar.
     adapter = _get_adapter()
+
+    # ── Budget dinámico (decisión Erika 2026-07-03): en live el budget ES la cartera
+    # real (cash + posiciones marcadas) — ella controla la exposición con lo que
+    # deposita en Bitso. Se fija en el env del PROCESO para que allocator (pesos) y
+    # risk (loss limit %) usen el mismo número; HERMES_CAPITAL_USD queda como
+    # fallback y como budget de paper.
+    if (
+        os.environ.get("EXCHANGE_MODE") == "live"
+        and os.environ.get("HERMES_BUDGET_SOURCE", "wallet") == "wallet"
+    ):
+        equity_fn = getattr(adapter, "get_equity", adapter.get_balance)
+        wallet_budget = float(equity_fn())
+        if wallet_budget > 0:
+            os.environ["HERMES_CAPITAL_USD"] = f"{wallet_budget:.2f}"
+            print(f"[budget] fuente=wallet → budget=${wallet_budget:.2f} (equity real)")
+        else:
+            print("[budget] ⚠️ equity wallet=0 — fallback a HERMES_CAPITAL_USD", flush=True)
+
     positions_before = adapter.get_positions()
     current_positions = [
         {

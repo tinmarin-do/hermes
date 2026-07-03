@@ -217,3 +217,43 @@ def test_positions_from_real_holdings(tmp_db):
     assert set(by) == {"SOL/USDT", "LINK/USDT"}  # canónicos, no pares venue
     assert by["SOL/USDT"].quantity == pytest.approx(0.5)
     assert by["SOL/USDT"].action == "BUY"  # spot = siempre long
+
+
+def test_equity_sums_cash_and_holdings(tmp_db):
+    # cash 100 USDT + 50 USD + 0.5 SOL @ 100 = 200 (MXN residual fuera a propósito)
+    fake = FakeExchange(balances={"USDT": 100.0, "USD": 50.0, "SOL": 0.5, "MXN": 9000.0})
+    assert _adapter(fake).get_equity() == pytest.approx(200.0)
+
+
+# ── Budget dinámico (HERMES_BUDGET_SOURCE=wallet, decisión 2026-07-03) ─────────
+
+
+def test_wallet_budget_overrides_env_in_live(tmp_db, monkeypatch):
+    from src.brain import runner
+
+    class StubAdapter:
+        def get_equity(self):
+            return 566.4
+
+        def get_balance(self):
+            return 500.0
+
+        def get_positions(self):
+            return []
+
+    monkeypatch.setenv("EXCHANGE_MODE", "live")
+    monkeypatch.setenv("HERMES_BUDGET_SOURCE", "wallet")
+    monkeypatch.setenv("HERMES_CAPITAL_USD", "400")
+    monkeypatch.setattr(runner, "_get_adapter", lambda: StubAdapter())
+    monkeypatch.setattr(runner, "aggregate", lambda s, t: [{"symbol": "BTC/USDT"}])
+    # cortar el run apenas pasa la resolución de budget (no invocar grafo/LLM):
+    # StubAdapter.get_positions lanza Stop DESPUÉS de que el budget ya se fijó.
+    import os
+
+    class Stop(Exception):
+        pass
+
+    StubAdapter.get_positions = lambda self: (_ for _ in ()).throw(Stop())
+    with pytest.raises(Stop):
+        runner.run(symbols=["BTC/USDT"])
+    assert os.environ["HERMES_CAPITAL_USD"] == "566.40"
