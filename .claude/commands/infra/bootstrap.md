@@ -20,7 +20,7 @@ Ninguno. Lee `GCP_PROJECT_ID`, `GCP_REGION`, `TF_STATE_BUCKET` del entorno.
 5. Ejecutar bootstrap vía `/infra:gcloud` para cada operación atómica:
    a. Crear bucket tfstate con versioning habilitado.
    b. Habilitar APIs requeridas:
-      - `cloudrun.googleapis.com`
+      - `run.googleapis.com`
       - `sqladmin.googleapis.com`
       - `cloudscheduler.googleapis.com`
       - `secretmanager.googleapis.com`

@@ -15,6 +15,17 @@ variable "scheduler_sa_email" {
   description = "SA del Cloud Scheduler — recibe run.invoker SOLO sobre el brain"
 }
 
+variable "runtime_sa_email" {
+  type        = string
+  description = "SA de runtime de los servicios (accessor de secretos, menor privilegio)"
+}
+
+variable "brain_secret_env" {
+  type        = map(string)
+  default     = {}
+  description = "ENV_VAR → secret_id de Secret Manager (se inyectan como secret_key_ref)"
+}
+
 output "dashboard_url" {
   value = google_cloud_run_v2_service.dashboard.uri
 }

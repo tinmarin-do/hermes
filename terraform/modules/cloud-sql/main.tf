@@ -6,6 +6,7 @@ resource "google_sql_database_instance" "hermes" {
 
   settings {
     tier              = "db-f1-micro"
+    edition           = "ENTERPRISE" # el default de PG16 (ENTERPRISE_PLUS) no soporta shared-core
     availability_type = "ZONAL"
 
     backup_configuration {
@@ -13,7 +14,9 @@ resource "google_sql_database_instance" "hermes" {
     }
 
     ip_configuration {
-      ipv4_enabled = false
+      # IP pública SIN redes autorizadas: solo accesible vía Cloud SQL Auth Proxy
+      # con IAM (estándar seguro para POC; private IP exigiría VPC connector $$).
+      ipv4_enabled = true
     }
   }
 

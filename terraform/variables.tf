@@ -27,6 +27,13 @@ variable "dashboard_public" {
   description = "Dashboard PRIVADO por default (decisión 2026-07-03). Flip a true solo para demos: terraform apply -var dashboard_public=true"
 }
 
+variable "db_password" {
+  type        = string
+  sensitive   = true
+  default     = ""
+  description = "Password del usuario SQL — pasar desde Secret Manager: TF_VAR_db_password=$(gcloud secrets versions access latest --secret=hermes-db-password). JAMÁS plaintext."
+}
+
 variable "capital_usd" {
   type        = number
   description = "Trading capital in USD"
