@@ -353,6 +353,29 @@ y recordar que la claim desplegada es DEFENSIVA (estar en cash durante crashes n
 
 ---
 
+## Registro operativo — PRIMER TRADE LIVE (F6, día 1 de la era-$400)
+
+**Fecha:** 2026-07-03 · **Tipo:** operación (no experimento — no suma a `n_trials`).
+
+**BUY 0.24383804 SOL/USDT @ $82.335 = $20.08 · fee $0.07 (taker 0.36%) · Bitso spot ·
+run `live-validation-1`.** Orden mínima de validación del pipe (decisión del día: capital
+cloud $400; el primer trade se dimensionó chico a propósito). Señal: champion momentum
+SOL BUY conf 0.95 / P=0.975; comité del día (run `ccec96c6`) verdict BUY conf 80% risk ✓.
+Guardrails calibrados el mismo día (`/brain:calibrate-risk` sobre momentum: Kelly=0.10
+confirmado, loss limit 4%).
+
+Saga honesta del camino (todo cazado por diseño — gates, orden chica, verificación):
+1. **Key con restricción de IP** (Erika la limitó al "server local" — IP equivocada) →
+   `Invalid Nonce or Invalid Credentials`. Rotada sin restricción; keys viven SOLO en
+   Secret Manager, resueltas por `get_secret()` a memoria de proceso.
+2. **Maker no llenó en 45s** (libro SOL/USDT de Bitso poco profundo) → fallback taker
+   funcionó. A observar: si el maker-first casi nunca llena, el fee promedio real es
+   0.36%, no 0.30% — el stress de fees usó taker, así que sin sorpresa.
+3. **Bug del adapter cazado por la orden de validación:** Bitso responde el
+   `create_order` market SIN `filled` (asíncrono) → el adapter declaró REJECTED una
+   orden que SÍ llenó. Fix: re-consulta la orden real antes de declarar rechazo. Este
+   bug en una corrida full-size hubiera dejado el libro contable divergido del real.
+
 ## Registro operativo — SWITCH DE SEÑAL EN PRODUCCIÓN (Fase 1, PRD v0.3)
 
 **Fecha:** 2026-07-02 · **Tipo:** operación (no experimento — no suma a `n_trials`).
