@@ -36,6 +36,7 @@ def persist_transcript(run_id: str, state: dict[str, Any]) -> None:
         "bull_argument": state.get("bull_argument", ""),
         "bear_argument": state.get("bear_argument", ""),
         "debate_rounds": state.get("debate_rounds", []),
+        "risk_reports": state.get("risk_reports", []),  # incluye la nota de news por agente
         "risk_synthesis": state.get("risk_synthesis", ""),
         "quant_signals": state.get("quant_signals", []),
         "allocations": state.get("allocations", []),
