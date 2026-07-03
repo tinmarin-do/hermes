@@ -207,7 +207,7 @@ Notación: **P0** = imprescindible MVP · **P1** = mejora fuerte · **P2** = roa
 - **Correlación:** corr > 0.7 con posiciones abiertas + exposición excedida → rechazo. *Sprint 2: cópula t-Student (crisis correlation).*
 - **Límite de pérdida diaria** (2% del capital) → detiene la operación del día.
 - **Kill switch** manual y automático (`/execution:kill`).
-- **Whitelist de símbolos (6):** BTC/USDT, ETH/USDT, SOL/USDT, BNB/USDT, AVAX/USDT, **XRP/USDT** (reemplaza a MATIC/USDT, delistado — decidido 2026-07-02). `HERMES_MAX_POSITIONS=6` (cartera completa; el valor viejo 2 era del modo winner-takes-all).
+- **Whitelist de símbolos (6):** BTC, ETH, SOL, **LINK**, AVAX, XRP (notación de data: `*/USDT` de Binance). XRP reemplazó a MATIC (delistado, 2026-07-02); **LINK reemplazó a BNB** (no existe en Bitso, el venue de ejecución — decidido 2026-07-03; LINK = DeFi blue-chip, el menos correlacionado del cluster L1). `HERMES_MAX_POSITIONS=6`.
 - **Short ultra-conservador** (§8.8): origen solo con `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10% del budget**; futuros-only en real; simulado en paper; **OFF por default en live** (regla crítica #8).
 
 ### 8.3 Seguridad
@@ -289,7 +289,7 @@ Hermes ejecuta órdenes con dinero: las noticias no confiables son superficie de
 > **Estado (2026-07-02):** capa de decisión **IMPLEMENTADA y mergeada** (PR #10): nodo `allocator` determinista (pesos `conf × inverse-vol`, cap short 10% enforceado en código, delta vs libro), 6 señales por corrida, libro inyectado al estado antes del grafo, ejecución de vector de legs. **Pendiente:** neteo del PaperAdapter (Fase 2) y vista de cartera en dashboard (Fase 3). Detalle: `docs/DESIGN_portfolio_allocator.md`.
 
 - **Mecanismo — rebalanceo por pesos objetivo.** Cada día: `quant_core` scorea los 6 → allocator normaliza a pesos `w_i ∝ conf_i / garch_vol_i` → ejecución = delta vs libro (objetivo > actual → BUY; < → SELL; ≈ → HOLD). Día 0 (todo cash) es el mismo mecanismo.
-- **Short — ultra-conservador, data-first.** Origen: `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista confirmado (si no → HOLD). Portero determinista en el allocator: **cap corto ≤ 10% del budget**. Freno LLM: el bear debe citar la evidencia cuant. Venue: futuros-only en real; simulado en paper; **OFF por default en live** (opt-in solo tras `/brain:calibrate-risk`). Nota honesta del EXPERIMENT_LOG: el cap 10% implica que el short **no protege en bear markets** (2022 lo demostró) — es control de riesgo, no motor de retorno.
+- **Short — ultra-conservador, data-first.** Origen: `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista confirmado (si no → HOLD). Portero determinista en el allocator: **cap corto ≤ 10% del budget**. Freno LLM: el bear debe citar la evidencia cuant. **Venue (actualizado 2026-07-03): Bitso es spot-only → short real IMPOSIBLE → live es long-only PERMANENTE mientras el venue sea Bitso**; el short existe solo simulado en paper (calibra la política sin riesgo). Nota honesta del EXPERIMENT_LOG: el cap 10% implica que el short **no protege en bear markets** (2022 lo demostró) — es control de riesgo, no motor de retorno.
 - **Cadencia diaria + gobernanza de costo.** Una corrida programada no puede pasar por `/cost:gate` interactivo (regla #6) → **pre-autorizar una línea de budget diario en el ledger** (~$0.007/día ≈ $0.21/mes vs cap $40); el cron consume contra ella y **se frena si la supera**. Este procedimiento se activa en Fase 5 (Cloud Scheduler).
 
 ### 8.9 Laboratorio de research — protocolo anti-overfit v2 (2026-07-02)
@@ -353,11 +353,13 @@ El protocolo v1 (holdout histórico intocable) cumplió su ciclo: el holdout `20
 - [ ] Dashboard en Cloud Run (`/dashboard:deploy`); Cloud SQL vía Terraform; secretos a Secret Manager.
 - **Aceptación:** URL pública ≥ 99% uptime en 7 días · corridas diarias automáticas estables · gasto GCP ≤ $10 POC visible en `/cost:status`.
 
-### Fase 6 — Testnet → live mínimo ($50)
-**Objetivo:** ejecución real con guardrails calibrados.
-- [ ] `/test:integration` (Binance testnet) verde.
+### Fase 6 — Bitso stage → live mínimo ($50) *(venue actualizado 2026-07-03)*
+**Objetivo:** ejecución real en **Bitso** (spot, cuenta MX de Erika) con guardrails calibrados.
+- [ ] **BitsoAdapter** (ccxt `bitso`): mapping data→ejecución (`LINK/USDT` Binance-data → `LINK/USD` Bitso; AVAX→`AVAX/USD`; resto `*/USDT`), órdenes **maker/limit preferidas** (0.30% vs 0.36% taker — el stress a 36bps dio Sharpe 0.88 vs 1.20 a 10bps: sobrevive pero adelgaza).
+- [ ] API key de Bitso **sin permiso de retiro** (§8.3), en `.env`/Secret Manager.
+- [ ] Validar contra el **sandbox stage de Bitso** (ccxt lo soporta) — reemplaza al testnet de Binance.
 - [ ] **Re-calibrar guardrails sobre la señal momentum** con `/brain:calibrate-risk` → fija el Kelly definitivo (cierra el TBD de §8.2) y actualiza `calibration_report.md`.
-- [ ] Testnet ≥ 7 días estables → flip a live **long-only** (short OFF, regla #8) con los $50.
+- [ ] Stage ≥ 7 días estables → flip a live **long-only permanente** (Bitso spot-only — el short queda solo en paper) con los $50.
 - **Aceptación:** 0 violaciones de guardrails · kill switch probado · track record live alimentando el dashboard.
 
 **Definición de "Hecho" (MVP):** Fases 0–5 completas + 7 días estables desplegado; señal champion operando; shadow persistiendo; EXPERIMENT_LOG al día; infra reproducible con `terraform apply`; README/case study con la narrativa honesta.
@@ -411,6 +413,7 @@ Realidad medida por `src/brain/cost_meter.py` (DeepSeek V4 Flash, $0.14/$0.28 po
 ## 13. Registro de decisiones
 
 **2026-07-03:**
+- **Exchange de EJECUCIÓN = Bitso** (decidido — Erika tiene cuenta fondeada + API; CNBV-regulado, rampa MXN). **La DATA sigue siendo Binance** (bronze 2021→2026, más profundo y líquido); el `ExecutionAdapter` mapea (el diseño agnóstico pagando su dividendo). Consecuencias: **LINK reemplaza a BNB** (no existe en Bitso) · fees 0.36% taker/0.30% maker → stress medido: Sharpe iteración 1.20→0.88, sobrevive pero preferir maker (EXPERIMENT_LOG) · **spot-only → live long-only permanente** · F6 usa el sandbox stage de Bitso, no Binance testnet. Key de Bitso SIN retiro (§8.3).
 - **Dashboard PRIVADO por default** (IAM en Cloud Run, sin `allUsers`): la historia de usuario del reclutador se sirve con el flip `dashboard_public=true` durante demos, o compartiendo la URL tras un flip temporal. Región cloud: **us-central1** (tier-1). Cadencia Cloud Scheduler: diaria 08:10 MX (reemplaza al cron WSL al desplegar).
 
 **2026-07-02 (v0.3 — re-encuadre por evidencia):**

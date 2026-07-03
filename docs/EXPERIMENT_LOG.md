@@ -333,6 +333,26 @@ se re-elige por corrida (comparabilidad de clusters); el arnés queda como audit
 
 ---
 
+## Stress adicional — fees a nivel Bitso (venue de ejecución decidido 2026-07-03)
+
+**Fecha:** 2026-07-03 · **Tipo:** stress del champion existente a fee nuevo (no suma `n_trials`).
+
+**Contexto:** la ejecución pasa a **Bitso** (taker 0.36%/lado, maker 0.30% — vs 0.10% Binance).
+El stress original (H5) llegaba a 20bps; se re-midió el champion (multimom, `<2025-06-28`, 5 majors)
+a **36bps/lado**:
+
+| fee/lado | Sharpe | PSR(0) | maxDD |
+|---|---|---|---|
+| 10bps (ref) | 1.20 | 0.999 | −44% |
+| **36bps (Bitso taker)** | **0.88** | 0.981 | **−60%** |
+
+**Conclusión:** el edge **sobrevive pero adelgaza** (~27% menos Sharpe, drawdown peor). Mitigación
+operativa para F6: **órdenes maker/limit** (0.30%) cuando sea posible, damper `min_trade` ya activo,
+y recordar que la claim desplegada es DEFENSIVA (estar en cash durante crashes no paga fees).
+**Dónde no ir #16:** no asumir los fees del backtest — el venue real los fija; re-stressear al cambiar de exchange.
+
+---
+
 ## Registro operativo — SWITCH DE SEÑAL EN PRODUCCIÓN (Fase 1, PRD v0.3)
 
 **Fecha:** 2026-07-02 · **Tipo:** operación (no experimento — no suma a `n_trials`).
