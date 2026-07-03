@@ -24,12 +24,16 @@
       "Edit(*)",
       "Write(*)"
     ],
-    "deny": [
-      "Bash(terraform apply:*)",
-      "Bash(terraform destroy:*)",
+    "ask": [
       "Bash(gcloud:*)",
       "Bash(gsutil:*)",
       "Bash(bq:*)",
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)"
+    ],
+    "deny": [
+      "Bash(gcloud secrets versions access:*)",
+      "Bash(gcloud secrets versions add:*)",
       "Bash(rm -rf:*)",
       "Bash(curl * | bash:*)"
     ]
