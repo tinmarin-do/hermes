@@ -108,5 +108,6 @@ def api_explain(base: str) -> JSONResponse:
 
 
 @app.get("/healthz")
+@app.get("/health")  # /healthz es interceptado por el GFE en dominios run.app
 def healthz() -> dict[str, Any]:
-    return {"status": "ok", "has_snapshot": SNAPSHOT_PATH.exists()}
+    return {"status": "ok", "has_snapshot": _load_snapshot() is not None}

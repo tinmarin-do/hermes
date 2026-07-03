@@ -18,6 +18,7 @@ _run_lock = threading.Lock()
 
 
 @app.get("/healthz")
+@app.get("/health")  # /healthz es interceptado por el GFE en dominios run.app
 def healthz() -> dict[str, Any]:
     return {"status": "ok", "service": "hermes-brain"}
 
