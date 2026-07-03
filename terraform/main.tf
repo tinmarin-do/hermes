@@ -38,6 +38,15 @@ module "cloud_run" {
   scheduler_sa_email = google_service_account.scheduler.email
 }
 
+# Repositorio de imágenes (dashboard + brain) — us-central1, formato Docker.
+resource "google_artifact_registry_repository" "hermes" {
+  project       = var.project_id
+  location      = var.region
+  repository_id = "hermes"
+  format        = "DOCKER"
+  description   = "Imágenes de Hermes (dashboard + brain)"
+}
+
 # SA de menor privilegio: Cloud Scheduler SOLO puede invocar el brain (OIDC).
 resource "google_service_account" "scheduler" {
   project      = var.project_id

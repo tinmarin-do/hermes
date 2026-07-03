@@ -169,6 +169,10 @@ Notación: **P0** = imprescindible MVP · **P1** = mejora fuerte · **P2** = roa
 
 **Estrategia de serving de LLM:** corridas programadas (no por visitante); la demo lee del historial; botón "correr ahora" rate-limited; DeepSeek V4 Flash unificado para todos los roles.
 
+**Política de datos — local archiva, la nube opera (decidido 2026-07-03).** Con los parámetros de los modelos ya fijados (regla momentum, HDBSCAN del lab, UMAP persistido), la operación diaria NO necesita el histórico completo — necesita una **ventana rodante**: ~90 días de precios (la escala más larga del voto momentum es 2160h) + ~500h de warmup GARCH + noticias recientes + el track record (KBs/día, se conserva siempre). Por diseño:
+- **LOCAL (DuckDB) = archivo de investigación** — histórico completo 2021→hoy ($0). Sin él no hay re-calibración de Kelly (F6), ni backtests del challenger, ni protocolo §8.9. **Jamás se poda.**
+- **NUBE = operación** — solo la ventana rodante + track record + snapshot del dashboard. La base cloud es diminuta por diseño; el histórico nunca vive solo en la nube.
+
 **Principios de diseño (sin cambios):** interfaces agnósticas (`MarketDataSource`, `ExecutionAdapter`); IaC total con Terraform — nada a mano en consola.
 
 ---
