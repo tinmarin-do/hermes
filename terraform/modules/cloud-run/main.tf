@@ -6,6 +6,8 @@ resource "google_cloud_run_v2_service" "dashboard" {
   ingress = "INGRESS_TRAFFIC_ALL"
 
   template {
+    service_account = var.runtime_sa_email
+
     containers {
       image = var.dashboard_image != "" ? var.dashboard_image : "gcr.io/cloudrun/hello"
 
@@ -14,6 +16,7 @@ resource "google_cloud_run_v2_service" "dashboard" {
           cpu    = "1"
           memory = "256Mi"
         }
+        cpu_idle = true # CPU solo durante requests (<512Mi lo exige; y es más barato)
       }
 
       env {
@@ -41,6 +44,8 @@ resource "google_cloud_run_v2_service" "brain" {
   ingress = "INGRESS_TRAFFIC_INTERNAL_ONLY"
 
   template {
+    service_account = var.runtime_sa_email
+
     containers {
       image = var.brain_image != "" ? var.brain_image : "gcr.io/cloudrun/hello"
 
@@ -49,11 +54,27 @@ resource "google_cloud_run_v2_service" "brain" {
           cpu    = "2"
           memory = "1Gi"
         }
+        cpu_idle = true # solo paga CPU durante la corrida diaria
       }
 
       env {
         name  = "HERMES_MODE"
         value = "cloud"
+      }
+
+      # Secretos como REFERENCIA (secret_key_ref): el valor solo existe dentro
+      # del contenedor en runtime — jamás en código, plan, ni contexto (§8.3).
+      dynamic "env" {
+        for_each = var.brain_secret_env
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
       }
     }
 

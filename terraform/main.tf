@@ -22,9 +22,10 @@ module "secret_manager" {
 }
 
 module "cloud_sql" {
-  source     = "./modules/cloud-sql"
-  project_id = var.project_id
-  region     = var.region
+  source      = "./modules/cloud-sql"
+  project_id  = var.project_id
+  region      = var.region
+  db_password = var.db_password
 }
 
 module "cloud_run" {
@@ -36,6 +37,29 @@ module "cloud_run" {
   db_connection      = module.cloud_sql.connection_name
   dashboard_public   = var.dashboard_public
   scheduler_sa_email = google_service_account.scheduler.email
+  runtime_sa_email   = google_service_account.runtime.email
+  brain_secret_env = {
+    BITSO_API_KEY    = module.secret_manager.secret_ids["bitso-api-key"]
+    BITSO_API_SECRET = module.secret_manager.secret_ids["bitso-api-secret"]
+    DEEPSEEK_API_KEY = module.secret_manager.secret_ids["deepseek-api-key"]
+    DB_PASSWORD      = module.secret_manager.secret_ids["db-password"]
+  }
+}
+
+# SA de RUNTIME para los servicios: los secretos llegan como secret_key_ref —
+# el valor solo existe dentro del contenedor (jamás en código/plan/contexto).
+resource "google_service_account" "runtime" {
+  project      = var.project_id
+  account_id   = "hermes-runtime"
+  display_name = "Hermes Runtime — accessor de secretos (menor privilegio)"
+}
+
+resource "google_secret_manager_secret_iam_member" "runtime_accessor" {
+  for_each  = module.secret_manager.secret_ids
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 # Repositorio de imágenes (dashboard + brain) — us-central1, formato Docker.
