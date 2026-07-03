@@ -38,8 +38,8 @@ def get_secret(name: str, project: str | None = None) -> str:
     if secret_id is None:
         raise RuntimeError(f"Secreto desconocido: {name} (no está en _SECRET_IDS)")
 
-    project = project or os.environ.get("GCP_PROJECT_ID") or os.environ.get(
-        "GOOGLE_CLOUD_PROJECT", ""
+    project = (
+        project or os.environ.get("GCP_PROJECT_ID") or os.environ.get("GOOGLE_CLOUD_PROJECT", "")
     )
     if not project:
         raise RuntimeError(f"{name}: sin env ni GCP_PROJECT_ID para ir a Secret Manager")

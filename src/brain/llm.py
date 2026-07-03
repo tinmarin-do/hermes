@@ -1,6 +1,5 @@
 """LLM factory — returns DeepSeek V4 Flash via OpenAI-compatible API."""
 
-
 from langchain_core.language_models import BaseChatModel
 from pydantic import SecretStr
 
