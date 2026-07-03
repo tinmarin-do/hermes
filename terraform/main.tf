@@ -38,11 +38,25 @@ module "cloud_run" {
   dashboard_public   = var.dashboard_public
   scheduler_sa_email = google_service_account.scheduler.email
   runtime_sa_email   = google_service_account.runtime.email
+  state_bucket       = google_storage_bucket.state.name
   brain_secret_env = {
     BITSO_API_KEY    = module.secret_manager.secret_ids["bitso-api-key"]
     BITSO_API_SECRET = module.secret_manager.secret_ids["bitso-api-secret"]
     DEEPSEEK_API_KEY = module.secret_manager.secret_ids["deepseek-api-key"]
     DB_PASSWORD      = module.secret_manager.secret_ids["db-password"]
+  }
+  brain_plain_env = {
+    HERMES_STATE_BUCKET       = google_storage_bucket.state.name
+    HERMES_DUCKDB_PATH        = "/tmp/hermes.duckdb"
+    HERMES_ALLOWED_SYMBOLS    = "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT"
+    HERMES_CAPITAL_USD        = "1"
+    HERMES_KELLY_FRACTION     = "0.10"
+    HERMES_MAX_POSITIONS      = "6"
+    EXCHANGE_MODE             = "paper"
+    EXCHANGE_ID               = "bitso"
+    TOKENIZERS_PARALLELISM    = "false"
+    NEWS_LABEL_WITH_LLM       = "0"
+    HERMES_DAILY_LINE_CAP_USD = "0.50"
   }
 }
 
@@ -60,6 +74,25 @@ resource "google_secret_manager_secret_iam_member" "runtime_accessor" {
   secret_id = each.value
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime.email}"
+}
+
+# Bucket de ESTADO operacional (política de datos PRD §6): DuckDB operacional +
+# snapshot del dashboard. El brain lo baja al arrancar y lo sube al terminar
+# (1 corrida/día = sin concurrencia). El histórico completo vive en LOCAL.
+resource "google_storage_bucket" "state" {
+  project                     = var.project_id
+  name                        = "hermes-state-${var.project_id}"
+  location                    = var.region
+  uniform_bucket_level_access = true
+  versioning {
+    enabled = true # rollback barato del libro si una corrida corrompe el archivo
+  }
+}
+
+resource "google_storage_bucket_iam_member" "runtime_state" {
+  bucket = google_storage_bucket.state.name
+  role   = "roles/storage.objectAdmin"
+  member = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 # Repositorio de imágenes (dashboard + brain) — us-central1, formato Docker.

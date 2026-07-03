@@ -11,6 +11,8 @@ resource "google_cloud_scheduler_job" "pipeline" {
   # siendo el motor). Al desplegar el brain real: quitar y apagar el cron WSL.
   paused = true
 
+  attempt_deadline = "1800s" # la corrida completa tarda ~15 min
+
   http_target {
     http_method = "POST"
     uri         = "${var.brain_url}/run"

@@ -1,6 +1,6 @@
 """CI cost check — fails if LLM budget exceeds threshold percentage."""
+
 import argparse
-import re
 import sys
 
 
