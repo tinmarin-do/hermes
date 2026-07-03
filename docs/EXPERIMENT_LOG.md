@@ -295,6 +295,44 @@ El método honesto y desplegable que la evidencia soporta es el overlay defensiv
 
 ---
 
+## Lab Fase 4.0 — Selección de embedding + clustering para noticias (§8.7)
+
+**Fecha:** 2026-07-02 · **Tipo:** experimento de infraestructura (no direccional — no suma a `n_trials`
+del DSR de trading). **Decisión de Erika:** validar ANTES de la ingesta al medallón, con inspección
+visual 2D ("seleccionar clustering es como seleccionar aguacates" — y tiene razón: sin ground truth,
+las métricas descartan lo malo y el ojo decide entre lo bueno).
+
+**Setup:** 391 titulares únicos de 15 feeds RSS ($0, seed 42) · 4 modelos de embedding × pipeline
+idéntico (UMAP 10d cosine, n_neighbors=15, min_dist=0.0) × 18 configs de clustering (KMeans/
+Agglomerative k=4..12, HDBSCAN mcs=5..20, DBSCAN eps=0.3..1.2) · Silhouette/Davies-Bouldin/
+Calinski-Harabasz/DBCV/noise + t-SNE 2D con keywords por cluster (c-TF-IDF).
+
+| Modelo | Mejor sil | DBCV | Visual (HDBSCAN mcs=10) |
+|---|---|---|---|
+| **all-MiniLM-L6-v2** ✅ | **0.702** | 0.485 | 12 clusters nítidos e interpretables |
+| all-MiniLM-L12-v2 | 0.645 | **0.507** | ~igual a L6, 2× más lento |
+| bge-small-en-v1.5 | 0.621 | 0.477 | fusiona regulación+sanciones (grueso) |
+| all-mpnet-base-v2 | 0.635 | 0.432 | **COLAPSA a k=2** (375 en un pegote) |
+
+**Hallazgos:**
+1. **SÍ hay estructura clusterizable** — y los clusters calcan las categorías a priori del PRD:
+   regulación (MiCA/FCA, 9 fuentes), hacks (`bridge/exploited`), macro (jobs/inflation), eventos
+   corporativos multi-fuente (Metaplanet 7 fuentes, Strategy 7 fuentes → corroboración natural
+   para `trust_score`), TA de precio, RWA/tokenización.
+2. **El modelo grande pierde:** mpnet-base (768d, 4× más lento) colapsó con HDBSCAN y quedó último
+   en silhouette-por-método. En titulares cortos, los modelos chicos rinden igual o mejor.
+3. **Densidad >> partición:** KMeans/Agglomerative producen pegotes de 70-100 noticias mezcladas;
+   DBSCAN fragmenta (25 microclusters, 34% ruido, eps frágil). HDBSCAN mcs=10: k=12, ruido 17%.
+4. El **ruido ~17% es señal, no bug**: historias únicas sin cluster = el trigger de drift del PRD.
+
+**DECISIÓN (Erika, con figuras a la vista):** `all-MiniLM-L6-v2` + `HDBSCAN(min_cluster_size=10,
+min_samples=5)` sobre UMAP 10d cosine. Fijado en `news_transform.py` + `.envrc` — el método ya NO
+se re-elige por corrida (comparabilidad de clusters); el arnés queda como auditoría.
+**Caveat anotado:** parte de la estructura es estilo editorial (cluster memecoins mono-fuente u.today)
+— mitigar con dedupe cross-fuente. Artefactos: scratchpad `news_lab.py` + figs en dashboard static.
+
+---
+
 ## Registro operativo — SWITCH DE SEÑAL EN PRODUCCIÓN (Fase 1, PRD v0.3)
 
 **Fecha:** 2026-07-02 · **Tipo:** operación (no experimento — no suma a `n_trials`).

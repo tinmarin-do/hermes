@@ -1,10 +1,16 @@
 """Silver news clustering pipeline (PRD §8.7).
 
-Bronze news → sentence-transformers embeddings → UMAP → clustering evaluation harness
-→ best method selected via unsupervised metrics → semantic labeling → silver_news_clusters.
+Bronze news → sentence-transformers embeddings → UMAP → **HDBSCAN (método FIJO,
+decidido 2026-07-02 vía lab Fase 4.0)** → etiquetado semántico → silver_news_clusters.
 
-Drift-aware: models are persisted and reused. Recalibration fires only when noise/outlier
-rate exceeds a configurable threshold.
+El método NO se re-elige por corrida (rompería la comparabilidad de clusters entre
+corridas — PRD §8.7): el arnés de evaluación (`_evaluate_clustering`) queda para
+auditoría/re-calibración por drift. Config del lab: all-MiniLM-L6-v2 + UMAP 10d
+cosine (n_neighbors=15, min_dist=0.0) + HDBSCAN(min_cluster_size=10, min_samples=5).
+Etiquetado de clusters: heurístico determinista por default ($0); LLM opt-in.
+
+Drift-aware: modelos persistidos y reutilizados; re-calibrar cuando la fracción de
+ruido supere el umbral configurable.
 """
 
 import os
@@ -25,11 +31,31 @@ from sklearn.metrics import (
 from src.data.db import get_connection
 
 EMBED_MODEL = os.environ.get("NEWS_EMBED_MODEL", "all-MiniLM-L6-v2")
-UMAP_N_COMPONENTS = 8
+# Config validada en el lab Fase 4.0 (391 titulares, 4 modelos × 18 configs) —
+# ver EXPERIMENT_LOG. Overridable por env, pero el default ES la decisión.
+CLUSTER_METHOD = os.environ.get("NEWS_CLUSTER_METHOD", "hdbscan")
+HDBSCAN_MIN_CLUSTER_SIZE = int(os.environ.get("NEWS_HDBSCAN_MIN_CLUSTER_SIZE", "10"))
+HDBSCAN_MIN_SAMPLES = int(os.environ.get("NEWS_HDBSCAN_MIN_SAMPLES", "5"))
+UMAP_N_COMPONENTS = int(os.environ.get("NEWS_UMAP_N_COMPONENTS", "10"))
 UMAP_N_NEIGHBORS = 15
-UMAP_MIN_DIST = 0.1
+UMAP_MIN_DIST = float(os.environ.get("NEWS_UMAP_MIN_DIST", "0.0"))
 NOISE_FRAC_THRESHOLD = float(os.environ.get("NEWS_DRIFT_NOISE_THRESHOLD", "0.30"))
 MODEL_DIR = Path(os.environ.get("HERMES_DUCKDB_PATH", "data/hermes.duckdb")).parent / "news_models"
+
+
+def _hdbscan_params(n: int) -> tuple[int, int]:
+    """min_cluster_size efectivo: el decidido (10), acotado para batches chicos.
+
+    Con pocas noticias (n < 5×mcs) un mcs=10 colapsaría todo a ruido; se baja
+    proporcionalmente con piso en 3 (el mínimo sano de HDBSCAN).
+    """
+    mcs = (
+        max(3, min(HDBSCAN_MIN_CLUSTER_SIZE, n // 5))
+        if n < HDBSCAN_MIN_CLUSTER_SIZE * 5
+        else HDBSCAN_MIN_CLUSTER_SIZE
+    )
+    return mcs, min(HDBSCAN_MIN_SAMPLES, mcs)
+
 
 SOURCE_WEIGHTS = {
     "whale_alert": 1.0,
@@ -84,62 +110,32 @@ def _load_or_fit_umap(embeddings: np.ndarray, force_recalibrate: bool = False) -
     return reducer
 
 
-def _load_or_fit_hdbscan(
-    reduced: np.ndarray, force_recalibrate: bool = False
-) -> tuple[Any, np.ndarray]:
-    import hdbscan
-
-    model_path = _ensure_model_dir() / "hdbscan_model.pkl"
-    labels_path = _ensure_model_dir() / "hdbscan_labels.npy"
-
-    if not force_recalibrate and model_path.exists() and labels_path.exists():
-        with open(model_path, "rb") as f:
-            model = pickle.load(f)
-        labels = np.load(str(labels_path))
-    else:
-        model = hdbscan.HDBSCAN(
-            min_cluster_size=3,
-            min_samples=2,
-            metric="euclidean",
-            cluster_selection_method="eom",
-        )
-        labels = model.fit_predict(reduced)
-        with open(model_path, "wb") as f:
-            pickle.dump(model, f)
-        np.save(str(labels_path), labels)
-
-    return model, labels
-
-
 def _evaluate_clustering(reduced: np.ndarray, embeddings: np.ndarray) -> dict[str, dict[str, Any]]:
-    """Compare K-Means, HDBSCAN, Agglomerative, DBSCAN using unsupervised metrics.
+    """Arnés de AUDITORÍA: compara los 4 métodos con métricas no supervisadas.
 
-    Returns a dict keyed by method name with {labels, metrics, model}. The best
-    method is selected by ranking across Silhouette, Davies-Bouldin, Calinski-Harabasz,
-    and DBCV (when available from HDBSCAN).
+    Ya NO elige el método de producción (fijado por el lab Fase 4.0 — HDBSCAN);
+    se reporta en el summary para monitorear drift y re-validar la elección.
     """
     import hdbscan
-    from sklearn.preprocessing import StandardScaler
 
     results: dict[str, dict[str, Any]] = {}
     n = len(reduced)
     if n < 4:
         return results
 
-    scaled = StandardScaler().fit_transform(reduced)
-
     # --- K-Means ---
     k = max(2, int(np.sqrt(n / 2)))
     km = KMeans(n_clusters=k, random_state=42, n_init=10)
-    km_labels = km.fit_predict(scaled)
-    results["kmeans"] = _score_method(scaled, km_labels, "kmeans")
+    km_labels = km.fit_predict(reduced)
+    results["kmeans"] = _score_method(reduced, km_labels, "kmeans")
 
-    # --- HDBSCAN ---
+    # --- HDBSCAN (params decididos) ---
+    mcs, ms = _hdbscan_params(n)
     hdb = hdbscan.HDBSCAN(
-        min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
+        min_cluster_size=mcs, min_samples=ms, metric="euclidean", cluster_selection_method="eom"
     )
-    hdb_labels = hdb.fit_predict(scaled)
-    results["hdbscan"] = _score_method(scaled, hdb_labels, "hdbscan")
+    hdb_labels = hdb.fit_predict(reduced)
+    results["hdbscan"] = _score_method(reduced, hdb_labels, "hdbscan")
     try:
         results["hdbscan"]["dbcv"] = round(hdb.relative_validity_, 4)
     except Exception:
@@ -147,13 +143,13 @@ def _evaluate_clustering(reduced: np.ndarray, embeddings: np.ndarray) -> dict[st
 
     # --- Agglomerative ---
     agg = AgglomerativeClustering(n_clusters=k, metric="euclidean", linkage="ward")
-    agg_labels = agg.fit_predict(scaled)
-    results["agglomerative"] = _score_method(scaled, agg_labels, "agglomerative")
+    agg_labels = agg.fit_predict(reduced)
+    results["agglomerative"] = _score_method(reduced, agg_labels, "agglomerative")
 
     # --- DBSCAN ---
     db = DBSCAN(eps=0.5, min_samples=2, metric="euclidean")
-    db_labels = db.fit_predict(scaled)
-    results["dbscan"] = _score_method(scaled, db_labels, "dbscan")
+    db_labels = db.fit_predict(reduced)
+    results["dbscan"] = _score_method(reduced, db_labels, "dbscan")
 
     return results
 
@@ -246,35 +242,27 @@ def _compute_trust_scores(items: list[dict], embeddings: np.ndarray) -> list[flo
 def _label_clusters(
     items: list[dict], labels: np.ndarray, trust_scores: list[float]
 ) -> dict[int, str]:
-    """Generate semantic labels per cluster using LLM (Ollama, local).
+    """Etiqueta semántica por cluster sobre la taxonomía fija de news_verify.
 
-    Feeds representative titles per cluster and asks for a short label.
-    Falls back to rule-based heuristic if LLM is unavailable.
+    Default: heurística determinista ($0 — la aceptación de Fase 4 exige costo LLM
+    cero en el pipeline de datos). Opt-in con NEWS_LABEL_WITH_LLM=1: DeepSeek etiqueta
+    con titulares representativos (costo ~centavos; la etiqueta sigue restringida a la
+    taxonomía, y el texto va a un clasificador aislado, NUNCA a un LLM de decisión).
     """
-    from langchain_core.messages import HumanMessage, SystemMessage
-
-    from src.brain.llm import get_llm
-
     unique = sorted(set(labels) - {-1})
     if not unique:
         return {}
 
+    use_llm = os.environ.get("NEWS_LABEL_WITH_LLM", "0") == "1"
     cluster_map: dict[int, str] = {}
     llm = None
-    try:
-        llm = get_llm("analyst")
-    except Exception:
-        pass
+    if use_llm:
+        try:
+            from src.brain.llm import get_llm
 
-    system = SystemMessage(
-        content=(
-            "You are a news classifier. Given a set of crypto news headlines that share "
-            "a common theme, respond with a single short label (1-3 words, lowercase, "
-            "snake_case). Pick from: regulatory, hack, protocol_upgrade, listing, macro, "
-            "partnership, adoption, whale_movement, market_sentiment, or other. "
-            "Respond with ONLY the label, nothing else."
-        )
-    )
+            llm = get_llm("analyst")
+        except Exception:
+            llm = None
 
     for cid in unique:
         mask = labels == cid
@@ -284,9 +272,20 @@ def _label_clusters(
 
         if llm is not None:
             try:
+                from langchain_core.messages import HumanMessage, SystemMessage
+
+                system = SystemMessage(
+                    content=(
+                        "You are a news classifier. Given a set of crypto news headlines "
+                        "that share a common theme, respond with a single short label "
+                        "(lowercase, snake_case). Pick from: regulatory, hack, "
+                        "protocol_upgrade, listing, macro, partnership, adoption, "
+                        "whale_movement, market_sentiment, or other. "
+                        "Respond with ONLY the label, nothing else."
+                    )
+                )
                 resp = llm.invoke([system, HumanMessage(content=headlines)])
-                label = resp.content.strip().lower().replace(" ", "_")[:40]
-                cluster_map[cid] = label
+                cluster_map[cid] = resp.content.strip().lower().replace(" ", "_")[:40]
                 continue
             except Exception:
                 pass
@@ -327,43 +326,32 @@ def _sentiment_from_cluster(cluster_label: str) -> float:
     return 0.0
 
 
-def _cluster_with_best_method(
-    reduced: np.ndarray,
-    embeddings: np.ndarray,
-    eval_results: dict[str, dict[str, Any]],
-    best_method: str,
-    force_recalibrate: bool,
-) -> np.ndarray:
-    """Run the winning clustering method (or HDBSCAN as default) and return labels."""
-    import hdbscan
-    from sklearn.preprocessing import StandardScaler
+def _cluster_fixed_method(reduced: np.ndarray, method: str) -> np.ndarray:
+    """Corre el método de producción (fijo — decidido en el lab Fase 4.0).
 
-    scaled = StandardScaler().fit_transform(reduced)
+    Directo sobre el espacio UMAP (mismo pipeline validado en el lab, sin scaler).
+    """
+    import hdbscan
 
     labels_path = _ensure_model_dir() / "news_cluster_labels.npy"
     labels: np.ndarray
+    n = len(reduced)
 
-    if best_method == "hdbscan":
-        hdb = hdbscan.HDBSCAN(
-            min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
-        )
-        labels = hdb.fit_predict(scaled)
-    elif best_method == "kmeans":
-        k = eval_results["kmeans"].get("n_clusters", max(2, int(np.sqrt(len(reduced) / 2))))
-        km = KMeans(n_clusters=k, random_state=42, n_init=10)
-        labels = km.fit_predict(scaled)
-    elif best_method == "agglomerative":
-        k = eval_results["agglomerative"].get("n_clusters", max(2, int(np.sqrt(len(reduced) / 2))))
-        agg = AgglomerativeClustering(n_clusters=k, metric="euclidean", linkage="ward")
-        labels = agg.fit_predict(scaled)
-    elif best_method == "dbscan":
-        db = DBSCAN(eps=0.5, min_samples=2, metric="euclidean")
-        labels = db.fit_predict(scaled)
-    else:
-        hdb = hdbscan.HDBSCAN(
-            min_cluster_size=3, min_samples=2, metric="euclidean", cluster_selection_method="eom"
-        )
-        labels = hdb.fit_predict(scaled)
+    if method == "kmeans":
+        k = max(2, int(np.sqrt(n / 2)))
+        labels = KMeans(n_clusters=k, random_state=42, n_init=10).fit_predict(reduced)
+    elif method == "agglomerative":
+        k = max(2, int(np.sqrt(n / 2)))
+        labels = AgglomerativeClustering(
+            n_clusters=k, metric="euclidean", linkage="ward"
+        ).fit_predict(reduced)
+    elif method == "dbscan":
+        labels = DBSCAN(eps=0.5, min_samples=2, metric="euclidean").fit_predict(reduced)
+    else:  # hdbscan — el decidido (default)
+        mcs, ms = _hdbscan_params(n)
+        labels = hdbscan.HDBSCAN(
+            min_cluster_size=mcs, min_samples=ms, metric="euclidean", cluster_selection_method="eom"
+        ).fit_predict(reduced)
 
     np.save(str(labels_path), labels)
     return labels
@@ -395,16 +383,16 @@ def transform_news(force_recalibrate: bool = False) -> dict:
     embeddings = _embed_texts(texts, model)
 
     umap_reducer = _load_or_fit_umap(embeddings, force_recalibrate)
-    reduced = umap_reducer.transform(embeddings)
+    reduced = np.asarray(umap_reducer.transform(embeddings))
 
+    # Método FIJO (lab Fase 4.0); el arnés corre solo como auditoría comparativa.
+    method = CLUSTER_METHOD
     eval_results = _evaluate_clustering(reduced, embeddings)
-    best_method = _select_best_method(eval_results)
 
-    labels = _cluster_with_best_method(
-        reduced, embeddings, eval_results, best_method, force_recalibrate
-    )
+    labels = _cluster_fixed_method(reduced, method)
 
     noise_frac = round(float((labels == -1).sum()) / max(len(labels), 1), 4)
+    drift_alert = noise_frac > NOISE_FRAC_THRESHOLD
 
     trust_scores = _compute_trust_scores(items, embeddings)
     cluster_map = _label_clusters(items, labels, trust_scores)
@@ -418,8 +406,10 @@ def transform_news(force_recalibrate: bool = False) -> dict:
         "n_clusters": len(cluster_map),
         "n_noise": int((labels == -1).sum()),
         "noise_frac": noise_frac,
-        "best_method": best_method,
-        "eval_metrics": eval_results,
+        "drift_alert": drift_alert,
+        "method": method,
+        "cluster_labels": sorted(set(cluster_map.values())),
+        "audit_metrics": eval_results,
     }
 
 
