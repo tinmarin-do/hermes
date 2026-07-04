@@ -20,12 +20,19 @@ class FakeExchange:
         price: float = 100.0,
         async_market_fill: bool = False,
         insufficient_once: bool = False,
+        balance_script: list[dict[str, float]] | None = None,
+        post_insufficient_balances: list[dict[str, float]] | None = None,
     ):
         self.price = price
         self.maker_fills = maker_fills
         self.async_market_fill = async_market_fill
         self.insufficient_once = insufficient_once
         self.balances = balances or {"USDT": 1000.0, "USD": 500.0}
+        # Guiones de balance: cada fetch_balance consume una entrada (simula la
+        # reserva de la limit liberándose lentamente); agotado → self.balances.
+        self.balance_script = list(balance_script or [])
+        self.post_insufficient_balances = post_insufficient_balances
+        self.balance_calls = 0
         self.orders: dict[str, dict[str, Any]] = {}
         self.created: list[dict[str, Any]] = []
         self.cancelled: list[str] = []
@@ -46,7 +53,9 @@ class FakeExchange:
         return {"bid": self.price * 0.999, "ask": self.price * 1.001, "last": self.price}
 
     def fetch_balance(self):
-        return {k: {"free": v, "total": v} for k, v in self.balances.items()}
+        self.balance_calls += 1
+        src = self.balance_script.pop(0) if self.balance_script else self.balances
+        return {k: {"free": v, "total": v} for k, v in src.items()}
 
     def amount_to_precision(self, pair, amount):
         return f"{amount:.8f}"
@@ -58,6 +67,8 @@ class FakeExchange:
         if type_ == "market" and self.insufficient_once:
             # 1er market post-cancel rebota: reserva de la limit aún sin liberar
             self.insufficient_once = False
+            if self.post_insufficient_balances is not None:
+                self.balance_script = list(self.post_insufficient_balances)
             import ccxt
 
             raise ccxt.InsufficientFunds('bitso {"error":{"code":"0379"}} Insufficient')
@@ -184,6 +195,46 @@ def test_market_retries_once_on_unreleased_reserve(tmp_db):
     r = _adapter(fake).execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 50}, "r1")
     assert r.status == "FILLED"
     assert r.quantity > 0
+
+
+def test_waits_for_slow_reserve_release_before_market(tmp_db):
+    # Carrera 4da7d525 (1ra daily live autónoma): el status de la limit dice
+    # "canceled" en ms pero Bitso libera la reserva DESPUÉS de >10s. El adapter
+    # debe vigilar el SALDO libre (no el status) y mandar el market solo cuando
+    # los fondos existan — sin necesitar el retry.
+    fake = FakeExchange(
+        maker_fills=False,
+        balances={"USDT": 50.0, "USD": 0.0},
+        # fetch #1 = cap pre-orden (todo libre); #2-3 = reserva aún congelada
+        # post-cancel; #4 = liberada. Luego cae a self.balances.
+        balance_script=[
+            {"USDT": 50.0, "USD": 0.0},
+            {"USDT": 0.0, "USD": 0.0},
+            {"USDT": 0.0, "USD": 0.0},
+            {"USDT": 50.0, "USD": 0.0},
+        ],
+    )
+    a = _adapter(fake)
+    a._poll_s = 0.001  # el poll necesita iterar (0 = un solo vistazo)
+    r = a.execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 40}, "r1")
+    assert r.status == "FILLED"
+    assert [o["type"] for o in fake.created] == ["limit", "market"]  # sin retry
+    assert fake.balance_calls >= 4  # esperó de verdad a la liberación
+
+
+def test_retry_sizes_to_actually_available_funds(tmp_db):
+    # Si tras el 0379 la liberación llega PARCIAL, el retry compra lo que el
+    # saldo real permite en vez de repetir el monto teórico (y volver a rebotar).
+    fake = FakeExchange(
+        maker_fills=False,
+        insufficient_once=True,
+        balances={"USDT": 100.0, "USD": 0.0},
+        post_insufficient_balances=[{"USDT": 30.0, "USD": 0.0}],
+    )
+    r = _adapter(fake).execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 50}, "r1")
+    assert r.status == "FILLED"
+    # ~$30 disponibles @ ~$100 → ~0.297 SOL; jamás los 0.498 teóricos
+    assert 0.25 < r.quantity < 0.31
 
 
 def test_async_market_fill_not_reported_rejected(tmp_db):

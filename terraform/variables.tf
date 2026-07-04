@@ -49,3 +49,9 @@ variable "environment" {
     error_message = "environment must be staging or production"
   }
 }
+
+variable "dashboard_iap_accessors" {
+  type        = list(string)
+  description = "Miembros con acceso IAP al dashboard (2026-07-04: acceso desde cel/compu de la operadora)"
+  default     = ["user:teamarin563@gmail.com"]
+}

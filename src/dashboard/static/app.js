@@ -20,6 +20,7 @@ let equityChart = null;
 function renderPortfolio(pf) {
   const summary = document.getElementById("pf-summary");
   const tbody = document.querySelector("#portfolio tbody");
+  document.getElementById("pf-mode").textContent = pf && pf.mode ? `(${pf.mode})` : "";
   if (!pf || !pf.available) {
     summary.innerHTML = "<span class='muted'>Sin datos de cartera.</span>";
     return;
@@ -235,6 +236,7 @@ function renderCost(cost) {
 }
 
 function renderPositions(pos) {
+  document.getElementById("pos-mode").textContent = pos && pos.mode ? `(${pos.mode})` : "";
   if (!pos || !pos.available) {
     document.getElementById("pos-summary").innerHTML = "<span class='muted'>Sin datos de posiciones.</span>";
     return;

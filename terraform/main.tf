@@ -29,16 +29,17 @@ module "cloud_sql" {
 }
 
 module "cloud_run" {
-  source             = "./modules/cloud-run"
-  project_id         = var.project_id
-  region             = var.region
-  dashboard_image    = var.dashboard_image
-  brain_image        = var.brain_image
-  db_connection      = module.cloud_sql.connection_name
-  dashboard_public   = var.dashboard_public
-  scheduler_sa_email = google_service_account.scheduler.email
-  runtime_sa_email   = google_service_account.runtime.email
-  state_bucket       = google_storage_bucket.state.name
+  source                  = "./modules/cloud-run"
+  project_id              = var.project_id
+  region                  = var.region
+  dashboard_image         = var.dashboard_image
+  brain_image             = var.brain_image
+  db_connection           = module.cloud_sql.connection_name
+  dashboard_public        = var.dashboard_public
+  dashboard_iap_accessors = var.dashboard_iap_accessors
+  scheduler_sa_email      = google_service_account.scheduler.email
+  runtime_sa_email        = google_service_account.runtime.email
+  state_bucket            = google_storage_bucket.state.name
   brain_secret_env = {
     BITSO_API_KEY    = module.secret_manager.secret_ids["bitso-api-key"]
     BITSO_API_SECRET = module.secret_manager.secret_ids["bitso-api-secret"]
@@ -46,20 +47,20 @@ module "cloud_run" {
     DB_PASSWORD      = module.secret_manager.secret_ids["db-password"]
   }
   brain_plain_env = {
-    HERMES_STATE_BUCKET       = google_storage_bucket.state.name
-    HERMES_DUCKDB_PATH        = "/tmp/hermes.duckdb"
-    HERMES_ALLOWED_SYMBOLS    = "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT"
-    HERMES_CAPITAL_USD        = "400"    # fallback/paper; en live manda el wallet (abajo)
-    HERMES_BUDGET_SOURCE      = "wallet" # live: budget = equity real de Bitso (decisión 2026-07-03)
-    HERMES_KELLY_FRACTION     = "0.10" # calibrado 2026-07-03 (era interim; el óptimo coincidió)
-    HERMES_DAILY_LOSS_LIMIT_PCT = "0.04" # calibrado 2026-07-03 (antes default 0.02)
-    HERMES_MAX_POSITIONS      = "6"
-    EXCHANGE_MODE             = "live" # flip 2026-07-03 (decisión Erika): daily opera REAL en Bitso
-    EXCHANGE_ID               = "bitso"
-    TOKENIZERS_PARALLELISM    = "false"
-    DATA_EXCHANGE_ID          = "bitso" # Binance geo-bloquea GCP (451)
-    NEWS_LABEL_WITH_LLM       = "0"
-    HERMES_DAILY_LINE_CAP_USD = "0.50"
+    HERMES_STATE_BUCKET         = google_storage_bucket.state.name
+    HERMES_DUCKDB_PATH          = "/tmp/hermes.duckdb"
+    HERMES_ALLOWED_SYMBOLS      = "BTC/USDT,ETH/USDT,SOL/USDT,LINK/USDT,AVAX/USDT,XRP/USDT"
+    HERMES_CAPITAL_USD          = "400"    # fallback/paper; en live manda el wallet (abajo)
+    HERMES_BUDGET_SOURCE        = "wallet" # live: budget = equity real de Bitso (decisión 2026-07-03)
+    HERMES_KELLY_FRACTION       = "0.10"   # calibrado 2026-07-03 (era interim; el óptimo coincidió)
+    HERMES_DAILY_LOSS_LIMIT_PCT = "0.04"   # calibrado 2026-07-03 (antes default 0.02)
+    HERMES_MAX_POSITIONS        = "6"
+    EXCHANGE_MODE               = "live" # flip 2026-07-03 (decisión Erika): daily opera REAL en Bitso
+    EXCHANGE_ID                 = "bitso"
+    TOKENIZERS_PARALLELISM      = "false"
+    DATA_EXCHANGE_ID            = "bitso" # Binance geo-bloquea GCP (451)
+    NEWS_LABEL_WITH_LLM         = "0"
+    HERMES_DAILY_LINE_CAP_USD   = "0.50"
   }
 }
 
@@ -120,4 +121,21 @@ module "cloud_scheduler" {
   region             = var.region
   brain_url          = module.cloud_run.brain_url
   scheduler_sa_email = google_service_account.scheduler.email
+}
+
+# Audit logs de DECISIÓN de IAP (encendidos 2026-07-04 durante el debug del
+# custom OAuth): sin ellos, un deny de IAP no deja rastro en ningún log.
+resource "google_project_iam_audit_config" "iap" {
+  project = var.project_id
+  service = "iap.googleapis.com"
+
+  audit_log_config {
+    log_type = "ADMIN_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_READ"
+  }
+  audit_log_config {
+    log_type = "DATA_WRITE"
+  }
 }

@@ -28,6 +28,9 @@ Ninguno. Lee `GCP_PROJECT_ID`, `GCP_REGION`, `TF_STATE_BUCKET` del entorno.
       - `iam.googleapis.com`
       - `logging.googleapis.com`
       - `monitoring.googleapis.com`
+      - `iap.googleapis.com`                  # dashboard privado desde cel (2026-07-04)
+      - `cloudresourcemanager.googleapis.com` # requisito de políticas IAP
+      - `policytroubleshooter.googleapis.com` # debug de IAM (gcloud policy-troubleshoot)
 
 6. Verificar que el bucket existe y las APIs están habilitadas.
 

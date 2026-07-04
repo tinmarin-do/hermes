@@ -11,26 +11,11 @@ from src.execution.adapter import ExecutionAdapter
 
 
 def _get_adapter() -> ExecutionAdapter:
-    exchange_mode = os.environ.get("EXCHANGE_MODE", "paper")
-    exchange_id = os.environ.get("EXCHANGE_ID", "bitso")
-    if exchange_mode == "live":
-        if exchange_id == "bitso":
-            from src.execution.bitso import BitsoAdapter
+    # Lógica compartida con el dashboard (src/execution/factory.py); el nombre
+    # se conserva porque los tests lo parchan.
+    from src.execution.factory import get_execution_adapter
 
-            return BitsoAdapter()
-        from src.execution.binance import BinanceAdapter
-
-        return BinanceAdapter(mode="live")
-    elif exchange_mode == "testnet":
-        from src.execution.binance import BinanceAdapter
-
-        return BinanceAdapter(mode="testnet")
-    else:
-        from src.execution.adapter import PaperAdapter
-
-        # Paper sandbox: el balance se siembra con el budget de trading (§8.8 — $1 local).
-        budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
-        return PaperAdapter(initial_balance=budget)
+    return get_execution_adapter()
 
 
 def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, Any]:

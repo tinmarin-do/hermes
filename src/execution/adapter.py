@@ -34,6 +34,10 @@ class ExecutionAdapter(ABC):
         """Return available cash balance."""
         ...
 
+    def get_equity(self) -> float:
+        """Cash + mark-to-market del libro. Default: solo caja (adapters sin libro)."""
+        return self.get_balance()
+
     @abstractmethod
     def kill(self) -> None:
         """Emergency stop — cancel everything, close all positions if possible."""
