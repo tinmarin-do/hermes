@@ -240,6 +240,7 @@ def test_index_renders_live_card(client_with_snapshot):
     r = client_with_snapshot.get("/")
     assert 'id="live-card"' in r.text
     assert 'id="live-refresh"' in r.text
+    assert 'id="live-chart"' in r.text  # la GRÁFICA de performance (pedido 2026-07-04)
 
 
 @pytest.fixture

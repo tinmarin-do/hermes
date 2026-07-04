@@ -255,7 +255,36 @@ function renderPositions(pos) {
   if (!(pos.open || []).length) tbody.innerHTML = "<tr><td colspan='5' class='muted'>Sin posiciones abiertas.</td></tr>";
 }
 
-async function renderLive() {
+let liveChart = null;
+
+function renderLiveChart(officialSeries, live) {
+  // La GRÁFICA de performance: curva oficial (1 punto/día, §8.9) + el punto
+  // vivo "ahora" al final — cada ↻ mueve el último punto al instante actual.
+  const canvas = document.getElementById("live-chart");
+  if (!canvas || typeof Chart === "undefined") return;
+  const pts = (officialSeries || []).map(p => ({ ts: p.ts.slice(0, 16), eq: p.equity }));
+  pts.push({ ts: "ahora", eq: live.equity_usd });
+  const up = pts.length < 2 || pts[pts.length - 1].eq >= pts[0].eq;
+  const color = up ? "#34d399" : "#f87171";
+  if (liveChart) liveChart.destroy();
+  liveChart = new Chart(canvas, {
+    type: "line",
+    data: {
+      labels: pts.map(p => p.ts),
+      datasets: [{
+        data: pts.map(p => p.eq), borderColor: color,
+        backgroundColor: up ? "rgba(52,211,153,.12)" : "rgba(248,113,113,.12)",
+        fill: true, tension: 0.2,
+        pointRadius: pts.map((_, i) => (i === pts.length - 1 ? 5 : 2)),
+      }],
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+               plugins: { legend: { display: false } },
+               scales: { y: { title: { display: true, text: "equity (USD)" } } } },
+  });
+}
+
+async function renderLive(officialSeries) {
   const summary = document.getElementById("live-summary");
   const tbody = document.querySelector("#live-positions tbody");
   const note = document.getElementById("live-note");
@@ -292,13 +321,20 @@ async function renderLive() {
   if (!(live.positions || []).length) {
     tbody.innerHTML = "<tr><td colspan='5' class='muted'>Sin tenencias.</td></tr>";
   }
+  renderLiveChart(officialSeries, live);
   note.textContent = `${live.note} · consultado ${live.as_of}`;
 }
 
 async function main() {
-  document.getElementById("live-refresh").addEventListener("click", renderLive);
-  renderLive();
   const snap = await loadSnapshot();
+  const series = snap && snap.equity ? snap.equity.series || [] : [];
+  const refreshBtn = document.getElementById("live-refresh");
+  if (refreshBtn) {
+    // Guard anti-caché-mixto: si el HTML viejo no trae el card, la página
+    // oficial sigue renderizando (bug visto 2026-07-04).
+    refreshBtn.addEventListener("click", () => renderLive(series));
+    renderLive(series);
+  }
   if (!snap) return;
   document.getElementById("generated").textContent = "snapshot: " + (snap.generated_at || "");
 
