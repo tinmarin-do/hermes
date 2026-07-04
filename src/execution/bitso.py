@@ -245,9 +245,11 @@ class BitsoAdapter(ExecutionAdapter):
     def _wait_funds_release(self, currency: str, needed: float, timeout_s: float = 60.0) -> float:
         """Espera a que el saldo LIBRE de `currency` cubra `needed`. → último free visto.
 
-        La reserva de una limit cancelada tarda >10s en volver al disponible y el
-        status de la orden NO lo refleja — vigilar el balance es la única señal
-        confiable. Con timeout devuelve lo que haya: el caller dimensiona a eso.
+        La latencia de liberación VARÍA (sonda 2026-07-04: 4.1s; corrida 4da7d525:
+        >6s) y el status de la orden NO la refleja — vigilar el balance es la única
+        señal confiable. Con timeout devuelve lo que haya: el caller dimensiona a eso.
+        Cada espera se loguea: telemetría gratis de la distribución real de latencias
+        (si un día los logs muestran ~40s, subir el techo ANTES de que muerda).
         """
         free = self._free(currency)
         step = self._poll_s
@@ -256,6 +258,11 @@ class BitsoAdapter(ExecutionAdapter):
             sleep(step)
             waited += step
             free = self._free(currency)
+        status = "liberada" if free >= needed else "TIMEOUT sin liberar"
+        print(
+            f"[bitso] reserva {currency} {status} tras {waited:.1f}s "
+            f"(free=${free:.2f} / needed=${needed:.2f}, techo {timeout_s:.0f}s)"
+        )
         return free
 
     def _create_market_with_retry(

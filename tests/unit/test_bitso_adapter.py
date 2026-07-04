@@ -222,6 +222,26 @@ def test_waits_for_slow_reserve_release_before_market(tmp_db):
     assert fake.balance_calls >= 4  # esperó de verdad a la liberación
 
 
+def test_release_wait_emits_latency_telemetry(tmp_db, capsys):
+    # Cada espera de liberación se loguea con su duración — telemetría para
+    # ajustar el techo de 60s con datos reales de producción.
+    fake = FakeExchange(
+        maker_fills=False,
+        balances={"USDT": 50.0, "USD": 0.0},
+        balance_script=[
+            {"USDT": 50.0, "USD": 0.0},
+            {"USDT": 0.0, "USD": 0.0},
+            {"USDT": 50.0, "USD": 0.0},
+        ],
+    )
+    a = _adapter(fake)
+    a._poll_s = 0.001
+    a.execute({"action": "BUY", "symbol": "SOL/USDT", "size_usd": 40}, "r1")
+    out = capsys.readouterr().out
+    assert "[bitso] reserva USDT liberada tras" in out
+    assert "techo 60s" in out
+
+
 def test_retry_sizes_to_actually_available_funds(tmp_db):
     # Si tras el 0379 la liberación llega PARCIAL, el retry compra lo que el
     # saldo real permite en vez de repetir el monto teórico (y volver a rebotar).
