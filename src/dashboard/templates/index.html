@@ -20,6 +20,19 @@
   </section>
   {% endif %}
 
+  <section class="card" id="live-card">
+    <div class="card-head">
+      <h2>En vivo <span class="muted small">— informativo; la curva oficial es diaria (§8.9)</span></h2>
+      <button id="live-refresh" type="button">↻ Actualizar</button>
+    </div>
+    <div id="live-summary" class="prediction"><span class="muted">Cargando…</span></div>
+    <table id="live-positions">
+      <thead><tr><th>Símbolo</th><th>Cant.</th><th>Precio</th><th>Valor</th><th>Peso</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p id="live-note" class="muted small"></p>
+  </section>
+
   <section class="card" id="portfolio-card">
     <div class="card-head">
       <h2>Cartera <span id="pf-mode" class="muted small"></span></h2>

@@ -81,6 +81,98 @@ def api_snapshot() -> JSONResponse:
     return JSONResponse(snapshot)
 
 
+_live_cache: dict[str, Any] = {"ts": 0.0, "data": None}
+_LIVE_TTL_S = 20
+
+
+def _live_exchange() -> Any:
+    """ccxt bitso con la key READ-ONLY (BITSO_RO_*) — jamás la key operativa.
+
+    El servicio dashboard está expuesto (tras IAP); por eso usa una credencial
+    de solo consulta (sin trading/retiro). None si no está configurada.
+    """
+    import os
+
+    key = os.environ.get("BITSO_RO_KEY", "")
+    secret = os.environ.get("BITSO_RO_SECRET", "")
+    if not key or not secret:
+        return None
+    import ccxt
+
+    return ccxt.bitso({"apiKey": key, "secret": secret, "enableRateLimit": True})
+
+
+@app.get("/api/live")
+def api_live() -> JSONResponse:
+    """Cartera EN VIVO (informativo): balances read-only + tickers → equity al segundo.
+
+    On-demand y con cache de 20s — $0 recurrente, solo corre cuando alguien mira.
+    La curva OFICIAL de performance sigue siendo 1 punto/día (PRD §8.9): este
+    endpoint no escribe nada, solo lee.
+    """
+    import time
+    from datetime import UTC, datetime
+
+    now = time.monotonic()
+    if _live_cache["data"] is not None and now - _live_cache["ts"] < _LIVE_TTL_S:
+        return JSONResponse(_live_cache["data"])
+
+    ex = _live_exchange()
+    if ex is None:
+        raise HTTPException(status_code=503, detail="Sin credenciales read-only (BITSO_RO_*)")
+
+    from src.execution.bitso import _BASE_ASSETS, _venue_pair
+
+    try:
+        bal = ex.fetch_balance()
+        cash = sum(float((bal.get(c) or {}).get("total", 0) or 0) for c in ("USDT", "USD"))
+        equity = cash
+        positions: list[dict[str, Any]] = []
+        for asset in _BASE_ASSETS:
+            qty = float((bal.get(asset) or {}).get("total", 0) or 0)
+            if qty <= 0:
+                continue
+            pair = _venue_pair(f"{asset}/USDT")
+            last = float(ex.fetch_ticker(pair).get("last") or 0)
+            value = qty * last
+            equity += value
+            positions.append(
+                {
+                    "symbol": f"{asset}/USDT",
+                    "qty": qty,
+                    "price": last,
+                    "value_usd": round(value, 2),
+                }
+            )
+        for p in positions:
+            p["weight"] = round(p["value_usd"] / equity, 4) if equity else 0.0
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"Bitso no respondió: {exc}") from exc
+
+    vs_snapshot: dict[str, Any] | None = None
+    pf = (_load_snapshot() or {}).get("portfolio") or {}
+    if pf.get("equity_usd"):
+        then = float(pf["equity_usd"])
+        vs_snapshot = {
+            "at": (_load_snapshot() or {}).get("generated_at"),
+            "equity_then": round(then, 2),
+            "delta_usd": round(equity - then, 2),
+            "delta_pct": round((equity - then) / then, 6) if then else 0.0,
+        }
+
+    data = {
+        "available": True,
+        "as_of": datetime.now(UTC).isoformat(),
+        "equity_usd": round(equity, 2),
+        "cash_usd": round(cash, 2),
+        "positions": positions,
+        "vs_snapshot": vs_snapshot,
+        "note": "informativo — la curva oficial de performance es 1 punto/día (§8.9)",
+    }
+    _live_cache.update(ts=now, data=data)
+    return JSONResponse(data)
+
+
 @app.get("/api/explain/{base}")
 def api_explain(base: str) -> JSONResponse:
     """Live SHAP explanation for one symbol (e.g. /api/explain/BTC).

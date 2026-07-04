@@ -29,6 +29,21 @@ resource "google_cloud_run_v2_service" "dashboard" {
         name  = "HERMES_STATE_BUCKET"
         value = var.state_bucket # snapshot.json del bucket de estado (cache 60s)
       }
+
+      # Credencial Bitso READ-ONLY para el tile /api/live (2026-07-04): solo
+      # consulta de balances — sin trading/retiro. Referencia, jamás valor.
+      dynamic "env" {
+        for_each = var.dashboard_secret_env
+        content {
+          name = env.key
+          value_source {
+            secret_key_ref {
+              secret  = env.value
+              version = "latest"
+            }
+          }
+        }
+      }
     }
 
     scaling {
