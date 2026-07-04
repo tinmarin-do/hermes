@@ -212,12 +212,13 @@ def _release_rerun_marker() -> None:
 
 
 def _run_emergency_job() -> None:
-    """Dispara el job PAUSADO hermes-emergency-run: resume → run → pause.
+    """jobs.run del job hermes-emergency-run (SIEMPRE activo — su cron anual
+    coincide a propósito con la corrida diaria y es no-op).
 
-    jobs.run devuelve 400 sobre un job pausado (cicatriz 2026-07-03, redescubierta
-    en el drill) y el validador de cron rechaza fechas imposibles — así que el job
-    vive pausado y se despierta ~1s para el disparo. El job (Scheduler) es quien
-    alcanza al brain INTERNAL_ONLY con force=true; retry_count=0 = sin duplicados.
+    NO pausar/resumir jamás: jobs.run rechaza jobs pausados (2026-07-03) y
+    pausar mata el intento en vuelo (drill 2026-07-04 — el comité nunca corrió).
+    El job (Scheduler) es quien alcanza al brain INTERNAL_ONLY con force=true;
+    retry_count=0 = sin duplicados.
     """
     import os
 
@@ -227,17 +228,8 @@ def _run_emergency_job() -> None:
     job = os.environ["HERMES_EMERGENCY_JOB"]
     creds, _ = google.auth.default()
     session = AuthorizedSession(creds)  # type: ignore[no-untyped-call]
-    base = f"https://cloudscheduler.googleapis.com/v1/{job}"
-    session.post(f"{base}:resume", json={}).raise_for_status()
-    try:
-        resp = session.post(f"{base}:run", json={})
-        resp.raise_for_status()
-    finally:
-        # SIEMPRE re-pausar: si queda activo, el cron anual placeholder existiría
-        try:
-            session.post(f"{base}:pause", json={}).raise_for_status()
-        except Exception as exc:  # noqa: S110 — best-effort; el run ya se despachó
-            print(f"[watchdog] re-pause falló (job queda activo, revisar): {exc}")
+    resp = session.post(f"https://cloudscheduler.googleapis.com/v1/{job}:run", json={})
+    resp.raise_for_status()
 
 
 @app.post("/api/check-drawdown")
