@@ -173,6 +173,114 @@ def api_live() -> JSONResponse:
     return JSONResponse(data)
 
 
+def _claim_rerun_marker() -> bool:
+    """True si ganamos el cupo de re-run del día (marker GCS creado atómicamente)."""
+    import os
+    from datetime import UTC, datetime
+
+    bucket_name = os.environ.get("HERMES_STATE_BUCKET", "")
+    if not bucket_name:
+        return False
+    from google.api_core.exceptions import PreconditionFailed
+    from google.cloud import storage
+
+    blob_name = f"watchdog/rerun-{datetime.now(UTC):%Y-%m-%d}.marker"
+    blob = storage.Client().bucket(bucket_name).blob(blob_name)
+    try:
+        # if_generation_match=0 = "solo si NO existe" → atómico, sin carrera
+        blob.upload_from_string(datetime.now(UTC).isoformat(), if_generation_match=0)
+        return True
+    except PreconditionFailed:
+        return False  # cooldown: ya hubo re-run automático hoy (UTC)
+
+
+def _release_rerun_marker() -> None:
+    """Devuelve el cupo del día (best-effort) si el disparo del re-run falló."""
+    import os
+    from datetime import UTC, datetime
+
+    bucket_name = os.environ.get("HERMES_STATE_BUCKET", "")
+    if not bucket_name:
+        return
+    try:
+        from google.cloud import storage
+
+        blob_name = f"watchdog/rerun-{datetime.now(UTC):%Y-%m-%d}.marker"
+        storage.Client().bucket(bucket_name).blob(blob_name).delete()
+    except Exception:  # noqa: S110 — best-effort; el peor caso es un cupo quemado
+        pass
+
+
+def _run_emergency_job() -> None:
+    """forceRun del job PAUSADO hermes-emergency-run — retorna al despachar.
+
+    El job (Scheduler) es quien alcanza al brain INTERNAL_ONLY con force=true;
+    con retry_count=0 no hay riesgo de corrida duplicada.
+    """
+    import os
+
+    import google.auth
+    from google.auth.transport.requests import AuthorizedSession
+
+    job = os.environ["HERMES_EMERGENCY_JOB"]
+    creds, _ = google.auth.default()
+    session = AuthorizedSession(creds)  # type: ignore[no-untyped-call]
+    resp = session.post(f"https://cloudscheduler.googleapis.com/v1/{job}:run", json={})
+    resp.raise_for_status()
+
+
+@app.post("/api/check-drawdown")
+def api_check_drawdown() -> JSONResponse:
+    """Watchdog intradía (cada 30 min vía Scheduler): equity vivo vs snapshot oficial.
+
+    Breach (delta ≤ −HERMES_DRAWDOWN_ALERT_PCT) → log DRAWDOWN_BREACH (la alert
+    policy lo convierte en email) + re-run del comité, máx 1/día UTC (marker GCS).
+    Siempre 200: un reintento del Scheduler no aporta nada aquí.
+    """
+    import os
+
+    threshold = float(os.environ.get("HERMES_DRAWDOWN_ALERT_PCT", "0.03"))
+    try:
+        live: dict[str, Any] = json.loads(bytes(api_live().body))
+    except HTTPException as exc:
+        # Bitso caído / sin creds RO: no es breach — no alarmar por infraestructura
+        return JSONResponse({"breach": False, "error": str(exc.detail), "threshold": threshold})
+
+    delta = (live.get("vs_snapshot") or {}).get("delta_pct")
+    breach = delta is not None and delta <= -threshold
+    rerun = "not-applicable"
+    if breach:
+        # UNA línea JSON → Cloud Run la parsea a jsonPayload con severity=ERROR;
+        # el filtro condition_matched_log de la alerta engancha event=DRAWDOWN_BREACH.
+        print(
+            json.dumps(
+                {
+                    "severity": "ERROR",
+                    "event": "DRAWDOWN_BREACH",
+                    "delta_pct": delta,
+                    "equity_usd": live.get("equity_usd"),
+                    "equity_then": (live.get("vs_snapshot") or {}).get("equity_then"),
+                    "threshold": threshold,
+                }
+            ),
+            flush=True,
+        )
+        if not os.environ.get("HERMES_EMERGENCY_JOB"):
+            rerun = "disabled"
+        elif not _claim_rerun_marker():
+            rerun = "cooldown"
+        else:
+            try:
+                _run_emergency_job()
+                rerun = "triggered"
+            except Exception as exc:
+                _release_rerun_marker()
+                rerun = f"error: {exc}"[:200]
+    return JSONResponse(
+        {"breach": breach, "delta_pct": delta, "threshold": threshold, "rerun": rerun}
+    )
+
+
 @app.get("/api/explain/{base}")
 def api_explain(base: str) -> JSONResponse:
     """Live SHAP explanation for one symbol (e.g. /api/explain/BTC).

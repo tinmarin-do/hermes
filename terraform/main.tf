@@ -43,6 +43,12 @@ module "cloud_run" {
     BITSO_RO_KEY    = "hermes-bitso-readonly-key"
     BITSO_RO_SECRET = "hermes-bitso-readonly-secret"
   }
+  dashboard_plain_env = {
+    HERMES_DRAWDOWN_ALERT_PCT = var.drawdown_alert_pct
+    # Nombre construido como LITERAL — referenciar el output del módulo scheduler
+    # crearía un ciclo (scheduler ya depende de cloud_run por brain/dashboard_url).
+    HERMES_EMERGENCY_JOB = "projects/${var.project_id}/locations/${var.region}/jobs/hermes-emergency-run"
+  }
   scheduler_sa_email = google_service_account.scheduler.email
   runtime_sa_email   = google_service_account.runtime.email
   state_bucket       = google_storage_bucket.state.name
@@ -122,11 +128,27 @@ resource "google_service_account" "scheduler" {
 }
 
 module "cloud_scheduler" {
-  source             = "./modules/cloud-scheduler"
-  project_id         = var.project_id
-  region             = var.region
-  brain_url          = module.cloud_run.brain_url
-  scheduler_sa_email = google_service_account.scheduler.email
+  source              = "./modules/cloud-scheduler"
+  project_id          = var.project_id
+  region              = var.region
+  brain_url           = module.cloud_run.brain_url
+  dashboard_url       = module.cloud_run.dashboard_url
+  iap_oauth_client_id = var.iap_oauth_client_id
+  scheduler_sa_email  = google_service_account.scheduler.email
+}
+
+module "monitoring" {
+  source      = "./modules/monitoring"
+  project_id  = var.project_id
+  alert_email = var.alert_email
+}
+
+# El dashboard (SA runtime) dispara el job de emergencia vía jobs.run —
+# Scheduler no tiene IAM por-job; jobRunner = solo forceRun/list, no editar.
+resource "google_project_iam_member" "runtime_job_runner" {
+  project = var.project_id
+  role    = "roles/cloudscheduler.jobRunner"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
 # Audit logs de DECISIÓN de IAP (encendidos 2026-07-04 durante el debug del

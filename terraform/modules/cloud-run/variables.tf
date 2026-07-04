@@ -58,3 +58,9 @@ variable "dashboard_secret_env" {
   description = "Env del dashboard como secret_key_ref (nombre de secreto SM). Solo credenciales READ-ONLY — la key operativa jamás toca el servicio expuesto."
   default     = {}
 }
+
+variable "dashboard_plain_env" {
+  type        = map(string)
+  description = "Env vars simples del dashboard (watchdog: threshold + nombre del job de emergencia)"
+  default     = {}
+}

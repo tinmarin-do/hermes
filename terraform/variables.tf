@@ -55,3 +55,20 @@ variable "dashboard_iap_accessors" {
   description = "Miembros con acceso IAP al dashboard (2026-07-04: acceso desde cel/compu de la operadora)"
   default     = ["user:teamarin563@gmail.com"]
 }
+
+variable "iap_oauth_client_id" {
+  type        = string
+  description = "Client ID del CUSTOM OAuth de IAP (Console → Security → IAP → Settings). NO es secreto — el client secret vive solo en IAP Settings, fuera de TF. Audience del watchdog para pasar IAP."
+}
+
+variable "alert_email" {
+  type        = string
+  default     = "teamarin563@gmail.com"
+  description = "Destinatario de alertas operativas (drawdown watchdog)"
+}
+
+variable "drawdown_alert_pct" {
+  type        = string
+  default     = "0.03"
+  description = "Umbral de caída intradía vs snapshot oficial que dispara email + re-run (decisión 2026-07-04: −3%)"
+}
