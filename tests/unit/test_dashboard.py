@@ -184,6 +184,64 @@ def test_api_snapshot_has_fase3_panels(client_with_snapshot):
 # ── Paneles de build contra DuckDB temporal (sin red, sin LLM) ─────────────────
 
 
+# ── /api/live — tile en vivo (read-only, informativo) ─────────────────────────
+
+
+class _FakeLiveExchange:
+    """fetch_balance + fetch_ticker mínimos para el tile en vivo."""
+
+    def fetch_balance(self):
+        return {
+            "USDT": {"free": 100.0, "total": 100.0},
+            "USD": {"free": 50.0, "total": 50.0},
+            "SOL": {"free": 2.0, "total": 2.0},
+            "LINK": {"free": 10.0, "total": 10.0},
+        }
+
+    def fetch_ticker(self, pair):
+        # SOL/USDT=$80 · LINK/USD=$9 (verifica el mapping al par del venue)
+        return {"last": {"SOL/USDT": 80.0, "LINK/USD": 9.0}[pair]}
+
+
+@pytest.fixture
+def live_client(client_with_snapshot, monkeypatch):
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: _FakeLiveExchange())
+    dash_app._live_cache.update(ts=0.0, data=None)  # sin cache entre tests
+    return client_with_snapshot
+
+
+def test_api_live_computes_equity_and_weights(live_client):
+    r = live_client.get("/api/live")
+    assert r.status_code == 200
+    live = r.json()
+    # cash 150 + SOL 2×80 + LINK 10×9 = 400
+    assert live["equity_usd"] == 400.0
+    assert live["cash_usd"] == 150.0
+    syms = {p["symbol"]: p for p in live["positions"]}
+    assert syms["SOL/USDT"]["value_usd"] == 160.0
+    assert syms["LINK/USDT"]["value_usd"] == 90.0  # canónico, precio del par /USD
+    assert syms["SOL/USDT"]["weight"] == pytest.approx(0.4)
+    # delta vs snapshot oficial (equity_then=1.05 del SNAPSHOT sintético)
+    assert live["vs_snapshot"]["equity_then"] == 1.05
+    assert live["vs_snapshot"]["delta_usd"] == pytest.approx(398.95)
+    assert "1 punto/día" in live["note"]
+
+
+def test_api_live_503_without_readonly_creds(client_with_snapshot, monkeypatch):
+    monkeypatch.delenv("BITSO_RO_KEY", raising=False)
+    monkeypatch.delenv("BITSO_RO_SECRET", raising=False)
+    dash_app._live_cache.update(ts=0.0, data=None)
+    r = client_with_snapshot.get("/api/live")
+    assert r.status_code == 503
+    assert "read-only" in r.json()["detail"]
+
+
+def test_index_renders_live_card(client_with_snapshot):
+    r = client_with_snapshot.get("/")
+    assert 'id="live-card"' in r.text
+    assert 'id="live-refresh"' in r.text
+
+
 @pytest.fixture
 def build_env(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_DUCKDB_PATH", str(tmp_path / "dash.duckdb"))

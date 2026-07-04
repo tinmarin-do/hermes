@@ -52,3 +52,9 @@ variable "dashboard_iap_accessors" {
   description = "Miembros IAM con acceso al dashboard vía IAP (formato user:email)"
   default     = []
 }
+
+variable "dashboard_secret_env" {
+  type        = map(string)
+  description = "Env del dashboard como secret_key_ref (nombre de secreto SM). Solo credenciales READ-ONLY — la key operativa jamás toca el servicio expuesto."
+  default     = {}
+}

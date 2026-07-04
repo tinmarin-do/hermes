@@ -37,9 +37,15 @@ module "cloud_run" {
   db_connection           = module.cloud_sql.connection_name
   dashboard_public        = var.dashboard_public
   dashboard_iap_accessors = var.dashboard_iap_accessors
-  scheduler_sa_email      = google_service_account.scheduler.email
-  runtime_sa_email        = google_service_account.runtime.email
-  state_bucket            = google_storage_bucket.state.name
+  # Secretos creados vía gcloud 2026-07-04 (fuera del módulo secret-manager a
+  # propósito: aquí solo se REFERENCIAN; el valor lo cargó la operadora).
+  dashboard_secret_env = {
+    BITSO_RO_KEY    = "hermes-bitso-readonly-key"
+    BITSO_RO_SECRET = "hermes-bitso-readonly-secret"
+  }
+  scheduler_sa_email = google_service_account.scheduler.email
+  runtime_sa_email   = google_service_account.runtime.email
+  state_bucket       = google_storage_bucket.state.name
   brain_secret_env = {
     BITSO_API_KEY    = module.secret_manager.secret_ids["bitso-api-key"]
     BITSO_API_SECRET = module.secret_manager.secret_ids["bitso-api-secret"]
@@ -138,4 +144,14 @@ resource "google_project_iam_audit_config" "iap" {
   audit_log_config {
     log_type = "DATA_WRITE"
   }
+}
+
+# Accessors de los secretos READ-ONLY del tile en vivo (secretos no gestionados
+# por TF — creados vía gcloud 2026-07-04; aquí solo el IAM).
+resource "google_secret_manager_secret_iam_member" "runtime_readonly_accessor" {
+  for_each  = toset(["hermes-bitso-readonly-key", "hermes-bitso-readonly-secret"])
+  project   = var.project_id
+  secret_id = each.value
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
 }

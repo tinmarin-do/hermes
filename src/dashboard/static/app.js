@@ -255,7 +255,49 @@ function renderPositions(pos) {
   if (!(pos.open || []).length) tbody.innerHTML = "<tr><td colspan='5' class='muted'>Sin posiciones abiertas.</td></tr>";
 }
 
+async function renderLive() {
+  const summary = document.getElementById("live-summary");
+  const tbody = document.querySelector("#live-positions tbody");
+  const note = document.getElementById("live-note");
+  summary.innerHTML = "<span class='muted'>Consultando Bitso…</span>";
+  let live;
+  try {
+    const r = await fetch("/api/live");
+    if (!r.ok) throw new Error((await r.json()).detail || r.status);
+    live = await r.json();
+  } catch (e) {
+    summary.innerHTML = `<span class='muted'>En vivo no disponible: ${e.message}</span>`;
+    return;
+  }
+  let deltaHtml = "";
+  if (live.vs_snapshot) {
+    const d = live.vs_snapshot;
+    const cls = d.delta_usd >= 0 ? "pos" : "neg";
+    const sign = d.delta_usd >= 0 ? "+" : "";
+    deltaHtml =
+      `<span class="prob ${cls}">${sign}${fmtUsd(d.delta_usd)} (${sign}${fmtPct(d.delta_pct)})</span>` +
+      `<span class="muted small">desde el snapshot oficial</span>`;
+  }
+  summary.innerHTML =
+    `<span class="big">${fmtUsd(live.equity_usd)}</span><span class="muted small">equity ahora</span>` +
+    deltaHtml +
+    `<span class="muted small">cash ${fmtUsd(live.cash_usd)}</span>`;
+  tbody.innerHTML = "";
+  for (const p of live.positions || []) {
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${p.symbol}</td><td>${p.qty}</td><td>${fmtUsd(p.price)}</td>` +
+                   `<td>${fmtUsd(p.value_usd)}</td><td>${fmtPct(p.weight)}</td>`;
+    tbody.appendChild(tr);
+  }
+  if (!(live.positions || []).length) {
+    tbody.innerHTML = "<tr><td colspan='5' class='muted'>Sin tenencias.</td></tr>";
+  }
+  note.textContent = `${live.note} · consultado ${live.as_of}`;
+}
+
 async function main() {
+  document.getElementById("live-refresh").addEventListener("click", renderLive);
+  renderLive();
   const snap = await loadSnapshot();
   if (!snap) return;
   document.getElementById("generated").textContent = "snapshot: " + (snap.generated_at || "");
