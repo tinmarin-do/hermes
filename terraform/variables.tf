@@ -58,7 +58,8 @@ variable "dashboard_iap_accessors" {
 
 variable "iap_oauth_client_id" {
   type        = string
-  description = "Client ID del CUSTOM OAuth de IAP (Console → Security → IAP → Settings). NO es secreto — el client secret vive solo en IAP Settings, fuera de TF. Audience del watchdog para pasar IAP."
+  default     = "1059097028157-jigr45cvrs10p0d2eupjdn6kakam5co2.apps.googleusercontent.com"
+  description = "Client ID del CUSTOM OAuth de IAP (extraído del redirect de login; NO es secreto — el client secret vive solo en IAP Settings, fuera de TF). Audience del OIDC del watchdog para pasar IAP."
 }
 
 variable "alert_email" {
