@@ -91,14 +91,15 @@ def _cost_panel() -> dict[str, Any]:
 
 
 def _positions_panel() -> dict[str, Any]:
-    """Open paper positions + balance."""
+    """Posiciones abiertas + caja del adapter REAL del modo (live = holdings Bitso)."""
     try:
-        from src.execution.adapter import PaperAdapter
+        from src.execution.factory import exchange_label, get_execution_adapter
 
-        pa = PaperAdapter()
+        pa = get_execution_adapter()
         positions = pa.get_positions()
         return {
             "available": True,
+            "mode": exchange_label(),
             "balance_usd": pa.get_balance(),
             "open": [
                 {
@@ -119,13 +120,19 @@ def _positions_panel() -> dict[str, Any]:
 def _portfolio_panel(timeframe: str) -> dict[str, Any]:
     """Cartera: pesos actuales vs objetivo cuant (pre-freno LLM), P&L, caja y equity."""
     try:
-        from src.execution.adapter import PaperAdapter
+        from src.execution.factory import exchange_label, exchange_mode, get_execution_adapter
 
-        budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
-        pa = PaperAdapter(initial_balance=budget)
+        pa = get_execution_adapter()
         positions = pa.get_positions()
         balance = pa.get_balance()
         equity = pa.get_equity()
+        # Budget = mismo criterio que el runner: wallet real en live (§8.8),
+        # HERMES_CAPITAL_USD como fallback/paper.
+        wallet_budget = os.environ.get("HERMES_BUDGET_SOURCE", "wallet") == "wallet"
+        if exchange_mode() == "live" and wallet_budget:
+            budget = equity
+        else:
+            budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     except Exception as exc:
         return {"available": False, "reason": str(exc)}
 
@@ -209,6 +216,7 @@ def _portfolio_panel(timeframe: str) -> dict[str, Any]:
 
     return {
         "available": True,
+        "mode": exchange_label(),
         "budget_usd": budget,
         "balance_usd": balance,
         "equity_usd": equity,

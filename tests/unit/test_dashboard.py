@@ -163,7 +163,11 @@ def test_static_assets_served(client_with_snapshot):
 def test_index_renders_new_panels(client_with_snapshot):
     r = client_with_snapshot.get("/")
     assert r.status_code == 200
-    assert "Cartera (paper)" in r.text
+    # El modo (paper / live · bitso) ya no está hardcodeado: lo llena el JS desde
+    # el snapshot (susto 2026-07-04: el título decía "(paper)" con ejecución live).
+    assert "(paper)" not in r.text
+    assert 'id="pf-mode"' in r.text
+    assert 'id="pos-mode"' in r.text
     assert "Equity curve" in r.text
     assert "Champion vs shadow" in r.text
     assert "Visor de debate" in r.text

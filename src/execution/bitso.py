@@ -183,11 +183,18 @@ class BitsoAdapter(ExecutionAdapter):
                     self._exchange.cancel_order(order_id, pair)
                 except Exception as exc:  # noqa: S110 — ya llena/cancelada; sigue el fallback
                     print(f"[bitso] cancel {order_id}: {exc} (continúa fallback)")
-                # Esperar la LIBERACIÓN real de los fondos reservados por la limit:
-                # el market inmediato post-cancel rebota con 0379 Insufficient
-                # (carrera cazada por las corridas 29cb1a50 y c385db10).
-                self._wait_cancel_release(pair, order_id)
-                mkt = self._create_market_with_retry(pair, action.lower(), remainder)
+                # Esperar la LIBERACIÓN real de los fondos reservados por la limit.
+                # El status "canceled" llega en ms pero el saldo tarda >10s en
+                # descongelarse (0379 en 29cb1a50, c385db10 y 4da7d525 — esta última
+                # CON el retry de status): la señal confiable es el balance libre.
+                taker_fee = float(market.get("taker", 0.0036))
+                if action == "BUY":
+                    self._wait_funds_release(quote, remainder * ref_price * (1 + taker_fee))
+                else:
+                    self._wait_funds_release(base, remainder)
+                mkt = self._create_market_with_retry(
+                    pair, action.lower(), remainder, ref_price, taker_fee
+                )
                 mkt_filled = float(mkt.get("filled", 0) or 0)
                 mkt_avg = float(mkt.get("average", 0) or 0)
                 mkt_id = str(mkt.get("id", ""))
@@ -235,27 +242,43 @@ class BitsoAdapter(ExecutionAdapter):
         except ccxt.BaseError as exc:
             return self._reject(run_id, symbol, action, str(exc))
 
-    def _wait_cancel_release(self, pair: str, order_id: str) -> None:
-        """Espera a que la orden cancelada figure cerrada (fondos liberados), ≤10s."""
-        for _ in range(5):
-            try:
-                st = self._exchange.fetch_order(order_id, pair).get("status")
-                if st in ("canceled", "cancelled", "closed", "rejected"):
-                    return
-            except Exception:
-                return  # orden ya no consultable = liberada
-            sleep(self._poll_s if self._poll_s < 2 else 2)
+    def _wait_funds_release(self, currency: str, needed: float, timeout_s: float = 60.0) -> float:
+        """Espera a que el saldo LIBRE de `currency` cubra `needed`. → último free visto.
 
-    def _create_market_with_retry(self, pair: str, side: str, amount: float) -> dict[str, Any]:
-        """Market con UN reintento ante 0379 Insufficient (reserva aún sin liberar)."""
+        La reserva de una limit cancelada tarda >10s en volver al disponible y el
+        status de la orden NO lo refleja — vigilar el balance es la única señal
+        confiable. Con timeout devuelve lo que haya: el caller dimensiona a eso.
+        """
+        free = self._free(currency)
+        step = self._poll_s
+        waited = 0.0
+        while free < needed and step > 0 and waited < timeout_s:
+            sleep(step)
+            waited += step
+            free = self._free(currency)
+        return free
+
+    def _create_market_with_retry(
+        self, pair: str, side: str, amount: float, ref_price: float, taker_fee: float
+    ) -> dict[str, Any]:
+        """Market con UN reintento ante 0379: re-espera la liberación del saldo y
+        dimensiona el retry a lo realmente disponible (no al monto teórico)."""
         try:
             return dict(self._exchange.create_order(pair, "market", side, amount))
         except ccxt.BaseError as exc:
             if "0379" not in str(exc) and "Insufficient" not in str(exc):
                 raise
             print(f"[bitso] market {side} {amount} rebotó por reserva sin liberar — retry único")
-            sleep(3 if self._poll_s else 0)
-            retry_amount = self._amount_to_precision(pair, amount * 0.995)
+            base, quote = pair.split("/")
+            if side == "buy":
+                free = self._wait_funds_release(quote, amount * ref_price * (1 + taker_fee))
+                affordable = free * 0.995 / (ref_price * (1 + taker_fee))
+            else:
+                free = self._wait_funds_release(base, amount)
+                affordable = free
+            retry_amount = self._amount_to_precision(pair, min(amount, affordable))
+            if retry_amount <= 0:
+                raise
             return dict(self._exchange.create_order(pair, "market", side, retry_amount))
 
     def _wait_fill(self, pair: str, order_id: str) -> tuple[float, float]:

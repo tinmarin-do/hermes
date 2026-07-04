@@ -46,3 +46,9 @@ output "brain_url" {
   value     = google_cloud_run_v2_service.brain.uri
   sensitive = true
 }
+
+variable "dashboard_iap_accessors" {
+  type        = list(string)
+  description = "Miembros IAM con acceso al dashboard vía IAP (formato user:email)"
+  default     = []
+}
