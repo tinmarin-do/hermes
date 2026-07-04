@@ -56,14 +56,17 @@ resource "google_cloud_scheduler_job" "drawdown_watchdog" {
   }
 }
 
-# Job PAUSADO de emergencia: JAMÁS dispara por cron — solo vía jobs.run desde el
-# watchdog. El tráfico de Scheduler cuenta como interno → alcanza al brain
-# INTERNAL_ONLY con force=true. retry_count=0 = CERO corridas duplicadas
-# (la trampa que descartó a Pub/Sub: ack 600s < corrida ~15 min → redelivery).
+# Job PAUSADO de emergencia: el watchdog lo dispara con la secuencia
+# resume → run → pause (un job pausado devuelve 400 a jobs.run — cicatriz
+# 2026-07-03 redescubierta en el drill; y el validador de cron rechaza fechas
+# imposibles tipo 31-feb, así que "activo sin cron real" no existe).
+# El tráfico de Scheduler cuenta como interno → alcanza al brain INTERNAL_ONLY
+# con force=true. retry_count=0 = CERO corridas duplicadas (la trampa que
+# descartó a Pub/Sub: ack 600s < corrida ~15 min → redelivery).
 resource "google_cloud_scheduler_job" "emergency_run" {
   name        = "hermes-emergency-run"
-  description = "Re-run del comité ante drawdown — disparo manual/watchdog únicamente"
-  schedule    = "0 0 1 1 *" # requerido por el API; irrelevante (paused)
+  description = "Re-run del comité ante drawdown — disparo vía watchdog (resume→run→pause)"
+  schedule    = "0 0 1 1 *" # requerido por el API; jamás corre (paused salvo ~1s del disparo)
   time_zone   = "Etc/UTC"
   region      = var.region
   project     = var.project_id
