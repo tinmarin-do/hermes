@@ -143,11 +143,25 @@ module "monitoring" {
   alert_email = var.alert_email
 }
 
-# El dashboard (SA runtime) dispara el job de emergencia vía jobs.run —
-# Scheduler no tiene IAM por-job; jobRunner = solo forceRun/list, no editar.
+# El dashboard (SA runtime) dispara el job de emergencia con la secuencia
+# resume → run → pause (jobs.run rechaza jobs pausados). Rol CUSTOM de mínimo
+# privilegio: solo esas 3 operaciones + get — Scheduler no tiene IAM por-job.
+resource "google_project_iam_custom_role" "emergency_trigger" {
+  project     = var.project_id
+  role_id     = "hermesEmergencyTrigger"
+  title       = "Hermes — disparo del job de emergencia"
+  description = "resume/run/pause de jobs de Scheduler (watchdog de drawdown)"
+  permissions = [
+    "cloudscheduler.jobs.run",
+    "cloudscheduler.jobs.enable",
+    "cloudscheduler.jobs.pause",
+    "cloudscheduler.jobs.get",
+  ]
+}
+
 resource "google_project_iam_member" "runtime_job_runner" {
   project = var.project_id
-  role    = "roles/cloudscheduler.jobRunner"
+  role    = google_project_iam_custom_role.emergency_trigger.id
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
 
