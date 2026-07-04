@@ -153,13 +153,17 @@ resource "google_cloud_run_v2_service_iam_member" "dashboard_public" {
 }
 
 # ── IAP en el dashboard (2026-07-04) ───────────────────────────────────────────
-# IAP se habilitó con `gcloud run services update hermes-dashboard --iap`; el
-# provider google 6.50 NO conoce el campo iap_enabled del servicio v2, así que
-# Terraform es ciego a ese flag (un apply no puede revertirlo — verificado en el
-# schema). El cliente OAuth CUSTOM es OBLIGATORIO en este proyecto (sin
-# organización, el cliente gestionado de Google no deja entrar a NADIE) y se
-# configuró en Console (consent External + IAP Settings → Custom OAuth → Auto
-# Generate); su client secret vive solo en IAP settings — fuera de TF a propósito.
+# ⚠️ PELIGRO CONOCIDO: el provider google 6.50 NO conoce iap_enabled (vive en
+# google-beta) → ser "ciego" NO protege: un apply que toque este servicio PUEDE
+# APAGAR IAP (ocurrió 2026-07-04, drill del watchdog — dashboard quedó 403).
+# PROTOCOLO POST-APPLY obligatorio hasta migrar el recurso a google-beta/provider
+# con iap_enabled (backlog prioritario):
+#   gcloud run services update hermes-dashboard --iap --region us-central1
+#   curl -sI <dashboard_url> | head -1   # debe ser 302 (redirect a login)
+# El cliente OAuth CUSTOM es OBLIGATORIO en este proyecto (sin organización, el
+# cliente gestionado no deja entrar a NADIE); se configuró en Console (consent
+# External + IAP Settings → Custom OAuth); su client secret vive solo en IAP
+# settings — fuera de TF a propósito. El custom client SOBREVIVE al toggle.
 data "google_project" "this" {
   project_id = var.project_id
 }
