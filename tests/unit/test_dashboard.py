@@ -243,6 +243,105 @@ def test_index_renders_live_card(client_with_snapshot):
     assert 'id="live-chart"' in r.text  # la GRÁFICA de performance (pedido 2026-07-04)
 
 
+# ── /api/check-drawdown — watchdog intradía ────────────────────────────────────
+
+
+@pytest.fixture
+def watchdog_client(tmp_path, monkeypatch):
+    """Live fake equity=400 vs snapshot equity=500 → delta_pct=−0.20 (breach a −3%)."""
+    snap_data = dict(SNAPSHOT)
+    snap_data["portfolio"] = {**SNAPSHOT["portfolio"], "equity_usd": 500.0}
+    snap = tmp_path / "snapshot.json"
+    snap.write_text(json.dumps(snap_data))
+    monkeypatch.setattr(dash_app, "SNAPSHOT_PATH", snap)
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: _FakeLiveExchange())
+    dash_app._live_cache.update(ts=0.0, data=None)
+
+    calls = {"claim": 0, "run": 0, "release": 0}
+
+    def _bump(key, ret=None):
+        def _f():
+            calls[key] += 1
+            return ret
+
+        return _f
+
+    monkeypatch.setattr(dash_app, "_claim_rerun_marker", _bump("claim", True))
+    monkeypatch.setattr(dash_app, "_run_emergency_job", _bump("run"))
+    monkeypatch.setattr(dash_app, "_release_rerun_marker", _bump("release"))
+    monkeypatch.setenv("HERMES_EMERGENCY_JOB", "projects/p/locations/l/jobs/hermes-emergency-run")
+    monkeypatch.setenv("HERMES_DRAWDOWN_ALERT_PCT", "0.03")
+    client = TestClient(dash_app.app)
+    return client, calls
+
+
+def test_check_drawdown_breach_triggers_rerun_and_logs(watchdog_client, capsys):
+    client, calls = watchdog_client
+    r = client.post("/api/check-drawdown")
+    assert r.status_code == 200
+    body = r.json()
+    assert body["breach"] is True
+    assert body["delta_pct"] == pytest.approx(-0.20)
+    assert body["rerun"] == "triggered"
+    assert calls["run"] == 1
+    out = capsys.readouterr().out
+    assert "DRAWDOWN_BREACH" in out
+    logged = json.loads([ln for ln in out.splitlines() if "DRAWDOWN_BREACH" in ln][0])
+    assert logged["severity"] == "ERROR"
+    assert logged["threshold"] == 0.03
+
+
+def test_check_drawdown_no_breach(client_with_snapshot, monkeypatch, capsys):
+    # snapshot 1.05 vs live 400 → delta MUY positivo: jamás breach
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: _FakeLiveExchange())
+    dash_app._live_cache.update(ts=0.0, data=None)
+    r = client_with_snapshot.post("/api/check-drawdown")
+    assert r.status_code == 200
+    assert r.json()["breach"] is False
+    assert r.json()["rerun"] == "not-applicable"
+    assert "DRAWDOWN_BREACH" not in capsys.readouterr().out
+
+
+def test_check_drawdown_cooldown_still_logs(watchdog_client, monkeypatch, capsys):
+    client, calls = watchdog_client
+    monkeypatch.setattr(dash_app, "_claim_rerun_marker", lambda: False)
+    r = client.post("/api/check-drawdown")
+    assert r.json()["rerun"] == "cooldown"
+    assert calls["run"] == 0  # sin re-run…
+    assert "DRAWDOWN_BREACH" in capsys.readouterr().out  # …pero el email SIEMPRE
+
+
+def test_check_drawdown_threshold_env(watchdog_client, monkeypatch):
+    client, calls = watchdog_client
+    monkeypatch.setenv("HERMES_DRAWDOWN_ALERT_PCT", "0.5")  # −20% no alcanza −50%
+    dash_app._live_cache.update(ts=0.0, data=None)
+    r = client.post("/api/check-drawdown")
+    assert r.json()["breach"] is False
+    assert calls["run"] == 0
+
+
+def test_check_drawdown_200_when_bitso_down(client_with_snapshot, monkeypatch):
+    monkeypatch.delenv("BITSO_RO_KEY", raising=False)
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: None)
+    dash_app._live_cache.update(ts=0.0, data=None)
+    r = client_with_snapshot.post("/api/check-drawdown")
+    assert r.status_code == 200  # infraestructura caída ≠ breach
+    assert r.json()["breach"] is False
+    assert "error" in r.json()
+
+
+def test_check_drawdown_trigger_failure_releases_marker(watchdog_client, monkeypatch):
+    client, calls = watchdog_client
+
+    def _boom():
+        raise RuntimeError("scheduler api down")
+
+    monkeypatch.setattr(dash_app, "_run_emergency_job", _boom)
+    r = client.post("/api/check-drawdown")
+    assert r.json()["rerun"].startswith("error")
+    assert calls["release"] == 1  # cupo devuelto
+
+
 @pytest.fixture
 def build_env(tmp_path, monkeypatch):
     monkeypatch.setenv("HERMES_DUCKDB_PATH", str(tmp_path / "dash.duckdb"))

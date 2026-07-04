@@ -44,6 +44,15 @@ resource "google_cloud_run_v2_service" "dashboard" {
           }
         }
       }
+
+      # Watchdog de drawdown (threshold + nombre del job de emergencia)
+      dynamic "env" {
+        for_each = var.dashboard_plain_env
+        content {
+          name  = env.key
+          value = env.value
+        }
+      }
     }
 
     scaling {
@@ -175,4 +184,13 @@ resource "google_iap_web_cloud_run_service_iam_member" "dashboard_accessor" {
   cloud_run_service_name = google_cloud_run_v2_service.dashboard.name
   role                   = "roles/iap.httpsResourceAccessor"
   member                 = each.value
+}
+
+# El watchdog (SA del scheduler) pasa IAP para llamar /api/check-drawdown.
+resource "google_iap_web_cloud_run_service_iam_member" "dashboard_watchdog_accessor" {
+  project                = var.project_id
+  location               = var.region
+  cloud_run_service_name = google_cloud_run_v2_service.dashboard.name
+  role                   = "roles/iap.httpsResourceAccessor"
+  member                 = "serviceAccount:${var.scheduler_sa_email}"
 }
