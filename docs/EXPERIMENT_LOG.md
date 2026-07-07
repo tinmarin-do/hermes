@@ -443,3 +443,68 @@ inferior asume re-alocación completa diaria (peor caso que el allocator real no
 el semanal-con-fees negativo en esta ventana es consistente con la claim (sin alpha
 absoluto — PSR 0.44 ≈ cero) y con que 2024-2026 incluye régimen alcista donde el overlay
 defensivo long-only queda atrás del mercado.
+
+---
+
+## Experimento H9 — Challenger de REGRESIÓN sobre precio+Silver (piloto, 2 brazos)
+
+**Fecha:** 2026-07-07 · **Estado:** ❌ **FALSIFICADO — los 6 trials mueren por los criterios
+a priori.** · **Pre-registro:** `docs/DESIGN_regression_challenger.md`, commit `48c3116`
+(ANTES de cualquier resultado; 2 enmiendas pre-run de Erika, ambas fechadas). Suma **+6 a
+n_trials** (DSR corrido con n=20, fijado a priori).
+
+**Hipótesis (Erika):** una regresión del retorno forward (vol-normalizado) con la MAGNITUD
+del momentum multi-escala + régimen (hurst/garch/spread) + volumen (vol_z, feature nueva)
+supera al voto de signos del campeón. **Secuencia pilot-first decidida por ella:** piloto
+barato ANTES de invertir en el rework de Silver.
+
+**Setup:** 6 símbolos whitelist, 2021-01→2025-06-28 (holdout intocado), pooled cross-symbol,
+fit por stamp, purga 500h + embargo=horizonte, scaler per-fold, seed 42. Brazo A: 24h diario,
+evaluación CON ESTADO nueva (libro persistente + banda 5% + fees sobre turnover real — lo que
+producción hace). Brazo B: 7d semanal `_evaluate` (idéntico a H5-H7). Dead-zone τ=0.1σ,
+conf=min(|ŷ|,0.95). Scripts + resultados: `research/h9/` (commiteados para reproducibilidad
+— única desviación del pre-registro §7, que decía scratchpad efímero; a favor del espíritu).
+
+**Vara (campeón H6 re-corrido, MISMA tubería/universo/fees — no números históricos):**
+
+| Vara H6 @36bps | Sharpe | PSR | n | maxDD | Nota |
+|---|---|---|---|---|---|
+| Brazo B semanal | **0.926** | 0.964 | 169 sem | −53% | ≠ log histórico (1.20@10bps con 5 majors viejos): universo actual LINK/XRP + fix tz H8. Hoy: 1.233@10bps |
+| Brazo A diario | **0.927** | 0.976 | 1623 d | −62% | turnover 24.5%/día = **fee drag ~32%/año** — la banda 5% paga exactamente su costo (a 10bps el diario gana: 1.43 vs 1.23) |
+
+**Resultados del challenger (fee 36bps primario):**
+
+| Trial | IC Spearman (p) | R² OOS | hit rate | Sharpe | PSR | DSR n20 | vs vara |
+|---|---|---|---|---|---|---|---|
+| T1_A Ridge-mom diario | −0.004 (0.68) | −0.002 | 0.459 | **−0.19** | 0.35 | 0.01 | 💀 |
+| T2_A Ridge-full diario | +0.017 (0.11) | −0.004 | 0.511 | **−0.13** | 0.40 | 0.02 | 💀 |
+| T3_A LGBM diario | +0.006 (0.56) | −0.035 | 0.498 | **−0.94** | 0.03 | 0.00 | 💀 (fee drag 78%/año) |
+| T1_B Ridge-mom semanal | **−0.067 (0.020)** | −0.016 | 0.471 | **−0.41** | 0.26 | 0.01 | 💀 |
+| T2_B Ridge-full semanal | **−0.109 (1.6e-4)** | −0.036 | 0.433 | **−0.65** | 0.14 | 0.00 | 💀 |
+| T3_B LGBM semanal | −0.020 (0.48) | −0.094 | 0.479 | **−0.10** | 0.43 | 0.02 | 💀 |
+
+Ni un solo criterio de los 4 se cumple en ningún trial (la vara pedía Sharpe > 0.93 con
+IC>0 significativo, PSR>0.95, DSR>0.90, robustez anual). A 10bps tampoco: el mejor
+challenger (T2_A, Sharpe 0.42) queda a un tercio del campeón (1.43). El R² OOS es
+negativo en los 6: predicen PEOR que la media del train.
+
+**El hallazgo con contenido (no solo "no funcionó"):** el IC semanal de los Ridge es
+**significativamente NEGATIVO** (T2_B: −0.109, p≈0.0002, n=1206). La magnitud lineal del
+momentum ANTI-predice el retorno de la semana siguiente — consistente con reversal tras
+movimientos grandes. El SIGNO (campeón) informa; la MAGNITUD extrapola justo al revés.
+⚠️ **Tentación prohibida:** "flipear el signo del modelo" = hipótesis nueva post-hoc sobre
+el mismo dataset — data snooping de libro. Si alguien la quiere, es pre-registro nuevo,
+trial nuevo, DSR más caro. NO se hace en caliente.
+
+**Conclusión / DÓNDE NO IR (actualizado):**
+16. **La regresión sobre features de precio+Silver está FALSIFICADA en ambos horizontes**
+    (24h y 7d) — 6 trials, cero criterios cumplidos. Con este universo/era, la magnitud
+    del momentum, el régimen y el volumen NO contienen señal direccional explotable que
+    el voto de signos no tenga ya. Es la derrota #4-#6 del ML direccional (acumuladas:
+    LightGBM clasificador, logística, cross-sectional ×2, regresión ×6 trials).
+17. **No perseguir el IC negativo sin pre-registro** — el reversal de magnitud semanal es
+    real en iteración (p=0.0002) pero nace muerto si se caza post-hoc.
+18. **El eje vivo del challenger queda en NOTICIAS forward-only en shadow** (F4.0 validada,
+    jamás usada para predecir — decisión Erika 2026-07-07). No necesita regresión de precio.
+19. El pilot-first de Erika **funcionó como gobernanza**: $0 gastados, cero horas de rework
+    de Silver invertidas en una hipótesis que el piloto mató en 20 minutos de cómputo.
