@@ -359,7 +359,10 @@ def test_portfolio_panel_empty_book(build_env):
     assert panel["cash_weight"] == pytest.approx(1.0)
 
 
-def test_equity_panel_accumulates_points(build_env):
+def test_equity_panel_dedupes_intraday_points(build_env):
+    # Revisión 2026-07-06: la curva OFICIAL es 1 punto/día (§8.9) — corridas de
+    # validación/emergencia insertan puntos intradía extra que inflarían n y
+    # mezclarían horizontes en Sharpe/PSR. La serie expone el ÚLTIMO del día.
     from src.dashboard.build import _equity_panel
 
     pf = {"available": True, "balance_usd": 1.0, "equity_usd": 1.0}
@@ -370,9 +373,9 @@ def test_equity_panel_accumulates_points(build_env):
     assert "arranca" in first["note"]
 
     second = _equity_panel({"available": True, "balance_usd": 0.5, "equity_usd": 1.1})
-    assert len(second["series"]) == 2
-    assert second["metrics"]["total_return"] == pytest.approx(0.1, abs=1e-6)
-    assert "requieren más muestra" in second["note"]  # n<8 → sin Sharpe/PSR
+    assert len(second["series"]) == 1  # mismo día UTC → dedupe al último punto
+    assert second["series"][0]["equity"] == pytest.approx(1.1)
+    assert second["metrics"] is None  # sigue siendo 1 punto oficial
 
 
 def test_signals_panel_compares_champion_vs_shadow(build_env):

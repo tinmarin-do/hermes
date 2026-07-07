@@ -256,3 +256,15 @@ def test_asymmetric_short_threshold():
     assert _prob_to_signal(0.70)[0] == "BUY"
     # P=0.25 ⟺ confianza exactamente 0.50
     assert _prob_to_signal(0.25)[1] == pytest.approx(0.50, abs=1e-6)
+
+
+def test_min_trade_default_is_anti_churn_band():
+    # Auditoría de cadencia 2026-07-06 (decisión opción B): la banda default subió
+    # 1%→5% — un delta del 3% del budget NO opera (antes sí: churn de flips
+    # marginales a 36bps/ronda sin respaldo del backtest semanal validado).
+    book = [{"symbol": "BTC/USDT", "action": "BUY", "quantity": 0.97, "current_price": 1.0}]
+    sigs = [_sig("BTC/USDT", "BUY", 1.0, 0.004)]
+    legs = compute_allocations(sigs, book, budget=1.0, global_mult=1.0)
+    by = {a["symbol"]: a for a in legs}
+    # target=1.0 vs libro 0.97 → delta 3% < banda 5% → HOLD
+    assert by["BTC/USDT"]["action"] == "HOLD"

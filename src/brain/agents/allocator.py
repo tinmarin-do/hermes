@@ -22,7 +22,7 @@ def compute_allocations(
     budget: float,
     global_mult: float,
     short_cap_pct: float = 0.10,
-    min_trade_frac: float = 0.01,
+    min_trade_frac: float = 0.05,  # banda anti-churn (2026-07-06); antes 0.01 solo filtraba polvo
     fee_reserve_pct: float = 0.0,
     freeze: bool = False,
     pocket_free: dict[str, float] | None = None,
@@ -151,6 +151,12 @@ def allocator_node(state: dict) -> dict:
     budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
     short_cap = float(os.environ.get("HERMES_SHORT_CAP_PCT", "0.10"))
     fee_reserve = float(os.environ.get("HERMES_FEE_RESERVE_PCT", "0.005"))
+    # Banda anti-churn (auditoría de cadencia 2026-07-06, decisión Erika opción B):
+    # el champion se validó SEMANAL; producción evalúa diario → solo cambios
+    # MATERIALES operan (≥5% del budget). El backtest acotó: evaluar diario aporta
+    # (+99.8% sin fees) pero el churn sin control es letal (−93% con round-trip
+    # diario a 36bps). El turnover real del track record decide en ~30 días (§8.9).
+    min_trade = float(os.environ.get("HERMES_MIN_TRADE_FRAC", "0.05"))
 
     risk_approved = state.get("risk_approved", False)
     verdict = state.get("debate_verdict", "HOLD")
@@ -168,6 +174,7 @@ def allocator_node(state: dict) -> dict:
         budget,
         global_mult,
         short_cap_pct=short_cap,
+        min_trade_frac=min_trade,
         fee_reserve_pct=fee_reserve,
         freeze=brake,
         pocket_free=state.get("pocket_free"),

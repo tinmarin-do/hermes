@@ -55,9 +55,15 @@ def _month_daily_spend() -> float:
     con = get_connection()
     try:
         _ensure_log_table(con)
+        # Mes UTC EXPLÍCITO desde Python (revisión 2026-07-06): current_date usa la
+        # tz LOCAL del host y los ts se guardan naive-UTC — en hosts no-UTC el
+        # cruce de medianoche desalinea mes/día (el guard quedaba ciego 18-24h MX).
+        month_start = datetime.now(UTC).replace(
+            day=1, hour=0, minute=0, second=0, microsecond=0, tzinfo=None
+        )
         row = con.execute(
-            "SELECT COALESCE(SUM(cost_usd), 0) FROM daily_run_log "
-            "WHERE date_trunc('month', ts) = date_trunc('month', current_date)"
+            "SELECT COALESCE(SUM(cost_usd), 0) FROM daily_run_log WHERE ts >= ?",
+            [month_start],
         ).fetchone()
         return float(row[0]) if row else 0.0
     finally:
@@ -72,9 +78,13 @@ def _ran_ok_today() -> bool:
     con = get_connection()
     try:
         _ensure_log_table(con)
+        # Día UTC EXPLÍCITO (revisión 2026-07-06): comparar contra current_date
+        # (tz local) dejaba el guard CIEGO cada noche 18-24h MX en hosts no-UTC
+        # (los ts son naive-UTC). En cloud funcionaba solo porque el contenedor
+        # corre en UTC — suposición implícita eliminada.
         row = con.execute(
-            "SELECT count(*) FROM daily_run_log "
-            "WHERE status = 'OK' AND date_trunc('day', ts) = date_trunc('day', current_date)"
+            "SELECT count(*) FROM daily_run_log WHERE status = 'OK' AND CAST(ts AS DATE) = ?",
+            [datetime.now(UTC).date()],
         ).fetchone()
         return bool(row and row[0] > 0)
     finally:

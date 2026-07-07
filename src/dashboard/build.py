@@ -49,6 +49,49 @@ def _shap_panel(symbols: list[str], timeframe: str) -> dict[str, Any]:
     return {"available": True, "symbols": by_symbol}
 
 
+def _turnover_panel() -> dict[str, Any]:
+    """Turnover y fees de trading del mes — el dato que juzga la cadencia diaria.
+
+    Auditoría 2026-07-06 (decisión Erika opción B): el champion se validó SEMANAL
+    y producción evalúa DIARIO con banda anti-churn del 5%; este panel acumula el
+    churn REAL (notional + fees por mes) para decidir con track record (§8.9) en
+    ~30 días si la cadencia diaria se sostiene o se alinea a semanal.
+    """
+    from src.data.db import get_connection
+
+    con = get_connection()
+    try:
+        try:
+            rows = con.execute(
+                "SELECT strftime(filled_at, '%Y-%m') AS mes, "
+                "COUNT(*) FILTER (WHERE status='FILLED'), "
+                "COALESCE(SUM(cost_usd) FILTER (WHERE status='FILLED'), 0), "
+                "COALESCE(SUM(fee_usd) FILTER (WHERE status='FILLED'), 0) "
+                "FROM execution_orders GROUP BY 1 ORDER BY 1 DESC LIMIT 6"
+            ).fetchall()
+        except Exception:
+            return {"available": False, "months": []}
+    finally:
+        con.close()
+
+    return {
+        "available": True,
+        "months": [
+            {
+                "month": r[0],
+                "fills": int(r[1]),
+                "turnover_usd": round(float(r[2]), 2),
+                "fees_usd": round(float(r[3]), 4),
+            }
+            for r in rows
+        ],
+        "note": (
+            "cadencia diaria a prueba: si fees/mes ≫ lo que el semanal pagaría "
+            "(~4 rebalanceos), alinear a semanal (auditoría 2026-07-06)"
+        ),
+    }
+
+
 def _cost_panel() -> dict[str, Any]:
     """LLM spend from llm_cost_runs (measured by src.brain.cost_meter)."""
     from src.data.db import get_connection
@@ -246,7 +289,17 @@ def _equity_panel(portfolio: dict[str, Any]) -> dict[str, Any]:
                     portfolio.get("equity_usd"),
                 ],
             )
-        series = con.execute("SELECT ts, equity FROM equity_curve ORDER BY ts").fetchall()
+        # Métricas sobre ÚLTIMO punto por día UTC (revisión 2026-07-06): las
+        # corridas de validación/emergencia insertan puntos intradía extra que
+        # inflarían n y mezclarían horizontes en Sharpe/PSR (la curva oficial es
+        # 1 punto/día, §8.9). La serie cruda se conserva en la tabla.
+        series = con.execute(
+            """SELECT ts, equity FROM (
+                   SELECT ts, equity,
+                          ROW_NUMBER() OVER (PARTITION BY CAST(ts AS DATE)
+                                             ORDER BY ts DESC) AS rn
+                   FROM equity_curve) WHERE rn = 1 ORDER BY ts"""
+        ).fetchall()
     except Exception as exc:
         return {"available": False, "reason": str(exc)}
     finally:
@@ -364,6 +417,7 @@ def build_snapshot(timeframe: str = "1h") -> dict[str, Any]:
         "shap": _shap_panel(symbols, timeframe),
         "cost": _cost_panel(),
         "positions": _positions_panel(),
+        "turnover": _turnover_panel(),
     }
 
 

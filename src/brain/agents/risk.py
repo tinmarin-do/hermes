@@ -129,6 +129,15 @@ def risk_facilitator(state: HermesState) -> dict:
     text = response.content
     approved = "APPROVED: YES" in text.upper() or "APPROVED:YES" in text.upper()
 
+    # GATE DURO (revisión final 2026-07-06): el VaR calibrado es un guardrail
+    # determinista (regla #4) — el LLM puede FRENAR un trade que pasó el VaR,
+    # pero JAMÁS aprobar uno que lo reprobó. Antes esto era solo advisory: un
+    # facilitador persuadido podía soltar el freno. Los agentes solo frenan.
+    var_ok = all(r.get("var_ok", True) for r in reports)
+    if approved and not var_ok:
+        approved = False
+        text += "\n[GATE] VaR 2σ reprobado — aprobación del LLM anulada por guardrail (§8.2)."
+
     return {
         "risk_synthesis": text,
         "risk_approved": approved,
