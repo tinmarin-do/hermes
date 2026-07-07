@@ -407,3 +407,39 @@ como overlay defensivo)**.
   al LightGBM, el ML no estaba aportando.
 
 **Próximo:** definir con Erika cuál arrancar (recomendado: H1).
+
+---
+
+## Auditoría de cadencia — ¿la ejecución diaria está respaldada? (revisión final 2026-07-06)
+
+**Fecha:** 2026-07-06 · **Tipo:** auditoría de coherencia validación↔producción (no suma a `n_trials`
+como candidato nuevo; reutiliza la regla H6 ya absorbida). **Origen:** pregunta de Erika.
+
+**Hallazgo:** el champion fue validado con rebalanceo **SEMANAL** (`freq="W-MON"`,
+`PERIODS_PER_YEAR=52`, forward 168h) — pero producción evalúa y puede operar **DIARIO**
+(Scheduler 08:10 MX). La cadencia diaria era una variante sin evidencia propia.
+
+**Medición (2024-01→2026-07, misma ventana, periodos NO solapados en ambos):**
+
+| Variante | n | Total | Sharpe | PSR | maxDD |
+|---|---|---|---|---|---|
+| Semanal validado, fees 36bps | 121 | −23.9% | −0.09 | 0.44 | −48% |
+| Diario cota SUPERIOR (fwd 24h, PPY 365, fee 0) | 834 | +99.8% | 1.12 | 0.95 | −27% |
+| Diario cota INFERIOR (round-trip completo 36bps/día) | 834 | −93.4% | −3.56 | 0.00 | −94% |
+
+**Lectura:** evaluar diario APORTA señal (cota superior ≫ semanal); lo letal es el CHURN.
+La producción real (allocator por deltas + freeze del comité) vive entre las cotas; su
+posición exacta depende de la banda mínima de trade, que era 1% (solo filtraba polvo).
+
+**Decisión (Erika, opción B):** cadencia diaria se mantiene CON banda anti-churn seria —
+`min_trade_frac` 1%→**5%** (`HERMES_MIN_TRADE_FRAC`) + **panel de turnover/fees por mes**
+en el snapshot. **Juez: el track record vivo (§8.9)** — revisar en ~30 días: si los fees
+mensuales ≫ lo que ~4 rebalanceos semanales pagarían, alinear a semanal estricto (trades
+solo lunes; el re-run de emergencia del watchdog conservaría permiso diario como capa
+defensiva).
+
+**Caveats honestos:** ventana 2024+ es iteración (holdout quemado, §8.9 v2); la cota
+inferior asume re-alocación completa diaria (peor caso que el allocator real no hace);
+el semanal-con-fees negativo en esta ventana es consistente con la claim (sin alpha
+absoluto — PSR 0.44 ≈ cero) y con que 2024-2026 incluye régimen alcista donde el overlay
+defensivo long-only queda atrás del mercado.

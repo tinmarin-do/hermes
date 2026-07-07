@@ -35,7 +35,6 @@ module "cloud_run" {
   dashboard_image         = var.dashboard_image
   brain_image             = var.brain_image
   db_connection           = module.cloud_sql.connection_name
-  dashboard_public        = var.dashboard_public
   dashboard_iap_accessors = var.dashboard_iap_accessors
   # Secretos creados vía gcloud 2026-07-04 (fuera del módulo secret-manager a
   # propósito: aquí solo se REFERENCIAN; el valor lo cargó la operadora).

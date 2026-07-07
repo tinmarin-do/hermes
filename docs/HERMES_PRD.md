@@ -50,7 +50,7 @@ El objetivo de portafolio no cambió: una pieza que demuestre **cuatro competenc
 
 ### 3.1 Objetivos de producto
 - **O1.** Sistema multiagente funcional de punta a punta: datos → decisión → ejecución → registro.
-- **O2.** Desplegado y siempre vivo. **Dashboard PRIVADO por default** (IAM, decisión 2026-07-03); flip a público para demos = `terraform apply -var dashboard_public=true` (segundos, reversible).
+- **O2.** Desplegado y siempre vivo. **Dashboard PRIVADO tras IAP** (custom OAuth; decisión 2026-07-04). El flip público para demos fue **RETIRADO** (2026-07-06): `/api/live` sirve balances reales — demos = agregar viewer temporal a `dashboard_iap_accessors`.
 - **O3.** Track record transparente y auditable (incluye el shadow challenger).
 - **O4.** Que "hable solo" como evidencia de las 4 competencias.
 - **O5 (nuevo).** Laboratorio de research activo con protocolo anti-overfit respetado al 100% (§8.9).
@@ -350,15 +350,16 @@ El protocolo v1 (holdout histórico intocable) cumplió su ciclo: el holdout `20
 - [ ] Gold: `news_cluster`, `news_sentiment_score`, `trust_score` por símbolo; cableo a Risk/PM (nunca al Analyst inicial ni texto crudo a ningún LLM).
 - **Aceptación:** una noticia inyectada de prueba queda marcada y excluida · trust_score refleja corroboración multi-fuente · $0 de costo LLM · el debate cita features de noticias, no texto.
 
-### Fase 5 — Deploy GCP
-**Objetivo:** URL pública siempre viva.
-- [ ] `/infra:bootstrap` → `/infra:plan` → `/cost:gate` → `/infra:apply` (reglas #1/#2/#7 SIEMPRE).
-- [ ] Cloud Scheduler: 1 corrida diaria; **pre-autorizar la línea de budget diario en el ledger** (§8.8) para que el cron no viole la regla #6.
-- [ ] Dashboard en Cloud Run (`/dashboard:deploy`); Cloud SQL vía Terraform; secretos a Secret Manager.
+### Fase 5 — Deploy GCP ✅ COMPLETADA (2026-07-03; aceptada 2026-07-06)
+**Objetivo:** URL siempre viva (privada tras IAP — ver decisión 2026-07-04).
+- [x] `/infra:bootstrap` → `/infra:plan` → `/cost:gate` → `/infra:apply` (reglas #1/#2/#7 SIEMPRE).
+- [x] Cloud Scheduler: 1 corrida diaria (08:10 MX); línea de budget diario pre-autorizada (§8.8).
+- [x] Dashboard en Cloud Run tras **IAP con custom OAuth** (proyecto sin org); Cloud SQL vía Terraform (ociosa, decisión presupuestaria pendiente); secretos en Secret Manager como `secret_key_ref`.
+- Extras ganados en el camino: **watchdog de drawdown** (30 min; email + 1 re-run/día del comité), **tile "En vivo"** con key Bitso read-only, corrida 100% autónoma verificada 3 días seguidos.
 - **Aceptación:** URL pública ≥ 99% uptime en 7 días · corridas diarias automáticas estables · gasto GCP ≤ $10 POC visible en `/cost:status`.
 
-### Fase 6 — Bitso stage → live mínimo ($400) *(venue 2026-07-03; monto 2026-07-03)*
-**Objetivo:** ejecución real en **Bitso** (spot, cuenta MX de Erika) con guardrails calibrados.
+### Fase 6 — Bitso stage → live mínimo ($400) ✅ COMPLETADA (2026-07-03/04)
+**Objetivo:** ejecución real en **Bitso** (spot, cuenta MX de Erika) con guardrails calibrados. **Hecho:** BitsoAdapter maker-first + get_secret() + Kelly 0.10/loss 4% calibrados + primer trade real ($20 SOL) + PRIMER REBALANCEO COMPLETO (4/4 FILLED, ~$430, 2026-07-04) + budget dinámico wallet.
 - [ ] **BitsoAdapter** (ccxt `bitso`): mapping data→ejecución (`LINK/USDT` Binance-data → `LINK/USD` Bitso; AVAX→`AVAX/USD`; resto `*/USDT`), órdenes **maker/limit preferidas** (0.30% vs 0.36% taker — el stress a 36bps dio Sharpe 0.88 vs 1.20 a 10bps: sobrevive pero adelgaza).
 - [ ] API key de Bitso **sin permiso de retiro** (§8.3), en `.env`/Secret Manager.
 - [ ] Validar contra el **sandbox stage de Bitso** (ccxt lo soporta) — reemplaza al testnet de Binance.
@@ -416,6 +417,19 @@ Realidad medida por `src/brain/cost_meter.py` (DeepSeek V4 Flash, $0.14/$0.28 po
 
 ## 13. Registro de decisiones
 
+**2026-07-06 (revisión final Fable):**
+- **Auditoría de cadencia (pregunta de Erika):** el champion se validó SEMANAL (W-MON) pero producción evalúa DIARIO. Medición en EXPERIMENT_LOG → **decisión: opción B** — diario se queda CON banda anti-churn `min_trade_frac` 1%→**5%** (`HERMES_MIN_TRADE_FRAC`) + panel de turnover/fees mensual en el snapshot; **revisar con track record en ~30 días** (si fees/mes ≫ ~4 rebalanceos semanales → alinear a semanal estricto).
+- **Gate duro de VaR:** el facilitador LLM ya NO puede aprobar un trade que reprobó el VaR calibrado (antes era advisory — violaba la regla #4). Los agentes solo frenan.
+- **Guard/budget en UTC explícito:** `_ran_ok_today`/`_month_daily_spend` comparaban ts naive-UTC contra `current_date` LOCAL → ciegos 18-24h MX en hosts no-UTC (en cloud funcionaba por suerte de tz). Fecha UTC desde Python.
+- **Flip público RETIRADO** (exponía /api/live) · **equity_curve dedupe** a último punto/día para métricas · **branch protection: IMPOSIBLE en repo privado free-tier** (decisión pendiente: repo público vs GitHub Pro vs disciplina).
+
+**2026-07-04/05 (era live plena):**
+- **PRIMER REBALANCEO COMPLETO LIVE:** 4/4 FILLED (ETH+LINK+SOL+XRP ≈ $430), cuadre perfecto contra Bitso. Fix definitivo carrera 0379 (vigilar SALDO libre, no status; sonda real: liberación ~4.1s, varía >6s).
+- **Watchdog de drawdown** (decisión Erika): cada 30 min, breach ≤−3% vs snapshot → email + máx 1 re-run/día del comité (marker GCS). 4 capas de bugs peladas en drills de ~$0.01 (jobs.run rechaza paused · cron imposible inválido · pausar mata attempts · TF apply apaga IAP — provider ciego a iap_enabled, protocolo post-apply en el módulo).
+- **Tile "En vivo"** con 2ª API key Bitso SOLO-LECTURA (la operativa jamás toca el servicio expuesto) + gráfica de performance (curva oficial + punto vivo).
+- **Estándar nuevo:** cada bug arreglado+desplegado → re-run del pipeline como validación.
+- **IAP resuelto de raíz:** cliente OAuth gestionado = solo same-org; proyecto sin org ⇒ custom OAuth client obligatorio.
+
 **2026-07-03 (tarde — hardening Fase A):**
 - **Capital de trading cloud: $50 → $400 USD** (decisión de Erika). Secuencia: el paper cloud pasa YA a escala $400 (track record realista, libro migrado era-$1→era-$400); **live con $400 reales solo tras Fase B**: key Bitso rotada+sin retiro confirmada → F6 BitsoAdapter (maker-first, sandbox stage) → `/brain:calibrate-risk` a escala $400 → días de stage. Reglas #4/#8 intactas.
 - **Semántica del freno global: HOLD = CONGELAR, no liquidar** (§8.7.2). Hallazgo del 2026-07-03: el primer día HOLD cloud vendió toda la posición SOL solo por falta de convicción (churn/fees). El freno ahora emite 0 órdenes y el libro queda como está.
@@ -424,7 +438,7 @@ Realidad medida por `src/brain/cost_meter.py` (DeepSeek V4 Flash, $0.14/$0.28 po
 
 **2026-07-03:**
 - **Exchange de EJECUCIÓN = Bitso** (decidido — Erika tiene cuenta fondeada + API; CNBV-regulado, rampa MXN). **La DATA sigue siendo Binance** (bronze 2021→2026, más profundo y líquido); el `ExecutionAdapter` mapea (el diseño agnóstico pagando su dividendo). Consecuencias: **LINK reemplaza a BNB** (no existe en Bitso) · fees 0.36% taker/0.30% maker → stress medido: Sharpe iteración 1.20→0.88, sobrevive pero preferir maker (EXPERIMENT_LOG) · **spot-only → live long-only permanente** · F6 usa el sandbox stage de Bitso, no Binance testnet. Key de Bitso SIN retiro (§8.3).
-- **Dashboard PRIVADO por default** (IAM en Cloud Run, sin `allUsers`): la historia de usuario del reclutador se sirve con el flip `dashboard_public=true` durante demos, o compartiendo la URL tras un flip temporal. Región cloud: **us-central1** (tier-1). Cadencia Cloud Scheduler: diaria 08:10 MX (reemplaza al cron WSL al desplegar).
+- **Dashboard PRIVADO tras IAP** (custom OAuth — obligatorio en proyecto sin organización): demos = viewer temporal en `dashboard_iap_accessors` (el flip público fue RETIRADO 2026-07-06: `/api/live` expone balances). Región: **us-central1**. Cadencia Scheduler: diaria 08:10 MX + watchdog cada 30 min.
 
 **2026-07-02 (v0.3 — re-encuadre por evidencia):**
 - **Identidad = overlay defensivo + laboratorio de research.** La señal de producción es la regla momentum multi-escala (única validada en holdout); el research continúa como track paralelo con protocolo formal (§8.9). La narrativa pública es la honesta: sin alpha absoluto, valor defensivo demostrado.

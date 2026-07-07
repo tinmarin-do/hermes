@@ -138,19 +138,11 @@ resource "google_cloud_run_v2_service_iam_member" "brain_scheduler_invoker" {
   member   = "serviceAccount:${var.scheduler_sa_email}"
 }
 
-# Privacidad del dashboard (decisión 2026-07-03): PRIVADO por default — el binding
-# allUsers solo existe si dashboard_public=true. Flip a público para demos =
-# cambiar la variable + apply (segundos, reversible). Acceso privado del owner:
-#   gcloud run services proxy hermes-dashboard --region <region>
-resource "google_cloud_run_v2_service_iam_member" "dashboard_public" {
-  count = var.dashboard_public ? 1 : 0
-
-  project  = var.project_id
-  location = var.region
-  name     = google_cloud_run_v2_service.dashboard.name
-  role     = "roles/run.invoker"
-  member   = "allUsers"
-}
+# RETIRADO (revisión final 2026-07-06): el flip `dashboard_public=true` (binding
+# allUsers para demos, 2026-07-03) quedó OBSOLETO Y PELIGROSO desde que el
+# dashboard sirve /api/live con balances reales de Bitso — hacerlo público
+# expondría la cartera a internet. La vía para demos es IAP: agregar al viewer
+# en `dashboard_iap_accessors` (+apply) y quitarlo al terminar.
 
 # ── IAP en el dashboard (2026-07-04) ───────────────────────────────────────────
 # ⚠️ PELIGRO CONOCIDO: el provider google 6.50 NO conoce iap_enabled (vive en

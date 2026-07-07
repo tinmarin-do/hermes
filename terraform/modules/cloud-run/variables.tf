@@ -4,11 +4,6 @@ variable "dashboard_image" { type = string }
 variable "brain_image" { type = string }
 variable "db_connection" { type = string }
 
-variable "dashboard_public" {
-  type        = bool
-  default     = false
-  description = "true = dashboard accesible por allUsers (demo); false = solo IAM (privado)"
-}
 
 variable "scheduler_sa_email" {
   type        = string
