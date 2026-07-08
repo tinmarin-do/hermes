@@ -120,6 +120,15 @@ def quant_core_node(state: HermesState) -> dict:
                 "rationale": entry["rationale"],
             }
 
+    # ── Shadow vol-target (capa de RIESGO, decisión producto 2026-07-07): variante
+    # del campeón con exposición escalada a σ-objetivo. No decide; nunca rompe el run.
+    try:
+        from src.brain.voltarget import voltarget_shadow
+
+        shadow_signals.extend(voltarget_shadow(quant_signals))
+    except Exception as exc:  # noqa: S110 — shadow jamás tumba al campeón
+        print(f"[voltarget] shadow no disponible (no crítico): {exc}", flush=True)
+
     if best_signal is None:
         best_signal = _hold("QuantRule: no actionable signals")
 

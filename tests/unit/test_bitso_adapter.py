@@ -313,6 +313,57 @@ def test_equity_sums_cash_and_holdings(tmp_db):
     assert _adapter(fake).get_equity() == pytest.approx(200.0)
 
 
+# ── P&L desde cost basis (fix hallazgo G, 2026-07-07) ──────────────────────────
+
+
+def _seed_fill(symbol, action, qty, price, fee=0.0, minute=0):
+    from datetime import datetime
+
+    from src.data.db import get_connection
+    from src.execution.schema import ensure_execution_schema
+
+    ensure_execution_schema()
+    con = get_connection()
+    try:
+        ts = datetime(2026, 7, 1, 12, minute)
+        con.execute(
+            "INSERT INTO execution_orders (order_id, run_id, symbol, action, quantity, "
+            "price, status, filled_at, created_at, cost_usd, fee_usd) "
+            "VALUES (?, 'r', ?, ?, ?, ?, 'FILLED', ?, ?, ?, ?)",
+            [f"seed-{symbol}-{minute}", symbol, action, qty, price, ts, ts, qty * price, fee],
+        )
+    finally:
+        con.close()
+
+
+def test_positions_carry_pnl_from_fills(tmp_db):
+    # Compré 0.5 SOL @ $80 vía Hermes; hoy vale $100 → unrealized +$10, entry=$80.
+    fake = FakeExchange(balances={"USDT": 100.0, "SOL": 0.5}, price=100.0)
+    _seed_fill("SOL/USDT", "BUY", 0.5, 80.0, fee=0.144)
+    pos = {p.symbol: p for p in _adapter(fake).get_positions()}["SOL/USDT"]
+    assert pos.entry_price == pytest.approx(80.0)
+    assert pos.unrealized_pnl == pytest.approx(10.0)
+
+
+def test_untracked_dust_gets_no_invented_pnl(tmp_db):
+    # Wallet tiene 1.0 SOL pero Hermes solo compró 0.4: el resto (depósito externo)
+    # se marca al precio actual — P&L solo sobre lo trackeado.
+    fake = FakeExchange(balances={"SOL": 1.0}, price=100.0)
+    _seed_fill("SOL/USDT", "BUY", 0.4, 50.0)
+    pos = {p.symbol: p for p in _adapter(fake).get_positions()}["SOL/USDT"]
+    assert pos.unrealized_pnl == pytest.approx(20.0)  # (100−50)×0.4 — nada sobre el dust
+    # entrada ponderada: (50×0.4 + 100×0.6)/1.0 = 80
+    assert pos.entry_price == pytest.approx(80.0)
+
+
+def test_positions_without_fills_keep_zero_pnl(tmp_db):
+    # Sin fills trackeados el comportamiento previo se conserva (no inventa P&L).
+    fake = FakeExchange(balances={"SOL": 0.5}, price=100.0)
+    pos = {p.symbol: p for p in _adapter(fake).get_positions()}["SOL/USDT"]
+    assert pos.unrealized_pnl == 0.0
+    assert pos.entry_price == pytest.approx(100.0)
+
+
 # ── Budget dinámico (HERMES_BUDGET_SOURCE=wallet, decisión 2026-07-03) ─────────
 
 

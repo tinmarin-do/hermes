@@ -104,6 +104,33 @@ SNAPSHOT = {
         "recent": [],
     },
     "positions": {"available": True, "balance_usd": 500.0, "open": []},
+    "pnl": {
+        "available": True,
+        "symbols": {
+            "SOL/USDT": {
+                "qty_tracked": 2.0,
+                "avg_cost": 70.0,
+                "realized_pnl": 5.0,
+                "fees_usd": 1.5,
+                "n_fills": 3,
+            }
+        },
+        "realized_total": 5.0,
+        "fees_total": 1.5,
+    },
+    "news_forward": {
+        "available": True,
+        "n_days": 1,
+        "gate_days": 90,
+        "gate_reached": False,
+        "n_rows": 6,
+        "n_scored_24h": 0,
+        "n_scored_7d": 0,
+        "latest": [
+            {"symbol": "BTC/USDT", "n_headlines": 3, "novelty_frac": 0.33, "sentiment_tw": 0.2}
+        ],
+        "note": "protocolo forward H10.4",
+    },
 }
 
 
@@ -171,6 +198,8 @@ def test_index_renders_new_panels(client_with_snapshot):
     assert "Equity curve" in r.text
     assert "Champion vs shadow" in r.text
     assert "Visor de debate" in r.text
+    assert 'id="news-forward-card"' in r.text  # protocolo H10.4
+    assert "P&amp;L no realizado" in r.text  # fix hallazgo G en el tile en vivo
 
 
 def test_api_snapshot_has_fase3_panels(client_with_snapshot):
@@ -225,6 +254,20 @@ def test_api_live_computes_equity_and_weights(live_client):
     assert live["vs_snapshot"]["equity_then"] == 1.05
     assert live["vs_snapshot"]["delta_usd"] == pytest.approx(398.95)
     assert "1 punto/día" in live["note"]
+
+
+def test_api_live_pnl_from_snapshot_basis(live_client):
+    # Fix hallazgo G: avg_cost=70 del snapshot × precio vivo 80 → +$20 sobre 2 SOL;
+    # LINK sin base trackeada NO inventa P&L.
+    live = live_client.get("/api/live").json()
+    syms = {p["symbol"]: p for p in live["positions"]}
+    assert syms["SOL/USDT"]["avg_cost"] == 70.0
+    assert syms["SOL/USDT"]["unrealized_pnl"] == pytest.approx(20.0)
+    assert "unrealized_pnl" not in syms["LINK/USDT"]
+    assert live["pnl"]["unrealized_usd"] == pytest.approx(20.0)
+    assert live["pnl"]["realized_usd"] == 5.0
+    assert live["pnl"]["fees_usd"] == 1.5
+    assert live["pnl"]["net_usd"] == pytest.approx(23.5)  # 20 + 5 − 1.5
 
 
 def test_api_live_503_without_readonly_creds(client_with_snapshot, monkeypatch):
@@ -401,6 +444,43 @@ def test_signals_panel_compares_champion_vs_shadow(build_env):
     assert panel["shadow_model"] == "lightgbm"
     assert panel["rows"][0]["agree"] is False
     assert panel["history"][0]["runs"] == 1
+
+
+def test_signals_panel_voltarget_is_not_the_challenger(build_env):
+    # La variante vol-target (capa de riesgo) NO debe ocupar la tabla del
+    # challenger — se reporta aparte con su exposición m del día.
+    from src.brain.shadow import persist_shadow_signals
+    from src.dashboard.build import _signals_panel
+
+    persist_shadow_signals(
+        "run-a",
+        [
+            {
+                "model": "lightgbm",
+                "symbol": "BTC/USDT",
+                "direction": "HOLD",
+                "confidence": 0.0,
+                "raw_probability": 0.49,
+                "size_usd": 0.0,
+            },
+        ],
+    )
+    persist_shadow_signals(
+        "run-b",  # más reciente, pero es variante del campeón
+        [
+            {
+                "model": "champion-voltarget25",
+                "symbol": "BTC/USDT",
+                "direction": "BUY",
+                "confidence": 0.9,
+                "raw_probability": 0.63,
+                "size_usd": 40.0,
+            },
+        ],
+    )
+    panel = _signals_panel({"BTC/USDT": {"direction": "BUY", "confidence": 0.9}})
+    assert panel["shadow_model"] == "lightgbm"  # el challenger sigue siendo el ML
+    assert panel["voltarget"]["m"] == pytest.approx(0.63)
 
 
 def test_debate_panel_roundtrip(build_env):

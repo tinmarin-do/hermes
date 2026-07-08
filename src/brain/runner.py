@@ -161,6 +161,19 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
             flush=True,
         )
 
+    # ── H10.4: logging forward de noticias (protocolo pre-registrado, $0) ──
+    try:
+        from src.brain.news_forward import log_news_forward
+
+        nf = log_news_forward(run_id, symbols)
+        print(
+            f"[news-forward] {nf['logged']} vectores persistidos · "
+            f"{nf['scored']} filas pendientes puntuadas (gate: 90 días, H10.4)",
+            flush=True,
+        )
+    except Exception as exc:  # noqa: S110 — el logging jamás tumba la corrida
+        print(f"[news-forward] ⚠️ no crítico: {exc}", flush=True)
+
     # ── Transcripción auditable de la corrida (visor de debate, §5.4) ──
     from src.brain.transcript import persist_transcript
 

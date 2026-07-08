@@ -133,6 +133,50 @@ def _cost_panel() -> dict[str, Any]:
     }
 
 
+def _pnl_panel() -> dict[str, Any]:
+    """P&L real desde execution_orders (fix hallazgo G, diagnóstico 2026-07-07).
+
+    El venue no guarda "mi costo" — este panel reconstruye el costo promedio por
+    símbolo desde los fills y expone realized + fees + avg_cost. El unrealized
+    final lo calcula /api/live con el precio al segundo (el brain solo publica
+    la base). Neto honesto = realized + unrealized − fees.
+    """
+    try:
+        from src.execution.costbasis import cost_basis
+
+        basis = cost_basis()
+    except Exception as exc:
+        return {"available": False, "reason": str(exc), "symbols": {}}
+
+    tracked = {
+        sym: {
+            "qty_tracked": b["qty"],
+            "avg_cost": b["avg_cost"],
+            "realized_pnl": b["realized_pnl"],
+            "fees_usd": b["fees_usd"],
+            "n_fills": b["n_fills"],
+        }
+        for sym, b in basis.items()
+    }
+    return {
+        "available": True,
+        "symbols": tracked,
+        "realized_total": round(sum(b["realized_pnl"] for b in basis.values()), 4),
+        "fees_total": round(sum(b["fees_usd"] for b in basis.values()), 4),
+        "note": "costo promedio desde fills; tenencias sin fills trackeados no inventan P&L",
+    }
+
+
+def _news_forward_panel() -> dict[str, Any]:
+    """Progreso del protocolo forward de noticias H10.4 (gate 90 días)."""
+    try:
+        from src.brain.news_forward import forward_status
+
+        return forward_status()
+    except Exception as exc:
+        return {"available": False, "reason": str(exc)}
+
+
 def _positions_panel() -> dict[str, Any]:
     """Posiciones abiertas + caja del adapter REAL del modo (live = holdings Bitso)."""
     try:
@@ -342,10 +386,16 @@ def _signals_panel(champion_now: dict[str, dict[str, Any]]) -> dict[str, Any]:
         tables = [t[0] for t in con.execute("SHOW TABLES").fetchall()]
         if "shadow_signals" not in tables:
             return {"available": False, "reason": "sin signal log todavía", "rows": []}
+        # las variantes del campeón (voltarget) no son "el challenger" de la tabla
         latest = con.execute(
             """SELECT run_id, model, max(created_at) AS c FROM shadow_signals
-               WHERE model != 'champion-multimom'
+               WHERE model NOT LIKE 'champion-%'
                GROUP BY run_id, model ORDER BY c DESC LIMIT 1"""
+        ).fetchone()
+        vt = con.execute(
+            """SELECT raw_probability, created_at FROM shadow_signals
+               WHERE model = 'champion-voltarget25'
+               ORDER BY created_at DESC LIMIT 1"""
         ).fetchone()
         shadow_rows: list[Any] = []
         shadow_model = None
@@ -385,6 +435,9 @@ def _signals_panel(champion_now: dict[str, dict[str, Any]]) -> dict[str, Any]:
         "shadow_run": (shadow_run or "")[:8],
         "rows": rows,
         "history": [{"model": h[0], "runs": int(h[1]), "signals": int(h[2])} for h in history],
+        "voltarget": (
+            {"m": round(float(vt[0]), 4), "at": str(vt[1])} if vt and vt[0] is not None else None
+        ),
         "note": "el shadow persiste señales hipotéticas y JAMÁS ejecuta (§8.9)",
     }
 
@@ -418,6 +471,8 @@ def build_snapshot(timeframe: str = "1h") -> dict[str, Any]:
         "cost": _cost_panel(),
         "positions": _positions_panel(),
         "turnover": _turnover_panel(),
+        "pnl": _pnl_panel(),
+        "news_forward": _news_forward_panel(),
     }
 
 

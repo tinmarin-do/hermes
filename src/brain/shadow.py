@@ -6,6 +6,11 @@ corrida; los **challengers** (LightGBM hoy, regresión mañana) registran señal
 hipotéticas que JAMÁS ejecutan. El panel champion-vs-shadow del dashboard y el
 protocolo de research §8.9 comparan ambos streams — datos del futuro real,
 imposibles de overfittear — para decidir promociones.
+
+Convención por modelo del campo `raw_probability`:
+- challengers ML (lightgbm/heuristic): P(subida) del modelo.
+- `champion-voltarget25` (capa de riesgo, src/brain/voltarget.py): la exposición
+  m_t del día — misma dirección/confianza que el campeón, size_usd × m_t.
 """
 
 from datetime import UTC, datetime
