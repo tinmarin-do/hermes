@@ -591,3 +591,43 @@ igual que la de precio en cuanto se la baja a la cadencia en que Hermes puede op
     yendo contra el crowding, sin predecir precio) es una estrategia DISTINTA no
     probada — requiere venue de futuros (cobrar funding exige posición perp) y su
     propio pre-registro. No confundir este cierre con esa puerta.
+
+---
+
+## Experimento H10.2 — Spreads estacionarios OU/cointegración (2 trials)
+
+**Fecha:** 2026-07-07 · **Estado:** ❌ **FALSIFICADO 2/2.** **Pre-registro:** DESIGN H10
+§H10.2 (`2e058e2`; params a priori: EG rolling 90d p<0.05, half-life ∈[2,30]d, z 2/0.5,
+timeout 2×HL). 344 días con spreads "cointegrados" activos (22% del tiempo).
+
+| Trial @36bps | Sharpe | PSR | DSR n30 | maxDD | Criterio | Veredicto |
+|---|---|---|---|---|---|---|
+| T-neutral (spread puro, fees dobles) | **−1.71** | 0.00 | 0.00 | −82% | Sharpe>0.5 ∧ PSR>0.95 | 💀 pierde LOS 5 años; a 10bps también (−1.40) |
+| T-tilt (long-only ±10% sobre campeón) | **0.899** | 0.973 | 0.43 | −62% | mejorar al campeón (0.927) | 💀 lo EMPEORA; shadow-bar tampoco |
+
+**Conclusión:** la reversión de spreads entre majors correlacionados **pierde dinero
+incluso antes de fees serios**: cuando dos majors "cointegrados" se separan, no es una
+dislocación temporal que revierte — es un **cambio de régimen** que continúa (SOL/AVAX
+2021, etc.). El tilt apenas perturba al campeón y solo le resta.
+
+**Dónde NO ir (actualizado):**
+22. **Stat-arb de cointegración entre majors cripto de este universo/era = anti-señal.**
+    Las divergencias son cambios de régimen, no dislocaciones. (Consistente con #14/#15:
+    el eje relativo ya había fallado como momentum cross-sectional.)
+
+---
+
+## CIERRE DEL ARCO H10 (2026-07-07) — el programa del doctor, medido completo
+
+**7 trials, 0 promociones a live, 0 a shadow-bar.** Con H9: **13 trials en un día,
+todos falsificados** — el mapa dónde-no-ir cubre ya: dirección con precio (ML ×6 +
+regresión), carry/flujo como features, stat-arb relativo, y vol-targeting como alpha.
+Lo que QUEDA VIVO y por qué:
+- **Noticias forward-only** (H10.4): único eje de información no medido — protocolo de
+  logging con gate de 90 días, pendiente de implementación.
+- **Vol-targeting en shadow como capa de RIESGO** (decisión de producto de Erika —
+  su mérito de riesgo es real: −40% DD; su claim de alpha quedó falsificada).
+- **Primas que requieren otro venue** (funding carry real, staking) — fuera del alcance
+  actual (Bitso spot long-only); documentadas, no probadas.
+- **La claim defensiva del campeón sigue siendo la única validada en holdout.** Todo el
+  research de hoy la REFUERZA: nada de lo probado le gana ni de cerca a fees reales.
