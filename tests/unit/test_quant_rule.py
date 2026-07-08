@@ -138,11 +138,16 @@ def test_node_emits_champion_and_shadow_vectors(monkeypatch):
     assert all("multimom" in s["rationale"] for s in out["quant_signals"])
     assert out["quant_signal"]["direction"] == "BUY"
 
-    assert len(out["shadow_signals"]) == 2
-    for ss in out["shadow_signals"]:
-        assert ss["model"] in ("lightgbm", "heuristic-5f")
+    # shadow = challenger ML + variante vol-target del campeón (capa de riesgo H10.3)
+    shadow_ml = [s for s in out["shadow_signals"] if s["model"] in ("lightgbm", "heuristic-5f")]
+    shadow_vt = [s for s in out["shadow_signals"] if s["model"] == "champion-voltarget25"]
+    assert len(shadow_ml) == 2
+    assert len(shadow_vt) == 2
+    for ss in shadow_ml:
         assert ss["direction"] in ("BUY", "SELL", "HOLD")
         assert "raw_probability" in ss
+    for ss in shadow_vt:
+        assert ss["direction"] == "BUY"  # dirección del campeón, intacta
 
 
 def test_node_short_gate_degrades_without_bear_regime(monkeypatch):

@@ -28,7 +28,7 @@
     <div id="live-summary" class="prediction"><span class="muted">Cargando…</span></div>
     <div class="chart-wrap slim"><canvas id="live-chart"></canvas></div>
     <table id="live-positions">
-      <thead><tr><th>Símbolo</th><th>Cant.</th><th>Precio</th><th>Valor</th><th>Peso</th></tr></thead>
+      <thead><tr><th>Símbolo</th><th>Cant.</th><th>Precio</th><th>Costo prom.</th><th>Valor</th><th>Peso</th><th>P&amp;L no realizado</th></tr></thead>
       <tbody></tbody>
     </table>
     <p id="live-note" class="muted small"></p>
@@ -61,9 +61,20 @@
         <thead><tr><th>Símbolo</th><th>Champion (regla momentum)</th><th>Shadow (challenger)</th><th>¿Coinciden?</th></tr></thead>
         <tbody></tbody>
       </table>
+      <div id="voltarget-line" class="muted small"></div>
       <div id="signals-history" class="muted small"></div>
     </section>
   </div>
+
+  <section class="card" id="news-forward-card">
+    <h2>Noticias — protocolo forward <span class="muted small">(H10.4 — solo acumula; ninguna claim antes del gate)</span></h2>
+    <div id="news-forward-summary" class="prediction"></div>
+    <table id="news-forward">
+      <thead><tr><th>Símbolo</th><th>Titulares 24h</th><th>Novelty</th><th>Sentimiento (trust-w)</th></tr></thead>
+      <tbody></tbody>
+    </table>
+    <p id="news-forward-note" class="muted small"></p>
+  </section>
 
   <section class="card" id="debate-card">
     <h2>Visor de debate — última corrida</h2>

@@ -351,14 +351,22 @@ class BitsoAdapter(ExecutionAdapter):
     def get_positions(self) -> list[Position]:
         """Tenencias spot reales (fetch_balance) como posiciones long.
 
-        entry_price = precio actual (el P&L histórico exacto vive en execution_orders;
-        para el allocator solo importa el notional actual = qty × precio).
+        entry_price y P&L salen del cost basis reconstruido de execution_orders
+        (fix hallazgo G): el venue no guarda "mi costo", pero los fills sí. La
+        parte de la tenencia SIN fills trackeados (depósitos/dust pre-Hermes) se
+        marca al precio actual con P&L 0 — no se inventa historia.
         """
         positions: list[Position] = []
         try:
             bal = self._exchange.fetch_balance()
         except Exception:
             return positions
+        try:
+            from src.execution.costbasis import cost_basis
+
+            basis = cost_basis()
+        except Exception:
+            basis = {}
         for asset in _BASE_ASSETS:
             qty = float((bal.get(asset) or {}).get("total", 0) or 0)
             if qty <= 0:
@@ -369,13 +377,23 @@ class BitsoAdapter(ExecutionAdapter):
                 last = float(self._exchange.fetch_ticker(pair).get("last") or 0)
             except Exception:
                 last = 0.0
+            b = basis.get(canonical)
+            entry, upnl, rpnl = last, 0.0, 0.0
+            if b and b["qty"] > 1e-12 and qty > 0:
+                tracked = min(qty, b["qty"])
+                # entrada ponderada: parte trackeada a avg_cost, resto a precio actual
+                entry = (b["avg_cost"] * tracked + last * (qty - tracked)) / qty
+                upnl = round((last - b["avg_cost"]) * tracked, 6)
+                rpnl = round(b["realized_pnl"], 6)
             positions.append(
                 Position(
                     symbol=canonical,
                     action="BUY",
                     quantity=qty,
-                    entry_price=last,
+                    entry_price=entry,
                     current_price=last,
+                    unrealized_pnl=upnl,
+                    realized_pnl=rpnl,
                 )
             )
         return positions

@@ -105,6 +105,41 @@ function renderSignals(sig) {
   }
   const h = (sig.history || []).map(x => `${x.model}: ${x.runs} corridas`).join(" · ");
   hist.textContent = `${sig.note || ""} · shadow=${sig.shadow_model || "?"} (run ${sig.shadow_run || "?"}) · ${h}`;
+  const vtEl = document.getElementById("voltarget-line");
+  if (vtEl) {
+    vtEl.textContent = sig.voltarget
+      ? `🛡 capa de riesgo shadow (champion-voltarget25, σ-objetivo 25%): exposición hoy m=${sig.voltarget.m} — sin claim de alpha, juez = track record forward`
+      : "";
+  }
+}
+
+function renderNewsForward(nf) {
+  const card = document.getElementById("news-forward-card");
+  if (!card) return;
+  const summary = document.getElementById("news-forward-summary");
+  const tbody = document.querySelector("#news-forward tbody");
+  const note = document.getElementById("news-forward-note");
+  if (!nf || !nf.available) {
+    summary.innerHTML = `<span class="muted">${(nf && nf.reason) || "Sin datos del protocolo todavía."}</span>`;
+    return;
+  }
+  const pct = nf.gate_days ? Math.min(100, (nf.n_days / nf.gate_days) * 100) : 0;
+  summary.innerHTML =
+    `<span class="big">${nf.n_days} / ${nf.gate_days} días</span>` +
+    `<span class="muted small">acumulados hacia el gate (${pct.toFixed(0)}%)</span>` +
+    `<span class="muted small">puntuadas: ${nf.n_scored_24h} a 24h · ${nf.n_scored_7d} a 7d</span>`;
+  tbody.innerHTML = "";
+  for (const r of nf.latest || []) {
+    const s = r.sentiment_tw ?? 0;
+    const tr = document.createElement("tr");
+    tr.innerHTML = `<td>${r.symbol}</td><td>${r.n_headlines}</td>` +
+                   `<td>${r.novelty_frac == null ? "<span class='muted'>·</span>" : fmtPct(r.novelty_frac)}</td>` +
+                   `<td class="${s >= 0 ? "pos" : "neg"}">${s.toFixed(2)}</td>`;
+    tbody.appendChild(tr);
+  }
+  if (!(nf.latest || []).length)
+    tbody.innerHTML = "<tr><td colspan='4' class='muted'>Sin vectores todavía — se llenan con cada corrida diaria.</td></tr>";
+  note.textContent = nf.note || "";
 }
 
 function renderDebate(d) {
@@ -307,19 +342,32 @@ async function renderLive(officialSeries) {
       `<span class="prob ${cls}">${sign}${fmtUsd(d.delta_usd)} (${sign}${fmtPct(d.delta_pct)})</span>` +
       `<span class="muted small">desde el snapshot oficial</span>`;
   }
+  let pnlHtml = "";
+  if (live.pnl) {
+    const n = live.pnl;
+    const cls = n.net_usd >= 0 ? "pos" : "neg";
+    const sign = n.net_usd >= 0 ? "+" : "";
+    pnlHtml =
+      `<span class="prob ${cls}">${sign}${fmtUsd(n.net_usd)}</span>` +
+      `<span class="muted small">P&L neto (no realizado ${fmtUsd(n.unrealized_usd)} + realizado ${fmtUsd(n.realized_usd)} − fees ${fmtUsd(n.fees_usd)})</span>`;
+  }
   summary.innerHTML =
     `<span class="big">${fmtUsd(live.equity_usd)}</span><span class="muted small">equity ahora</span>` +
-    deltaHtml +
+    pnlHtml + deltaHtml +
     `<span class="muted small">cash ${fmtUsd(live.cash_usd)}</span>`;
   tbody.innerHTML = "";
   for (const p of live.positions || []) {
     const tr = document.createElement("tr");
+    const hasPnl = p.unrealized_pnl != null;
+    const pnlCls = (p.unrealized_pnl ?? 0) >= 0 ? "pos" : "neg";
     tr.innerHTML = `<td>${p.symbol}</td><td>${p.qty}</td><td>${fmtUsd(p.price)}</td>` +
-                   `<td>${fmtUsd(p.value_usd)}</td><td>${fmtPct(p.weight)}</td>`;
+                   `<td>${p.avg_cost != null ? fmtUsd(p.avg_cost) : "<span class='muted'>·</span>"}</td>` +
+                   `<td>${fmtUsd(p.value_usd)}</td><td>${fmtPct(p.weight)}</td>` +
+                   `<td class="${pnlCls}">${hasPnl ? fmtUsd(p.unrealized_pnl) : "<span class='muted'>sin fills trackeados</span>"}</td>`;
     tbody.appendChild(tr);
   }
   if (!(live.positions || []).length) {
-    tbody.innerHTML = "<tr><td colspan='5' class='muted'>Sin tenencias.</td></tr>";
+    tbody.innerHTML = "<tr><td colspan='7' class='muted'>Sin tenencias.</td></tr>";
   }
   renderLiveChart(officialSeries, live);
   note.textContent = `${live.note} · consultado ${live.as_of}`;
@@ -342,6 +390,7 @@ async function main() {
   renderPortfolio(snap.portfolio);
   renderEquity(snap.equity);
   renderSignals(snap.signals);
+  renderNewsForward(snap.news_forward);
   renderDebate(snap.debate);
   renderCost(snap.cost);
   renderPositions(snap.positions);

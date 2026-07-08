@@ -149,15 +149,41 @@ def api_live() -> JSONResponse:
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Bitso no respondió: {exc}") from exc
 
+    snapshot = _load_snapshot() or {}
     vs_snapshot: dict[str, Any] | None = None
-    pf = (_load_snapshot() or {}).get("portfolio") or {}
+    pf = snapshot.get("portfolio") or {}
     if pf.get("equity_usd"):
         then = float(pf["equity_usd"])
         vs_snapshot = {
-            "at": (_load_snapshot() or {}).get("generated_at"),
+            "at": snapshot.get("generated_at"),
             "equity_then": round(then, 2),
             "delta_usd": round(equity - then, 2),
             "delta_pct": round((equity - then) / then, 6) if then else 0.0,
+        }
+
+    # ── P&L real (fix hallazgo G): base de costo del snapshot × precio al segundo.
+    # El brain publica avg_cost/realized/fees desde execution_orders; acá solo se
+    # marca lo trackeado al precio vivo. Sin base → el tile omite P&L (no inventa $0).
+    pnl_summary: dict[str, Any] | None = None
+    basis = (snapshot.get("pnl") or {}).get("symbols") or {}
+    if basis:
+        unrealized_total = 0.0
+        for p in positions:
+            b = basis.get(p["symbol"])
+            if not b or (b.get("qty_tracked") or 0) <= 0:
+                continue
+            tracked = min(p["qty"], b["qty_tracked"])
+            upnl = round((p["price"] - b["avg_cost"]) * tracked, 2)
+            p["avg_cost"] = b["avg_cost"]
+            p["unrealized_pnl"] = upnl
+            unrealized_total += upnl
+        realized = float((snapshot.get("pnl") or {}).get("realized_total") or 0.0)
+        fees = float((snapshot.get("pnl") or {}).get("fees_total") or 0.0)
+        pnl_summary = {
+            "unrealized_usd": round(unrealized_total, 2),
+            "realized_usd": round(realized, 2),
+            "fees_usd": round(fees, 2),
+            "net_usd": round(unrealized_total + realized - fees, 2),
         }
 
     data = {
@@ -166,6 +192,7 @@ def api_live() -> JSONResponse:
         "equity_usd": round(equity, 2),
         "cash_usd": round(cash, 2),
         "positions": positions,
+        "pnl": pnl_summary,
         "vs_snapshot": vs_snapshot,
         "note": "informativo — la curva oficial de performance es 1 punto/día (§8.9)",
     }
