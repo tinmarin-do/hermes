@@ -562,3 +562,32 @@ vara live intacta + shadow-bar (Sharpe>vara ∧ PSR>0.90 ∧ IC>0) con juez forw
 NO retroactiva. (b) **Vol-targeting a shadow como capa de RIESGO** por decisión de
 producto (sin claim de alpha — este veredicto queda intacto); implementación con el
 logging H10.4, PR propio.
+
+---
+
+## Experimento H10.1 — Carry y flujo: funding rates + taker imbalance (4 trials)
+
+**Fecha:** 2026-07-07 · **Estado:** ❌ **FALSIFICADO 4/4 — falla también la shadow-bar.**
+**Pre-registro:** DESIGN H10 §H10.1 (commit `2e058e2`) + enmienda 3 (dos varas, `29ace04`).
+Datos: funding perps Binance (8h, 2021→2025-07) + taker buy volume horario → DuckDB de
+research (`research/h10/h10_data.duckdb`, medallón intacto). Features: mom del campeón +
+fund_now/fund_z90/fund_d7/taker_imb/taker_imb_z90 + dummies. Tubería H9 exacta, DSR n=30.
+
+| Trial @36bps | IC (p) | R² OOS | Sharpe | PSR | DSR | años perdidos | live | shadow |
+|---|---|---|---|---|---|---|---|---|
+| Ridge_A diario | −0.011 (0.30) | −0.020 | −1.03 | 0.02 | 0.00 | 5/5 | 💀 | 💀 |
+| LGBM_A diario | +0.004 (0.73) | −0.033 | −1.21 | 0.00 | 0.00 | 5/5 | 💀 | 💀 |
+| Ridge_B semanal | −0.022 (0.44) | −0.065 | −0.06 | 0.46 | 0.01 | 5/5 | 💀 | 💀 |
+| LGBM_B semanal | −0.008 (0.78) | −0.080 | −0.12 | 0.41 | 0.01 | 4/5 | 💀 | 💀 |
+
+A 10bps tampoco (mejor: 0.26). **Conclusión:** el funding y el flujo agresor,
+**agregados a frecuencia diaria/semanal y usados como features de regresión
+direccional**, no aportan señal en este universo/era — la información "fresca" muere
+igual que la de precio en cuanto se la baja a la cadencia en que Hermes puede operar.
+
+**Dónde NO ir (actualizado):**
+21. **Funding/taker como features direccionales a cadencia diaria+ = nada** (4 trials,
+    ni la shadow-bar). Matiz honesto: el **carry puro de funding** (cobrar la prima
+    yendo contra el crowding, sin predecir precio) es una estrategia DISTINTA no
+    probada — requiere venue de futuros (cobrar funding exige posición perp) y su
+    propio pre-registro. No confundir este cierre con esa puerta.
