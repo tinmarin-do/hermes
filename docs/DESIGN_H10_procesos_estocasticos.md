@@ -34,6 +34,22 @@ Código de research en `research/h10/` (reproducible, committeado con resultados
 **Pre-requisito de conformidad:** antes de correr H10, cerrar la auditoría H9
 (fix dummy de símbolo + re-run de conformidad de los 6 trials — estación 4). Si el
 re-run cambiara el veredicto de H9, H10 se re-plantea antes de correr.
+✅ **CUMPLIDO 2026-07-07:** veredicto H9 ratificado con dummies (commit `058146f`).
+
+> **Enmienda pre-run 3 (2026-07-07, decisión de Erika, ANTES de correr H10.1/H10.2):**
+> **promoción a DOS niveles.** (a) **Vara LIVE** (sin cambios): los 4 criterios
+> completos custodian el capital real. (b) **Shadow-bar** (nueva): un trial que no
+> alcanza la vara live pero cumple **Sharpe > vara del brazo + PSR(0) > 0.90 + IC > 0**
+> (fee 36bps) gana slot en shadow, donde el juez es el track record forward (§8.9 v2).
+> Aplica SOLO a trials aún no corridos (H10.1, H10.2) — NO retroactiva (H9 y H10.3
+> conservan sus veredictos).
+>
+> **Decisión de PRODUCTO (Erika, 2026-07-07, registrada como gobernanza — no research):**
+> el overlay de vol-targeting de H10.3 va a **shadow como capa de RIESGO** (variante del
+> campeón, SIN claim de alpha — su falsificación como alpha queda intacta, lección #20).
+> Juez forward: si en N meses la curva shadow confirma el perfil (menos drawdown,
+> Sharpe ≥ campeón), se considera para live como guardrail con su propio proceso.
+> Implementación: junto con el logging H10.4 (PR propio con tests — toca src/brain).
 
 ---
 

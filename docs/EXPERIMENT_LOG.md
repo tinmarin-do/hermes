@@ -555,3 +555,10 @@ aplica tal cual — pero queda la lección para futuros overlays de riesgo:
     p.ej. proteger el capital live). Si se re-testea como overlay, pre-registrar
     robustez anual en SHARPE-por-año — pre-registro nuevo, trial nuevo; NO se aplica
     retroactivamente a este resultado.
+
+**Post-veredicto (2026-07-07, decisiones de Erika — gobernanza registrada):**
+(a) **Promoción a dos niveles** para trials futuros (enmienda pre-run 3 del DESIGN H10):
+vara live intacta + shadow-bar (Sharpe>vara ∧ PSR>0.90 ∧ IC>0) con juez forward.
+NO retroactiva. (b) **Vol-targeting a shadow como capa de RIESGO** por decisión de
+producto (sin claim de alpha — este veredicto queda intacto); implementación con el
+logging H10.4, PR propio.
