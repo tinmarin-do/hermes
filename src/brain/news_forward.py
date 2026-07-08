@@ -200,10 +200,11 @@ def forward_status() -> dict[str, Any]:
     con = get_connection()
     try:
         _ensure_table(con)
-        n_days, n_rows, n_scored_24h, n_scored_7d = con.execute(
+        row = con.execute(
             "SELECT COUNT(DISTINCT CAST(as_of AS DATE)), COUNT(*), "
             "COUNT(ret_24h), COUNT(ret_7d) FROM news_forward_log"
         ).fetchone()
+        n_days, n_rows, n_scored_24h, n_scored_7d = row if row else (0, 0, 0, 0)
         latest = con.execute(
             "SELECT symbol, n_headlines, novelty_frac, sentiment_tw FROM news_forward_log "
             "WHERE as_of = (SELECT MAX(as_of) FROM news_forward_log) ORDER BY symbol"
