@@ -142,7 +142,11 @@ de estrategia (posible: el campeón ya es implícitamente anti-vol vía inverse-
 
 ## H10.4 — Noticias forward-only (protocolo de scoring, sin backtest)
 
-Sin archivo histórico no hay backtest honesto (decisión 2026-07-07). Pre-registro del
+Sin archivo histórico no hay backtest honesto (decisión 2026-07-07).
+**Ratificado por Erika tras el cierre del arco (2026-07-07, noche): las noticias
+PASADAS quedan descartadas DEFINITIVAMENTE como inferencia** — ni backtest ni features
+históricas, ni ahora ni después. El eje de noticias vive EXCLUSIVAMENTE hacia adelante
+bajo este protocolo. Pre-registro del
 protocolo forward: desde el despliegue del logging, cada corrida diaria persiste el
 vector de features de noticias por símbolo (activación de clusters F4.0, novelty
 [% titulares sin cluster], sentimiento trust-weighted). Se puntúan contra retornos
