@@ -517,3 +517,41 @@ NEGATIVO (T2_B −0.109, p=1.5e-4). Ningún criterio se cumple en ningún trial.
     jamás usada para predecir — decisión Erika 2026-07-07). No necesita regresión de precio.
 19. El pilot-first de Erika **funcionó como gobernanza**: $0 gastados, cero horas de rework
     de Silver invertidas en una hipótesis que el piloto mató en 20 minutos de cómputo.
+
+---
+
+## Experimento H10.3 — Vol-targeting sobre el campeón (familia H10, trial 1)
+
+**Fecha:** 2026-07-07 · **Estado:** ❌ **NO PROMUEVE** (falla 2 de 4 criterios) — pero es
+**el intento más cercano del proyecto** y deja una lección de diseño. **Pre-registro:**
+`docs/DESIGN_H10_procesos_estocasticos.md` (commit `2e058e2`, ANTES de resultados).
+σ_target=25% anual fijo, EWMA λ=0.94 sobre retornos del campeón (sin look-ahead,
+warmup 20d), brazo A diario con-estado, DSR a n=30.
+
+| @36bps | Campeón H6 | **Vol-target** | Criterio |
+|---|---|---|---|
+| Sharpe anual | 0.927 | **1.024** | ✅ supera |
+| Max drawdown | −61.9% | **−39.8%** | ✅ mejor |
+| Vol anual | 45.9% | 27.8% | (−40% de riesgo) |
+| Fee drag anual | 32.2% | 19.1% | (menos churn) |
+| PSR(0) | 0.976 | 0.988 | ✅ >0.95 |
+| **DSR (n=30)** | — | **0.535** | ❌ <0.90 |
+| Por año vs campeón | — | pierde 2021/23/24, gana 2022/25 | ❌ pierde 3/5 |
+
+Diagnóstico Mincer-Zarnowitz (sin DSR): b=0.71, R²=0.057 — la vol ES pronosticable
+(pendiente cercana a 1) pero ruidosa a granularidad diaria.
+
+**Lectura honesta:** el overlay hizo EXACTAMENTE lo que la teoría promete — mismo motor,
+40% menos riesgo, mejor Sharpe, la mitad de drawdown. Muere por (a) DSR: a n_trials=30
+no podemos descartar suerte de selección con 4.5 años de datos; (b) el criterio de
+robustez anual en retorno ABSOLUTO castiga estructuralmente a un des-riesgador: pierde
+los años alcistas POR DISEÑO (expone ~70% en promedio). El criterio era el firmado y se
+aplica tal cual — pero queda la lección para futuros overlays de riesgo:
+
+**Dónde NO ir / lecciones (actualizado):**
+20. **Vol-targeting no promueve como generador de alpha** bajo criterios de retorno
+    absoluto anual. Su valor demostrado es de RIESGO (maxDD −40% vs −62%): candidato
+    natural a **capa defensiva de producto** (decisión de producto, no de research —
+    p.ej. proteger el capital live). Si se re-testea como overlay, pre-registrar
+    robustez anual en SHARPE-por-año — pre-registro nuevo, trial nuevo; NO se aplica
+    retroactivamente a este resultado.
