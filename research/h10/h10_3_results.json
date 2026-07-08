@@ -1,0 +1,54 @@
+{
+  "voltarget_fee36bps": {
+    "n_days": 1623,
+    "total_return": 1.9912,
+    "sharpe_ann": 1.0236,
+    "psr_zero": 0.9884,
+    "dsr_n20": 0.606,
+    "max_dd": -0.3977,
+    "ann_vol": 0.2777,
+    "win_rate": 0.4831,
+    "avg_daily_turnover_pct_of_equity": 14.5,
+    "ann_fee_drag_pct": 19.05,
+    "trade_days_pct": 54.0,
+    "by_year": {
+      "2021": 1.6462,
+      "2022": -0.3063,
+      "2023": 0.5054,
+      "2024": 0.2476,
+      "2025": -0.1324
+    },
+    "avg_exposure": 0.7017,
+    "pct_days_descaled": 71.1,
+    "dsr_n30": 0.5347
+  },
+  "mincer_zarnowitz": {
+    "a": 0.000143,
+    "b": 0.71,
+    "r2": 0.057,
+    "n": 1603
+  },
+  "voltarget_fee10bps": {
+    "n_days": 1623,
+    "total_return": 4.4059,
+    "sharpe_ann": 1.5099,
+    "psr_zero": 0.9997,
+    "dsr_n20": 0.9153,
+    "max_dd": -0.2964,
+    "ann_vol": 0.2762,
+    "win_rate": 0.5028,
+    "avg_daily_turnover_pct_of_equity": 14.49,
+    "ann_fee_drag_pct": 5.29,
+    "trade_days_pct": 53.7,
+    "by_year": {
+      "2021": 1.8201,
+      "2022": -0.2034,
+      "2023": 0.7563,
+      "2024": 0.4491,
+      "2025": -0.0545
+    },
+    "avg_exposure": 0.7027,
+    "pct_days_descaled": 70.7,
+    "dsr_n30": 0.8827
+  }
+}
