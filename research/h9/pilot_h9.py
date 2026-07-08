@@ -140,7 +140,15 @@ def build_points(arm: str) -> dict:
     mom_lbs = MOM_LBS_A if arm == "A" else MOM_LBS_B
     stamps = _iteration_stamps(SYMBOLS, "1h", freq, UNTIL)
 
-    feat_names = [f"mom_{lb}h" for lb in mom_lbs] + list(REGIME_FEATS)
+    # Dummies de símbolo (pre-registro §5: "pooled cross-symbol CON dummy de símbolo";
+    # conformidad tras hallazgo 0 de la auditoría 2026-07-07 — la 1ª corrida los omitió).
+    # drop-first: 5 columnas para 6 símbolos; el intercepto absorbe al primero.
+    dummy_syms = sorted(SYMBOLS)[1:]
+    feat_names = (
+        [f"mom_{lb}h" for lb in mom_lbs]
+        + list(REGIME_FEATS)
+        + [f"dum_{s.split('/')[0]}" for s in dummy_syms]
+    )
     rows, ys, ts_arr, sym_arr, gv_arr = [], [], [], [], []
     for t in stamps:
         for sym in SYMBOLS:
@@ -150,6 +158,7 @@ def build_points(arm: str) -> dict:
             feats = moms + [hurst, garch, spread, vz]
             if any(f is None for f in feats):
                 continue
+            feats = feats + [1.0 if sym == d else 0.0 for d in dummy_syms]
             p0 = _close_asof(sym, t)
             p1 = _close_asof(sym, t + timedelta(hours=horizon_h))
             if not p0 or not p1:
@@ -193,8 +202,16 @@ def make_model(trial: str):
 
 
 def walk_forward(pts: dict, trial: str) -> dict:
-    """Predicciones OOS por stamp. T1 usa solo mom; T2/T3 todas. Scaler per-fold (Ridge)."""
-    cols = list(range(pts["n_mom"])) if trial == "T1" else list(range(pts["X"].shape[1]))
+    """Predicciones OOS por stamp. T1 usa solo mom; T2/T3 todas. Scaler per-fold (Ridge).
+
+    Los dummies de símbolo (últimas 5 columnas) van en TODOS los trials: son la
+    infraestructura del pooling (§5), no una feature de la escalera.
+    """
+    n_feat = pts["X"].shape[1]
+    dummy_cols = list(range(n_feat - 5, n_feat))
+    cols = (
+        list(range(pts["n_mom"])) + dummy_cols if trial == "T1" else list(range(n_feat))
+    )
     X, y, ts = pts["X"][:, cols], pts["y"], pts["ts"]
     ts_np = np.array(ts, dtype="datetime64[s]")
     gap = np.timedelta64(PURGE_H + pts["horizon_h"], "h")

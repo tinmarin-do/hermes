@@ -496,6 +496,15 @@ movimientos grandes. El SIGNO (campeón) informa; la MAGNITUD extrapola justo al
 el mismo dataset — data snooping de libro. Si alguien la quiere, es pre-registro nuevo,
 trial nuevo, DSR más caro. NO se hace en caliente.
 
+**Conformidad post-auditoría (2026-07-07, noche):** la auditoría de Erika (estaciones:
+features 11/11 exactas vs SQL independiente, alineación de ventanas 200/200, corr f↔y
+0.006-0.04 sin leakage) encontró UN hallazgo real: el piloto omitió el **dummy de
+símbolo** que el pre-registro §5 exigía. Re-run de los 6 trials con la spec exacta
+(`pilot_results.json`; el original sin dummies quedó en
+`pilot_results_sindummy_original.json`): **veredicto RATIFICADO** — mejor Sharpe36
+0.21 (T1_A; vara 0.93), R² OOS negativos ×6, IC semanal sigue significativamente
+NEGATIVO (T2_B −0.109, p=1.5e-4). Ningún criterio se cumple en ningún trial.
+
 **Conclusión / DÓNDE NO IR (actualizado):**
 16. **La regresión sobre features de precio+Silver está FALSIFICADA en ambos horizontes**
     (24h y 7d) — 6 trials, cero criterios cumplidos. Con este universo/era, la magnitud

@@ -99,9 +99,18 @@ def champion_signals(ts: datetime) -> list[dict]:
 
 
 def run_stateful_daily(
-    signals_fn, stamps: list[datetime], fee_rate: float
+    signals_fn,
+    stamps: list[datetime],
+    fee_rate: float,
+    exposure: list[float] | None = None,
+    return_series: bool = False,
 ) -> dict:
-    """Libro persistente día a día. Devuelve métricas + serie diaria + turnover."""
+    """Libro persistente día a día. Devuelve métricas + serie diaria + turnover.
+
+    ``exposure``: multiplicador de exposición por día (H10.3 vol-targeting) — escala
+    los targets vía ``global_mult``; None = 1.0 (comportamiento original de la vara).
+    ``return_series``: incluye la serie diaria cruda bajo la clave ``_daily_rets``.
+    """
     equity = 1.0
     book: dict[str, float] = {}  # notional USD firmado por símbolo
     daily_rets: list[float] = []
@@ -127,7 +136,8 @@ def run_stateful_daily(
             if abs(n) > 1e-12
         ]
         legs = compute_allocations(
-            qsigs, positions, budget=equity, global_mult=1.0,
+            qsigs, positions, budget=equity,
+            global_mult=exposure[i] if exposure is not None else 1.0,
             min_trade_frac=MIN_TRADE_FRAC,
         )
         traded = 0.0
@@ -186,6 +196,7 @@ def run_stateful_daily(
         ),
         "trade_days_pct": round(100 * trade_days / len(daily_rets), 1),
         "by_year": {y: round(v - 1, 4) for y, v in sorted(by_year.items())},
+        **({"_daily_rets": daily_rets} if return_series else {}),
     }
 
 
