@@ -24,7 +24,7 @@ def healthz() -> dict[str, Any]:
 
 
 @app.post("/run")
-def run_daily(force: bool = False) -> dict[str, Any]:
+def run_daily(force: bool = False, execute: bool = True) -> dict[str, Any]:
     if not _run_lock.acquire(blocking=False):
         raise HTTPException(status_code=409, detail="corrida en curso — no se duplica")
     try:
@@ -32,7 +32,7 @@ def run_daily(force: bool = False) -> dict[str, Any]:
         from src.brain.state_sync import download_state, upload_state
 
         db_path = download_state()
-        rc = daily_main(force=force)
+        rc = daily_main(force=force, execute=execute)
         upload_state()
 
         # rc=2 (freno de budget) y rc=3 (ya corrió hoy) NO son errores de
@@ -42,6 +42,7 @@ def run_daily(force: bool = False) -> dict[str, Any]:
             "db": db_path,
             "budget_blocked": rc == 2,
             "duplicate_blocked": rc == 3,
+            "execute": execute,
         }
     except Exception as exc:
         raise HTTPException(status_code=500, detail=str(exc)[:500]) from exc
