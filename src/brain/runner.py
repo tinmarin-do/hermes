@@ -18,7 +18,9 @@ def _get_adapter() -> ExecutionAdapter:
     return get_execution_adapter()
 
 
-def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, Any]:
+def run(
+    symbols: list[str] | None = None, timeframe: str = "1h", execute: bool = True
+) -> dict[str, Any]:
     if symbols is None:
         raw = os.environ.get("HERMES_ALLOWED_SYMBOLS", "BTC/USDT,ETH/USDT")
         symbols = [s.strip() for s in raw.split(",")]
@@ -187,6 +189,9 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
     )
     print(f"Lead    : {pm.get('action')} {pm.get('symbol')} ${pm.get('size_usd', 0):.2f}")
     print(f"Risk    : {'✅ APPROVED' if final_state.get('risk_approved') else '❌ REJECTED'}")
+    if not execute:
+        print("Modo    : 🔍 DRY-RUN (validación — sin ejecución real)")
+    final_state["execute"] = execute
 
     # ── Ejecución del portafolio (§8.8): el allocator repartió el budget; ejecutamos el vector ──
     budget = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
@@ -204,29 +209,49 @@ def run(symbols: list[str] | None = None, timeframe: str = "1h") -> dict[str, An
 
     order_results: list[dict[str, Any]] = []
     for a in active:
-        result = adapter.execute(
-            {"action": a["action"], "symbol": a["symbol"], "size_usd": a["size_usd"]},
-            run_id,
-        )
-        print(
-            f"[execution] {result.action} {result.symbol} ${a['size_usd']:.4f} "
-            f"→ {result.status} qty={result.quantity}"
-            + (f" · {result.error}" if result.error else ""),
-            flush=True,
-        )
-        order_results.append(
-            {
-                "order_id": result.order_id,
-                "status": result.status,
-                "action": result.action,
-                "symbol": result.symbol,
-                "quantity": result.quantity,
-                "price": result.price,
-                "cost_usd": result.cost_usd,
-                "fee_usd": result.fee_usd,
-                "error": result.error,
-            }
-        )
+        if execute:
+            result = adapter.execute(
+                {"action": a["action"], "symbol": a["symbol"], "size_usd": a["size_usd"]},
+                run_id,
+            )
+            print(
+                f"[execution] {result.action} {result.symbol} ${a['size_usd']:.4f} "
+                f"→ {result.status} qty={result.quantity}"
+                + (f" · {result.error}" if result.error else ""),
+                flush=True,
+            )
+            order_results.append(
+                {
+                    "order_id": result.order_id,
+                    "status": result.status,
+                    "action": result.action,
+                    "symbol": result.symbol,
+                    "quantity": result.quantity,
+                    "price": result.price,
+                    "cost_usd": result.cost_usd,
+                    "fee_usd": result.fee_usd,
+                    "error": result.error,
+                }
+            )
+        else:
+            print(
+                f"[execution] DRY-RUN — se habría ejecutado: {a['action']} {a['symbol']} "
+                f"${a['size_usd']:.4f} (sin tocar el exchange)",
+                flush=True,
+            )
+            order_results.append(
+                {
+                    "order_id": None,
+                    "status": "DRY_RUN",
+                    "action": a["action"],
+                    "symbol": a["symbol"],
+                    "quantity": None,
+                    "price": None,
+                    "cost_usd": 0.0,
+                    "fee_usd": 0.0,
+                    "error": None,
+                }
+            )
     if not active:
         print("[execution] sin legs para ejecutar — freno global o todo HOLD", flush=True)
     final_state["order_results"] = order_results

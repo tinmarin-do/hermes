@@ -105,7 +105,7 @@ def _record_run(run_id: str, cost_usd: float, status: str) -> None:
         con.close()
 
 
-def main(force: bool = False) -> int:
+def main(force: bool = False, execute: bool = True) -> int:
     stamp = datetime.now(UTC).strftime("%Y-%m-%d %H:%M UTC")
     print(f"════ daily_run {stamp} ════", flush=True)
     symbols = _symbols()
@@ -185,7 +185,7 @@ def main(force: bool = False) -> int:
     from src.brain.runner import run
 
     try:
-        final_state = run(symbols=symbols, timeframe="1h")
+        final_state = run(symbols=symbols, timeframe="1h", execute=execute)
     except Exception as exc:
         print(f"[pipeline] ❌ {exc}", flush=True)
         _record_run("(failed)", 0.0, f"FAILED: {exc}"[:200])
@@ -195,7 +195,10 @@ def main(force: bool = False) -> int:
     cost = float(final_state.get("cost", {}).get("cost_usd", 0.0))
 
     # ── 6. Registrar consumo contra la línea + flag en cost_meter ──
-    _record_run(run_id, cost, "OK")
+    # DRY_RUN (execute=False) NO cuenta para el guard anti-duplicado (_ran_ok_today
+    # filtra por status='OK') — una validación manual antes de las 08:10 MX no debe
+    # bloquear la corrida diaria real de ese día.
+    _record_run(run_id, cost, "OK" if execute else "DRY_RUN")
     from src.brain.cost_meter import mark_logged
 
     mark_logged(run_id)  # consumido contra la línea PRE-AUTORIZACIÓN del ledger
@@ -222,4 +225,4 @@ def main(force: bool = False) -> int:
 
 
 if __name__ == "__main__":
-    sys.exit(main(force="--force" in sys.argv))
+    sys.exit(main(force="--force" in sys.argv, execute="--no-execute" not in sys.argv))

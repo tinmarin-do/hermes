@@ -96,6 +96,83 @@ def test_duplicate_guard_force_env_bypasses(tmp_db, monkeypatch):
     assert rc == 2
 
 
+# ── Gate execute (dry-run manual, hallazgo 2026-07-08) ────────────────────────
+
+
+@pytest.fixture
+def stubbed_pipeline(monkeypatch, tmp_path):
+    """Stubbea red/LLM/dashboard para llegar al paso 5 (run()) sin salir a internet.
+
+    symbols=[] (vía HERMES_ALLOWED_SYMBOLS vacío) ya salta bronze/silver; noticias
+    e ingest_news/transform_news se llaman incondicionalmente → se stubbean también.
+    """
+    import src.brain.runner as runner_module
+    import src.data.bronze.news as news_module
+    import src.data.silver.news_transform as news_transform_module
+    import src.dashboard.build as build_module
+
+    monkeypatch.setenv("HERMES_ALLOWED_SYMBOLS", "")
+    monkeypatch.setattr(
+        news_module, "ingest_news", lambda *a, **k: {"stored": 0, "flagged": 0}
+    )
+    monkeypatch.setattr(
+        news_transform_module,
+        "transform_news",
+        lambda: {"n_clusters": 0, "noise_frac": 0.0, "drift_alert": False},
+    )
+    monkeypatch.setattr(
+        build_module,
+        "build_snapshot",
+        lambda: {"portfolio": {"equity_usd": 0.0, "balance_usd": 0.0}},
+    )
+    monkeypatch.setattr(build_module, "SNAPSHOT_PATH", tmp_path / "snapshot.json")
+
+    captured: dict = {}
+
+    def fake_run(symbols, timeframe, execute):
+        captured["execute"] = execute
+        return {"run_id": "fake-run-id", "cost": {"cost_usd": 0.001}}
+
+    monkeypatch.setattr(runner_module, "run", fake_run)
+    return captured
+
+
+def test_dry_run_records_status_dry_run_not_ok(tmp_db, stubbed_pipeline):
+    import duckdb
+
+    from scripts import daily_run
+
+    captured = stubbed_pipeline
+    rc = daily_run.main(force=True, execute=False)
+    assert rc == 0
+    assert captured["execute"] is False
+
+    con = duckdb.connect(str(tmp_db / "daily.duckdb"))
+    row = con.execute("SELECT run_id, status FROM daily_run_log").fetchone()
+    con.close()
+    assert row == ("fake-run-id", "DRY_RUN")
+    # el guard anti-duplicado filtra por status='OK' — un dry-run no debe bloquear
+    # la corrida diaria real de ese mismo día UTC
+    assert daily_run._ran_ok_today() is False
+
+
+def test_execute_true_still_records_status_ok(tmp_db, stubbed_pipeline):
+    import duckdb
+
+    from scripts import daily_run
+
+    captured = stubbed_pipeline
+    rc = daily_run.main(force=True, execute=True)
+    assert rc == 0
+    assert captured["execute"] is True
+
+    con = duckdb.connect(str(tmp_db / "daily.duckdb"))
+    status = con.execute("SELECT status FROM daily_run_log").fetchone()[0]
+    con.close()
+    assert status == "OK"
+    assert daily_run._ran_ok_today() is True
+
+
 # ── Silver incremental (transform_tail) ───────────────────────────────────────
 
 
