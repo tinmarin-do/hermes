@@ -107,14 +107,12 @@ def stubbed_pipeline(monkeypatch, tmp_path):
     e ingest_news/transform_news se llaman incondicionalmente → se stubbean también.
     """
     import src.brain.runner as runner_module
+    import src.dashboard.build as build_module
     import src.data.bronze.news as news_module
     import src.data.silver.news_transform as news_transform_module
-    import src.dashboard.build as build_module
 
     monkeypatch.setenv("HERMES_ALLOWED_SYMBOLS", "")
-    monkeypatch.setattr(
-        news_module, "ingest_news", lambda *a, **k: {"stored": 0, "flagged": 0}
-    )
+    monkeypatch.setattr(news_module, "ingest_news", lambda *a, **k: {"stored": 0, "flagged": 0})
     monkeypatch.setattr(
         news_transform_module,
         "transform_news",

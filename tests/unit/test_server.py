@@ -7,12 +7,13 @@ pytestmark = pytest.mark.unit
 
 
 @pytest.fixture
-def client(monkeypatch):
+def client(monkeypatch, tmp_path):
     import scripts.daily_run as daily_run_module
     import src.brain.state_sync as state_sync_module
     from src.brain.server import app
 
-    monkeypatch.setattr(state_sync_module, "download_state", lambda: "/tmp/fake.duckdb")
+    fake_db_path = str(tmp_path / "fake.duckdb")
+    monkeypatch.setattr(state_sync_module, "download_state", lambda: fake_db_path)
     monkeypatch.setattr(state_sync_module, "upload_state", lambda: None)
 
     captured: dict = {}
