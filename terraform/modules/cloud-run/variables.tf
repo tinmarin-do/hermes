@@ -2,7 +2,6 @@ variable "project_id" { type = string }
 variable "region" { type = string }
 variable "dashboard_image" { type = string }
 variable "brain_image" { type = string }
-variable "db_connection" { type = string }
 
 
 variable "scheduler_sa_email" {

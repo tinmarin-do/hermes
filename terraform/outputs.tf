@@ -8,8 +8,3 @@ output "brain_url" {
   value       = module.cloud_run.brain_url
   sensitive   = true
 }
-
-output "db_connection_name" {
-  description = "Cloud SQL connection name"
-  value       = module.cloud_sql.connection_name
-}

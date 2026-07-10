@@ -21,12 +21,6 @@ variable "brain_image" {
   default     = ""
 }
 
-variable "db_password" {
-  type        = string
-  sensitive   = true
-  default     = ""
-  description = "Password del usuario SQL — pasar desde Secret Manager: TF_VAR_db_password=$(gcloud secrets versions access latest --secret=hermes-db-password). JAMÁS plaintext."
-}
 
 variable "capital_usd" {
   type        = number

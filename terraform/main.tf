@@ -21,20 +21,12 @@ module "secret_manager" {
   project_id = var.project_id
 }
 
-module "cloud_sql" {
-  source      = "./modules/cloud-sql"
-  project_id  = var.project_id
-  region      = var.region
-  db_password = var.db_password
-}
-
 module "cloud_run" {
   source                  = "./modules/cloud-run"
   project_id              = var.project_id
   region                  = var.region
   dashboard_image         = var.dashboard_image
   brain_image             = var.brain_image
-  db_connection           = module.cloud_sql.connection_name
   dashboard_iap_accessors = var.dashboard_iap_accessors
   # Secretos creados vía gcloud 2026-07-04 (fuera del módulo secret-manager a
   # propósito: aquí solo se REFERENCIAN; el valor lo cargó la operadora).
