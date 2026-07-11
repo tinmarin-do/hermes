@@ -39,15 +39,39 @@ operativos (GCP + LLM) de la sección Presupuestos.
   Fase 2 = neteo del PaperAdapter; Fase 3 = vista de cartera en dashboard.
   Fuentes de verdad: PRD v0.3 §8.8/§9 y `docs/DESIGN_portfolio_allocator.md`.
 
+## ⚡ ARCO H11 ACTIVO — modo research-cloud (directivas Erika 2026-07-11)
+
+Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 de abajo:
+
+- **Autonomía total en la nube**: gcloud/gsutil/bq/terraform se ejecutan SIN pedir
+  aprobación por operación (settings `allow`; gatekeeper cost-est del hook suspendido).
+- **Ledgers GCP suspendidos** para el arco. Protección de gasto real:
+  `google_billing_budget` con alertas 50%/80% (`EXCLUDE_ALL_CREDITS`). **Regla dura:
+  jamás gastar >80% ($232) de los $290 de créditos antes de alcanzar la meta**
+  (F1 ≥ 0.60 OOS + ~1% diario neto MXN). Reportar gasto acumulado periódicamente.
+  El ledger LLM y su cost-check de CI siguen vigentes.
+- **Todo experimento corre en GCP** (`src/lab/`, job `hermes-lab`, bucket
+  `hermes-research-*`). Local se usa ÚNICAMENTE como cable de descarga del histórico
+  Binance (delta + upload) — nada más.
+- **Datos duales**: Binance = corpus histórico/features · Bitso = labels, evaluación y
+  contabilidad (SIEMPRE en MXN) · puente de tracking pre-registrado entre ambos.
+- **Metodología**: sense-first (dossier de variables → GATE de Erika), split híbrido
+  80/20 (bloques purgados K=5 + corte temporal), ventana de observación >> horizonte.
+  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR).
+- **Intocables**: el pipeline live (`src/brain/`, allocator, comité, scheduler) no se
+  modifica; secretos siguen en deny; nada mueve dinero real sin el firewall completo
+  (slice one-shot + shadow ≥45d + sign-off de Erika). Fuente de verdad del arco:
+  `docs/DESIGN_H11_daily_classifier.md` + plan aprobado 2026-07-11.
+
 ## Reglas críticas (no negociables)
 
-1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`.
-2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes.
+1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`. *(SUSPENDIDA en arco H11 — ver bloque de arriba.)*
+2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes. *(En arco H11: plan antes de apply sigue siendo buena práctica, sin gate.)*
 3. **NUNCA** commitear secretos — Secret Manager (cloud) o `.env` local (en .gitignore).
 4. **NUNCA** operar en modo live sin guardrails activos (Kelly + VaR + correlación).
-5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`.
-6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00.
-7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`.
+5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`. *(Ledger GCP suspendido en arco H11; el LLM sigue.)*
+6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00. *(SUSPENDIDA en arco H11.)*
+7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`. *(SUSPENDIDA en arco H11.)*
 8. **NUNCA** habilitar short en live sin opt-in explícito tras calibrar (`/brain:calibrate-risk`). Short real requiere venue de **futuros** (spot no puede); en paper se **simula**. Live arranca **long-only**. Ver §8.8 del PRD y `docs/DESIGN_portfolio_allocator.md`.
 
 ## Skills disponibles
