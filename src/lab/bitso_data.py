@@ -24,8 +24,15 @@ EARLIEST = datetime(2016, 1, 1, tzinfo=UTC)  # Bitso existe desde 2014; margen a
 
 
 def _mxn_books(ex: ccxt.bitso) -> list[str]:
+    # Bitso reporta active=None en TODOS los libros (verificado 2026-07-11):
+    # solo excluir los explícitamente inactivos (active is False).
     markets = ex.load_markets()
-    return sorted(s for s, m in markets.items() if m.get("quote") == "MXN" and m.get("active"))
+    return sorted(
+        s for s, m in markets.items() if m.get("quote") == "MXN" and m.get("active") is not False
+    )
+
+
+JUMP_MS = 180 * 24 * 3600 * 1000  # si el venue devuelve vacío pre-listado, saltar 180d
 
 
 def _fetch_all(ex: ccxt.bitso, book: str, since: datetime) -> pd.DataFrame:
@@ -35,6 +42,9 @@ def _fetch_all(ex: ccxt.bitso, book: str, since: datetime) -> pd.DataFrame:
     while cursor < now_ms:
         candles = ex.fetch_ohlcv(book, "1h", since=cursor, limit=BATCH)
         if not candles:
+            if not rows:
+                cursor += JUMP_MS  # aún no encontramos el inicio del listado
+                continue
             break
         rows.extend(candles)
         last = candles[-1][0]
