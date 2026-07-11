@@ -1,0 +1,9 @@
+# Build de la imagen del laboratorio H11 (context = repo root).
+#   gcloud builds submit --config src/lab/cloudbuild.yaml \
+#     --substitutions _IMAGE=us-central1-docker.pkg.dev/PROJECT/hermes/lab:TAG
+steps:
+  - name: gcr.io/cloud-builders/docker
+    args: ["build", "-f", "src/lab/Dockerfile", "-t", "${_IMAGE}", "."]
+images: ["${_IMAGE}"]
+options:
+  logging: CLOUD_LOGGING_ONLY

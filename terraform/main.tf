@@ -14,6 +14,10 @@ terraform {
 provider "google" {
   project = var.project_id
   region  = var.region
+  # billingbudgets API (arco H11) exige quota project con ADC de usuario:
+  # sin estas dos líneas, google_billing_budget da 403 aunque el ADC lo tenga.
+  user_project_override = true
+  billing_project       = var.project_id
 }
 
 module "secret_manager" {
@@ -132,6 +136,19 @@ module "monitoring" {
   source      = "./modules/monitoring"
   project_id  = var.project_id
   alert_email = var.alert_email
+}
+
+# Arco H11 (2026-07-11): laboratorio de research 100% cloud. Aislado del stack
+# productivo: SA propia, bucket propio, budget real de créditos con alertas.
+module "research_lab" {
+  source             = "./modules/research-lab"
+  project_id         = var.project_id
+  region             = var.region
+  lab_image          = var.lab_image
+  billing_account_id = var.billing_account_id
+  budget_units       = var.research_budget_units
+  alert_email        = var.alert_email
+  vm_enabled         = var.lab_vm_enabled
 }
 
 # El dashboard (SA runtime) dispara el job de emergencia con la secuencia

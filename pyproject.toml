@@ -48,6 +48,12 @@ dev = [
     "mypy>=1.13",
     "pip-audit>=2.7",
 ]
+lab = [
+    # Arco H11 — laboratorio cloud (src/lab): clasificador binario diario.
+    # El resto (duckdb/pandas/lightgbm/arch/hurst/ccxt/gcs) ya es dependencia core.
+    "scikit-learn>=1.5",
+    "pyarrow>=17",
+]
 news = [
     "sentence-transformers>=3.0",   # embeddings de noticias (local, CPU)
     "umap-learn>=0.5.6",           # reducción de dimensión para clusterizar
