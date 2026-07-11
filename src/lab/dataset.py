@@ -78,8 +78,7 @@ def main() -> int:
     full["year"] = pd.to_datetime(full.ts).dt.year
     lines = [
         "# Base rates del target y=1 (ret 24h MXN > +1%) — arco H11",
-        f"\nGenerado: {datetime.now(UTC).isoformat()} · dataset daily_v1 "
-        f"({len(full):,} filas)\n",
+        f"\nGenerado: {datetime.now(UTC).isoformat()} · dataset daily_v1 ({len(full):,} filas)\n",
         "F1 naive (siempre-sí) = 2p/(1+p). La meta F1≥0.60 exige superar este floor.\n",
         "| fuente | símbolo | filas | p(y=1) | F1 naive |",
         "|---|---|---|---|---|",
@@ -87,9 +86,7 @@ def main() -> int:
     grp = full.groupby(["source", "symbol"])["y"].agg(["count", "mean"])
     for (src, sym), row in grp.iterrows():
         p = row["mean"]
-        lines.append(
-            f"| {src} | {sym} | {int(row['count']):,} | {p:.1%} | {2 * p / (1 + p):.3f} |"
-        )
+        lines.append(f"| {src} | {sym} | {int(row['count']):,} | {p:.1%} | {2 * p / (1 + p):.3f} |")
     p_all = full["y"].mean()
     f1_naive = 2 * p_all / (1 + p_all)
     lines.append(f"| **pooled** | — | {len(full):,} | {p_all:.1%} | {f1_naive:.3f} |")
