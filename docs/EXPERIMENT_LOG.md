@@ -973,3 +973,37 @@ emisión multi-stream (misma ancla 2026-07-11, mismo universo):
 **Portafolios 100% disjuntos** — se repartieron el universo en visiones opuestas;
 el forward va a separar señal de ruido con contraste máximo. Selection effect
 declarado: 2 streams compiten (§12.1); la promoción eventual lo descuenta.
+
+### H12 — window_check §13 (2026-07-12): la economía multi-régimen INVIERTE la jerarquía
+
+Protocolo pre-registrado (vara fijada ANTES de correr): 40 ventanas de 28d no
+solapadas (2021-04 → 2025-09), re-entreno por ventana con purga/embargo 28d,
+mismas ventanas para ambos, costo de entrada completo en ambos lados.
+
+| | campeón ext5-h28 | GRU nn1 |
+|---|---|---|
+| Exceso mediano/ventana | **−1.24%** | **+1.99%** |
+| Exceso medio | −2.21% | +1.22% |
+| % ventanas positivas | 35% | 62.5% |
+| 2021 | −8.04 | −1.85 |
+| 2022 | −1.83 | +0.31 |
+| 2023 | −0.85 | +0.46 |
+| 2024 | −1.58 | +2.52 |
+| 2025 | +0.81 | +4.98 |
+| Vara §13 (mediana>0 · ≥55%+ · sin año <−1%) | ❌❌❌ **NO PASA** | ✅✅❌ **NO PASA** (2021: −1.85) |
+
+Lectura honesta:
+1. **El "campeón" era un artefacto del régimen reciente.** Su exceso +5.02/periodo
+   vivía SOLO en el año del holdout; en el resto de la historia pierde contra la
+   canasta en TODOS los años (2021: −8%/periodo). El M4-bloques que falló "por un
+   pelito" era el canario — window_check confirma la contraparte económica.
+2. **El GRU se sostiene donde el campeón se cae**: positivo en 4/5 años, mejora
+   monótona 2021→2025, mediana +1.99. Falla la vara SOLO por 2021 (−1.85 < −1.0).
+   La varianza de AUC entre draws (0.45-0.55) convive con economía positiva —
+   otra vez: el dinero está en la magnitud, no en la tasa de acierto.
+3. **Nadie pasa la vara pre-registrada** → nadie gana sello; la vara NO se
+   ablanda. Pero la jerarquía del arco se invierte: el GRU es el candidato más
+   robusto entre regímenes y el "campeón" NO debe acercarse al firewall con esta
+   evidencia. Caveats: alta varianza por ventana (rango ±35%), ~8 ventanas/año,
+   re-entreno ve futuro relativo a su ventana (robustez de señal, no deploy —
+   el shadow multi-stream sigue siendo el juez). n_trials sin cambio (20).
