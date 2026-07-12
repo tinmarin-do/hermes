@@ -303,7 +303,9 @@ def _bitso_panel() -> pd.DataFrame:
     return panel
 
 
-def _day_logistic(model: dict[str, Any], panel: pd.DataFrame) -> tuple[Any, pd.DataFrame, list[str]]:
+def _day_logistic(
+    model: dict[str, Any], panel: pd.DataFrame
+) -> tuple[Any, pd.DataFrame, list[str]]:
     """Matriz del catálogo causal de features.py — paridad con el training."""
     from src.lab.features import build_candidates, compute_matrix
 
