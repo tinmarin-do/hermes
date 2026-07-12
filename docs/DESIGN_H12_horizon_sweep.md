@@ -65,3 +65,27 @@ incluye alinear el scheduler a H (§3) como parte del MISMO gate.
 
 Créditos restantes ~$285 de $290; regla dura 80% ($232) intacta. Costo estimado del
 arco: <$10 (estudios + ~6-10 trials).
+
+## §7 Fase NN — ACOTADA (pre-registrada 2026-07-12, aprobada por Erika)
+
+Corre DESPUÉS del barrido baseline y SOLO sobre el horizonte ganador. **Máximo 2
+configuraciones contadas** (techo duro anti-DSR; ampliar = nuevo gate):
+1. **TTM (IBM TinyTimeMixers) fine-tuneado** a forecast de retorno H-días por símbolo
+   → rank de predicciones → misma cartera top-5 (el prior pre-entrenado es la
+   hipótesis; el forecaster no ve el label — la cartera lo convierte en ranking).
+2. **Red pequeña supervisada (TCN/GRU)** sobre secuencias OHLCV crudas (60-90d) con
+   label extremes_k5 (representation learning: ¿las features manuales pierden algo?).
+Racional del techo: LightGBM > logística falló 3×— la capacidad no es el cuello de
+botella; una red solo es hipótesis NUEVA si cambia el INPUT (secuencias crudas).
+Mismo juez: metas §4, cadencia en piedra §3, conteo íntegro de trials. Cómputo: VM
+spot (toggle Terraform) o Cloud Run GPU; créditos sobran.
+
+## §8 Sets por horizonte — GATE CERRADO (Erika 2026-07-12: "Vamos a como me digas")
+
+Regla lookback ≥ H aplicada; evidencia: dossiers `feature_dossier_v2_relmedian_h{3,7,14}`.
+- H=3: rv_20d, ret_5d, ret_21d, ret_63d
+- H=7: rv_20d, ret_10d, ret_21d, ret_63d
+- H=14: rv_20d, ret_21d, ret_63d
+Excluidas: ewma_vol_20 (canary FUGA ×3 — definitivo), breadth_20d (day-constant,
+artefacto), hl_range/hl_range_z30 (lookback 1d < H; z30 muere con horizonte),
+usdmxn_ret_5d (IC +0.032 a H7 pero lookback 5 < 7 — la regla manda).
