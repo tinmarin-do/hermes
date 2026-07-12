@@ -88,6 +88,50 @@ resource "google_cloud_run_v2_job" "lab" {
   }
 }
 
+# ── Shadow pre-firewall H12 (DESIGN_H12 §12): emisión diaria del campeón ──────
+# El scheduler dispara el MISMO job hermes-lab con override de args (papel, cero
+# riesgo, no toca el stack live). Cadencia de REBALANCEO = 28d la decide el
+# producer (grilla anclada); la emisión diaria solo acumula evidencia AUC.
+# 00:20 UTC: la barra diaria D cierra a las 00:00 — se decide con el día completo.
+resource "google_cloud_run_v2_job_iam_member" "lab_scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.lab.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.scheduler_sa_email}"
+}
+
+resource "google_cloud_scheduler_job" "shadow_emit" {
+  project          = var.project_id
+  region           = var.region
+  name             = "hermes-shadow-h12-emit"
+  description      = "Shadow pre-firewall ext5-h28: delta Bitso + señal diaria + eval (§12)"
+  schedule         = "20 0 * * *"
+  time_zone        = "Etc/UTC"
+  attempt_deadline = "180s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.lab.name}:run"
+    body = base64encode(jsonencode({
+      overrides = {
+        containerOverrides = [{ args = ["src.lab.shadow_producer", "--emit"] }]
+      }
+    }))
+    headers = {
+      "Content-Type" = "application/json"
+    }
+    oauth_token {
+      service_account_email = var.scheduler_sa_email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+}
+
 # ── Billing budget REAL — la protección de gasto del arco ─────────────────────
 # EXCLUDE_ALL_CREDITS es CRÍTICO: con créditos incluidos el costo neto es $0 y
 # las alertas del 50/80% jamás dispararían. Regla dura del arco: no pasar del
