@@ -246,3 +246,37 @@ ventana → mide robustez de señal entre regímenes, NO deployabilidad (el año
 temporal y el shadow siguen siendo los jueces de deploy). Sus resultados
 informan el juicio de Erika y se adoptan como estándar para candidatos futuros;
 las metas v3 NO se re-abren retroactivamente.
+
+## §14 ONE-SHOT del slice de confirmación — GRU (autorizado por Erika 2026-07-12, pre-registrado ANTES de correr)
+
+Erika autorizó gastar el one-shot del candidato primario YA ("Pues claro! ...de
+una dispáralo"), aceptando las dos condiciones: (a) es EL único intento del GRU
+— pase o falle se documenta y JAMÁS se repite ni se re-ajusta contra el slice;
+(b) un pase NO abre el live por sí solo — shadow ≥45d + scheduler alineado a
+28d + sign-off siguen obligatorios (firewall §5 intacto). Desviación declarada
+de M5 (el GRU no pasó M4-bloques): la autoriza Erika como dueña de las metas,
+con window_check §13 (4/5 años positivo) como sustento.
+
+**Protocolo (fijo):**
+- Candidato: artefacto CONGELADO `models/h12-gru-h28.json` (sha 4a52a1d4e870,
+  entrenado SOLO con iteración hasta 2025-09-10; congelado ANTES de decidir
+  este test). El job verifica el sha antes de puntuar.
+- Data: slice de confirmación (fechas ≥ corte ~2025-09-11, jamás usadas en
+  train/validación/window_check), corpus Binance, universo operable, H=28.
+  Se puntúan TODAS las filas con secuencia válida (anti-leakage §10.1); las
+  secuencias miran hacia atrás y pueden cruzar al periodo de iteración (input
+  backward-looking, no es leakage — el modelo nunca ENTRENÓ con labels del slice).
+- Economía: phase check completo (28 offsets) con el motor estándar; el slice
+  da ~9-10 periodos por offset → **min_obs=8 SOLO para esta evaluación**
+  (parámetro expuesto, pre-declarado aquí; el default del motor no cambia).
+- Ranking: AUC-ROC pooled sobre las filas etiquetadas del slice (mismo cómputo
+  que M4 en validación).
+
+**VARA (fijada antes de correr; no se ablanda):**
+1. **B1** exceso phase-mean > 0 (28 offsets vs EW buy&hold)
+2. **B2** exceso sin-top1 phase-mean > 0 (anti-episodio)
+3. **B3** AUC pooled > 0.52
+PF/маxDD/hit se REPORTAN sin gate (~9 periodos → PF ruidoso). PASA = B1∧B2∧B3.
+Si PASA: GRU = candidato CONFIRMADO del arco (TTM §7.2 queda como challenger
+opcional la próxima sesión). Si FALLA: GRU falsificado sobre data fresca, slice
+quemado, se documenta — y el arco se re-piensa con el shadow como única línea.
