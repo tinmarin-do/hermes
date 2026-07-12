@@ -727,3 +727,32 @@ pérdidas de configs ya perdedoras (trials 1, 3, 4). Contradice además la meta 
 asimetría ("ganancias >> pérdidas" exige colas derechas LARGAS). El watchdog upside
 NO se construye. Reemplazo pre-registrado: variante **stop-loss −3%** (corta la cola
 izquierda — el lado correcto de la distribución para esa meta).
+
+### H11 — Tanda 3: primeros trials del label relativo (gate v2 aprobado) (2026-07-12)
+
+Gate del dossier v2 aprobado por Erika ("VAMOS!") → FEATURE_SET_V2 congelado
+(ret_2d, abs_ret_1d, btc_ret_1d, rv_20d, hl_range). Trials con label `rel_median`,
+suavizado desde el arranque (lección de la tanda 2), SL-3% siempre como variante.
+
+| Trial | Qué | Resultado | Veredicto |
+|---|---|---|---|
+| rel-logistic-sm015 | logística, α=0.15, k=5 | acc 0.5129±0.004 / 0.5128 · AUC 0.522 · **+0.169%/día, +59.5% total, Sharpe 1.25, maxDD −39%, DSR 0.38** (todos, récord del arco) · PF 1.21 · exceso −0.070 | 🟡 mejor config del arco; no cumple metas |
+| rel-logistic-sm033 | ídem α=0.33 | +0.093%/día · exceso −0.146 | ❌ (α=0.15 domina) |
+| rel-lightgbm-sm015 | LGBM, α=0.15 | acc 0.507/0.516 · +0.152%/día · exceso −0.087 | ❌ no supera a la logística |
+| rel-log-sm015-k10 | tilt amplio k=10 | +0.177%/día · exceso −0.062 · PF 1.19 | 🟡 mejora marginal; no voltea el exceso |
+
+**Aprendizajes de la tanda (n_trials: 12):**
+1. **La señal relativa es REAL pero diminuta**: acc 51.3% (naive 50%), AUC 0.52,
+   estable en ambas validaciones y ambos modelos. +1.3pp sobre la moneda.
+2. **El SL-3% muere igual que el TP-3%**: destruye toda config (+0.169 → −0.022;
+   PF cae bajo 1). A vol diaria de cripto (~3-5%), un toque de −3% intradía es RUIDO,
+   no señal de salida: vende en el dip días que cierran arriba. **Conclusión de par:
+   NINGÚN mecanismo de salida intradía a ±3% sobrevive en este universo — el nivel
+   está dentro de la banda de ruido.** (dónde-no-ir nuevo)
+3. **El cálculo decisivo**: exceso neto −0.062 con costo ~0.053%/día → el exceso
+   BRUTO del tilt sobre la canasta EW es ≈ 0. La acc de 51.3% se concentra en
+   empates cerca de la mediana (aciertos sin magnitud); el top-k no extrae valor
+   económico de ella. Concentrar (k=5) o ampliar (k=10) no cambia el signo.
+4. Metas v2 a hoy: acc 0.513 vs 0.55 · PF 1.21 vs 1.5 · exceso −0.062 vs >0.
+   Sí mejoró TODO vs la familia absoluta (Sharpe 1.25 vs 0.85; maxDD −39 vs −57;
+   DSR 0.38 vs 0.32) — dirección correcta, magnitud insuficiente.
