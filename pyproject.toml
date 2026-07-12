@@ -126,6 +126,11 @@ module = [
 ]
 ignore_errors = true
 
+# CI corre mypy SIN el extra nn: torch es Any y la GruNet subclasea nn.Module.
+[[tool.mypy.overrides]]
+module = ["src.lab.nn_trial"]
+disallow_subclassing_any = false
+
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["tests"]
