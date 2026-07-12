@@ -38,7 +38,7 @@ JUMP_MS = 180 * 24 * 3600 * 1000  # si el venue devuelve vacío pre-listado, sal
 def _fetch_all(ex: ccxt.bitso, book: str, since: datetime) -> pd.DataFrame:
     cursor = int(since.timestamp() * 1000)
     now_ms = int(datetime.now(UTC).timestamp() * 1000)
-    rows: list[list] = []
+    rows: list[list[float]] = []
     while cursor < now_ms:
         candles = ex.fetch_ohlcv(book, "1h", since=cursor, limit=BATCH)
         if not candles:

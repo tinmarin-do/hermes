@@ -4,6 +4,7 @@ import json
 import os
 import tempfile
 from pathlib import Path
+from typing import Any
 
 import pandas as pd
 from google.cloud import storage
@@ -27,7 +28,7 @@ def read_parquet(blob_path: str) -> pd.DataFrame:
         return pd.read_parquet(tmp.name)
 
 
-def upload_json(obj: dict | list, blob_path: str) -> None:
+def upload_json(obj: dict[str, Any] | list[Any], blob_path: str) -> None:
     bucket().blob(blob_path).upload_from_string(
         json.dumps(obj, indent=2, default=str), content_type="application/json"
     )

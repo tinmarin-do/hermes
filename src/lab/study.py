@@ -11,13 +11,14 @@ Escribe reports/feature_dossier.md + .json  →  GATE: Erika aprueba el conjunto
 
 import sys
 from datetime import UTC, datetime
+from typing import Any
 
 import numpy as np
 import pandas as pd
 from scipy.stats import spearmanr
 
 from src.lab import gcs
-from src.lab.features import build_candidates, compute_matrix
+from src.lab.features import Candidate, build_candidates, compute_matrix
 from src.lab.splits import CONFIRMATION_FRACTION
 
 # Sample de estudio: 2 majors + 2 mid + 1 chico (representativos, no exhaustivos)
@@ -32,7 +33,7 @@ def _iteration_only(panel: pd.DataFrame) -> pd.DataFrame:
     return panel[pd.to_datetime(panel["ts"]) < cut].copy()
 
 
-def _decile_table(feat: pd.Series, y: pd.Series) -> list[dict]:
+def _decile_table(feat: pd.Series, y: pd.Series) -> list[dict[str, Any]]:
     df = pd.DataFrame({"f": feat, "y": y}).dropna()
     if df["f"].nunique() < 10:  # categóricas (dow, quincena): rate por valor
         g = df.groupby("f")["y"].agg(["mean", "count"])
@@ -48,7 +49,7 @@ def _decile_table(feat: pd.Series, y: pd.Series) -> list[dict]:
     ]
 
 
-def _canary_leakage(panel: pd.DataFrame, cand, rng: np.random.Generator) -> bool:
+def _canary_leakage(panel: pd.DataFrame, cand: Candidate, rng: np.random.Generator) -> bool:
     """Feature en t con serie completa == con serie truncada en t (sin lookahead)."""
     full = cand.fn(panel)
     dates = pd.DatetimeIndex(pd.to_datetime(panel["ts"]).unique()).sort_values()
@@ -171,7 +172,7 @@ def main() -> int:
     return 0
 
 
-def _render_md(fichas: list[dict], high_pairs: list[dict], n_rows: int) -> str:
+def _render_md(fichas: list[dict[str, Any]], high_pairs: list[dict[str, Any]], n_rows: int) -> str:
     L = [
         "# Dossier de variables — Fase D1 arco H11 (SENSE FIRST)",
         f"\nGenerado: {datetime.now(UTC).isoformat()} · sample {STUDY_SYMBOLS} · "

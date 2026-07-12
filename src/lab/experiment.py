@@ -14,9 +14,13 @@ import os
 import platform
 import sys
 from datetime import UTC, datetime
+from typing import TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from google.cloud import storage
 
 
-def _bucket():
+def _bucket() -> "storage.Bucket":
     from google.cloud import storage
 
     name = os.environ["HERMES_RESEARCH_BUCKET"]

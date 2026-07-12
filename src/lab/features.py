@@ -10,9 +10,14 @@ ordenado por symbol,ts. Las cross-seccionales pivotean sobre ts.
 
 from collections.abc import Callable
 from dataclasses import dataclass, field
+from functools import partial
+from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
+
+if TYPE_CHECKING:
+    from pandas.core.groupby.generic import SeriesGroupBy
 
 
 @dataclass
@@ -24,7 +29,7 @@ class Candidate:
     min_lookback_days: int = 0  # ventana efectiva de observación
 
 
-def _g(df: pd.DataFrame, col: str = "close"):
+def _g(df: pd.DataFrame, col: str = "close") -> "SeriesGroupBy":
     return df.groupby("symbol", observed=True)[col]
 
 
@@ -52,9 +57,9 @@ def _rolling_hurst_series(x: pd.Series, window: int = 100) -> pd.Series:
     def h(arr: np.ndarray) -> float:
         try:
             H, _, _ = compute_Hc(arr, kind="price", simplified=True)
-            return H
+            return float(H)
         except Exception:  # noqa: BLE001
-            return np.nan
+            return float("nan")
 
     return x.rolling(window).apply(lambda a: h(a.values), raw=False)
 
@@ -74,7 +79,7 @@ def build_candidates() -> list[Candidate]:
                     "plazo en la magnitud; a horizonte 1d el signo/magnitud reciente es el "
                     "candidato más directo (continuación o reversión — el estudio decide)."
                 ),
-                fn=lambda df, d=d: _ret(df, d),
+                fn=partial(_ret, days=d),
                 min_lookback_days=d,
             )
         )
