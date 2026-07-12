@@ -24,7 +24,12 @@ Decisiones de diseño (pre-registradas en §12 ANTES de la primera emisión):
   de confirmación jamás entrena). Artefacto JSON auditable (scaler+coefs+sha), sin
   pickle.
 
-Modos:  --freeze | --emit (delta Bitso → señal → ledger → eval) | --eval
+Multi-stream (§12.1): el mismo protocolo corre para el campeón Y sus challengers
+congelados (hoy: GRU NN-1) — mismas fechas de grilla, mismo universo, ledgers y
+reportes separados. La comparación cara a cara forward es el único juez legítimo
+entre dos candidatos que fallan M4-bloques.
+
+Modos:  --freeze (campeón) | --emit [--model ID] | --emit-all | --eval [--model ID]
 """
 
 import argparse
@@ -42,14 +47,30 @@ from src.lab import gcs
 from src.lab.backtest_daily import FEE_RATE, SLIPPAGE, StrategyParams, _weights_for_day
 from src.lab.dataset import NON_TARGET, _daily_bars
 
-MODEL_ID = "h12-ext5-h28"
+CHAMPION_ID = "h12-ext5-h28"
+GRU_ID = "h12-gru-h28"
+# streams del shadow (§12/§12.1): id → tipo de scorer. Mismo protocolo para todos:
+# artefacto congelado auditable, grilla 28d propia, ledger y reporte separados.
+STREAMS: dict[str, str] = {CHAMPION_ID: "logistic", GRU_ID: "gru_seq"}
 CADENCE_DAYS = 28
-SPEC_BLOB = "experiments/specs/manual/h12-h28.json"
-MODEL_BLOB = f"models/{MODEL_ID}.json"
-CONFIG_BLOB = f"shadow/{MODEL_ID}/config.json"
-DAYS_PREFIX = f"shadow/{MODEL_ID}/days/"
-REPORT_STEM = f"reports/shadow_{MODEL_ID.replace('-', '_')}"
+SPEC_BLOB = "experiments/specs/manual/h12-h28.json"  # receta del campeón (--freeze)
 MATURITY_TOLERANCE_DAYS = 3  # entrada madura si existe emisión en [D+28, D+28+tol]
+
+
+def model_blob(sid: str) -> str:
+    return f"models/{sid}.json"
+
+
+def config_blob(sid: str) -> str:
+    return f"shadow/{sid}/config.json"
+
+
+def days_prefix(sid: str) -> str:
+    return f"shadow/{sid}/days/"
+
+
+def report_stem(sid: str) -> str:
+    return f"reports/shadow_{sid.replace('-', '_')}"
 
 
 # ── funciones puras (testeables sin GCS) ───────────────────────────────────────
@@ -89,6 +110,7 @@ def evaluate(
     entries: list[dict[str, Any]],
     fee_rate: float = FEE_RATE,
     slippage: float = SLIPPAGE,
+    model_id: str = CHAMPION_ID,
 ) -> dict[str, Any]:
     """Track record + AUC forward desde el ledger (puro: solo lee las emisiones).
 
@@ -100,7 +122,7 @@ def evaluate(
     """
     entries = sorted(entries, key=lambda e: e["decision_date"])
     cost = fee_rate + slippage
-    out: dict[str, Any] = {"model_id": MODEL_ID, "n_entries": len(entries)}
+    out: dict[str, Any] = {"model_id": model_id, "n_entries": len(entries)}
     if not entries:
         return out | {"error": "ledger vacío"}
 
@@ -229,7 +251,7 @@ def freeze() -> int:
     ).fit(scaler.transform(x), y)
 
     artifact: dict[str, Any] = {
-        "model_id": MODEL_ID,
+        "model_id": CHAMPION_ID,
         "spec": asdict(spec),
         "features": list(spec.features),
         "scaler_mean": scaler.mean_.tolist(),
@@ -243,10 +265,10 @@ def freeze() -> int:
         "frozen_at": datetime.now(UTC).isoformat(),
     }
     artifact["sha256"] = hashlib.sha256(json.dumps(artifact, sort_keys=True).encode()).hexdigest()
-    gcs.upload_json(artifact, MODEL_BLOB)
+    gcs.upload_json(artifact, model_blob(CHAMPION_ID))
     coefs = dict(zip(spec.features, artifact["coef"], strict=True))
     print(
-        f"[freeze] {MODEL_ID}: {artifact['train_rows']:,} filas "
+        f"[freeze] {CHAMPION_ID}: {artifact['train_rows']:,} filas "
         f"({artifact['train_from']} → {artifact['train_to']}) · coef {coefs} · "
         f"b {artifact['intercept']:.4f} · sha {artifact['sha256'][:12]}"
     )
@@ -262,12 +284,10 @@ def complete_days(matrix: pd.DataFrame, now_utc: datetime) -> pd.DataFrame:
     return matrix[matrix["ts"] < pd.Timestamp(now_utc.date())]
 
 
-# ── emit: delta Bitso → features → p → ledger del día ─────────────────────────
-def _bitso_matrix(needed: list[str]) -> pd.DataFrame:
-    """Panel diario Bitso operable → matriz con las features del modelo (cómputo
-    del MISMO catálogo causal de features.py — paridad con el training)."""
-    from src.lab.features import build_candidates, compute_matrix
-
+# ── emit: delta Bitso → features/secuencias → p → ledger del día por stream ───
+def _bitso_panel() -> pd.DataFrame:
+    """Panel diario Bitso operable (barras completas ya filtradas por el caller)
+    con las columnas dummy que esperan compute_matrix/build_sequences."""
     frames = []
     for blob in sorted(gcs.list_blobs("bronze/bitso_ohlcv_1h/")):
         book = blob.split("/")[-1].removesuffix(".parquet").replace("_", "/")
@@ -278,34 +298,55 @@ def _bitso_matrix(needed: list[str]) -> pd.DataFrame:
         bars["symbol"] = base
         frames.append(bars)
     panel = pd.concat(frames, ignore_index=True).sort_values(["symbol", "ts"])
-    panel["source"], panel["y"], panel["fwd_ret_24h_mxn"] = "bitso", np.nan, np.nan
+    panel["source"], panel["operable"] = "bitso", True
+    panel["y"], panel["fwd_ret_24h_mxn"] = np.nan, np.nan
+    return panel
+
+
+def _day_logistic(model: dict[str, Any], panel: pd.DataFrame) -> tuple[Any, pd.DataFrame, list[str]]:
+    """Matriz del catálogo causal de features.py — paridad con el training."""
+    from src.lab.features import build_candidates, compute_matrix
+
+    needed = [*model["features"], "rv_20d"]
     cands = [c for c in build_candidates() if c.name in set(needed)]
     matrix = compute_matrix(panel, cands)
     matrix["close"] = panel["close"].values
-    return matrix
-
-
-def emit() -> int:
-    from src.lab.bitso_data import delta
-
-    delta()
-    model = json.loads(gcs.bucket().blob(MODEL_BLOB).download_as_text())
-    spec = model["spec"]
-    needed = [*model["features"], "rv_20d"]
-    matrix = complete_days(_bitso_matrix(needed), datetime.now(UTC))
-
     decision = pd.Timestamp(matrix["ts"].max())
     day = matrix[matrix["ts"] == decision].dropna(subset=needed).set_index("symbol")
-    if day.empty:
-        print(f"[emit] sin filas válidas para {decision.date()} — nada que emitir")
-        return 1
-    day = day.assign(p=score_probability(model, day))
+    if not day.empty:
+        day = day.assign(p=score_probability(model, day))
+    return decision, day, needed
 
-    cfg_blob = gcs.bucket().blob(CONFIG_BLOB)
-    cfg = json.loads(cfg_blob.download_as_text()) if cfg_blob.exists() else None
+
+def _day_gru(model: dict[str, Any], panel: pd.DataFrame) -> tuple[Any, pd.DataFrame, list[str]]:
+    """Secuencias del §7.1 sobre el panel Bitso + forward de la red congelada."""
+    from src.lab.nn_trial import NnSpec, build_sequences, predict_artifact
+
+    spec = NnSpec(**model["spec"])
+    x, meta = build_sequences(panel, spec)
+    decision = pd.Timestamp(meta["ts"].max())
+    mask = (meta["ts"] == decision).to_numpy()
+    day = meta[mask].copy()
+    day["p"] = predict_artifact(model, x[mask])
+    closes = panel[panel["ts"] == decision].set_index("symbol")["close"]
+    day["close"] = day["symbol"].map(closes)
+    day = day.dropna(subset=["rv_20d", "close"]).set_index("symbol")
+    return decision, day, ["rv_20d"]
+
+
+def _emit_one(sid: str, panel: pd.DataFrame) -> int:
+    model = json.loads(gcs.bucket().blob(model_blob(sid)).download_as_text())
+    scorer = _day_logistic if STREAMS[sid] == "logistic" else _day_gru
+    decision, day, extras = scorer(model, panel)
+    if day.empty:
+        print(f"[emit:{sid}] sin filas válidas para {decision.date()} — nada que emitir")
+        return 1
+
+    cfg_ref = gcs.bucket().blob(config_blob(sid))
+    cfg = json.loads(cfg_ref.download_as_text()) if cfg_ref.exists() else None
     if cfg is None:
         cfg = {
-            "model_id": MODEL_ID,
+            "model_id": sid,
             "model_sha256": model["sha256"],
             "anchor": str(decision.date()),
             "cadence_days": CADENCE_DAYS,
@@ -318,6 +359,7 @@ def emit() -> int:
     due, catch_up, period = rebalance_due(anchor, last_rb, decision)
     is_rebalance = due or (last_rb is not None and last_rb == decision)  # re-emisión idempotente
 
+    spec = model["spec"]
     if due:
         params = StrategyParams(threshold=spec["threshold"], top_k=spec["top_k"])
         weights = {s: round(float(w), 6) for s, w in _weights_for_day(day, params).items()}
@@ -326,7 +368,7 @@ def emit() -> int:
         weights = cfg["holdings"]
 
     entry = {
-        "model_id": MODEL_ID,
+        "model_id": sid,
         "model_sha256": model["sha256"],
         "decision_date": str(decision.date()),
         "emitted_at": datetime.now(UTC).isoformat(),
@@ -338,35 +380,47 @@ def emit() -> int:
                 "symbol": s,
                 "p": round(float(r["p"]), 6),
                 "close_mxn": float(r["close"]),
-                **{f: round(float(r[f]), 6) for f in needed},
+                **{f: round(float(r[f]), 6) for f in extras},
             }
             for s, r in day.iterrows()
         ],
         "weights": weights,
         "prices_mxn": {s: float(r["close"]) for s, r in day.iterrows()},
     }
-    gcs.upload_json(entry, f"{DAYS_PREFIX}{decision.date()}.json")
-    gcs.upload_json(cfg, CONFIG_BLOB)
+    gcs.upload_json(entry, f"{days_prefix(sid)}{decision.date()}.json")
+    gcs.upload_json(cfg, config_blob(sid))
     tag = "REBALANCE" + (" catch-up" if catch_up else "") if is_rebalance else "hold"
     print(
-        f"[emit] {decision.date()} periodo {period} [{tag}] · universo {len(day)} · "
+        f"[emit:{sid}] {decision.date()} periodo {period} [{tag}] · universo {len(day)} · "
         f"pesos {weights or 'CASH'}"
     )
     return 0
 
 
+def emit(streams: list[str]) -> int:
+    from src.lab.bitso_data import delta
+
+    delta()
+    panel = complete_days(_bitso_panel(), datetime.now(UTC))
+    rc = 0
+    for sid in streams:
+        rc = _emit_one(sid, panel) or rc
+        rc = evaluate_and_report(sid) or rc
+    return rc
+
+
 # ── eval: track record + AUC forward → reports/ ────────────────────────────────
-def evaluate_and_report() -> int:
+def evaluate_and_report(sid: str = CHAMPION_ID) -> int:
     entries = [
         json.loads(gcs.bucket().blob(name).download_as_text())
-        for name in sorted(gcs.list_blobs(DAYS_PREFIX))
+        for name in sorted(gcs.list_blobs(days_prefix(sid)))
     ]
-    result = evaluate(entries)
+    result = evaluate(entries, model_id=sid)
     result["generated"] = datetime.now(UTC).isoformat()
-    gcs.upload_json(result, f"{REPORT_STEM}.json")
+    gcs.upload_json(result, f"{report_stem(sid)}.json")
 
     lines = [
-        f"# Shadow pre-firewall — {MODEL_ID} (cadencia {CADENCE_DAYS}d) · PAPEL, cero riesgo",
+        f"# Shadow pre-firewall — {sid} (cadencia {CADENCE_DAYS}d) · PAPEL, cero riesgo",
         f"\nGenerado: {result['generated']} · emisiones {result.get('n_entries', 0)} "
         f"({result.get('first_date', '—')} → {result.get('last_date', '—')}) · "
         f"rebalanceos {result.get('n_rebalances', 0)}\n",
@@ -389,9 +443,9 @@ def evaluate_and_report() -> int:
         f"(n={result.get('auc_grid_n', 0)}) · diaria solapada (secundaria): "
         f"{result.get('auc_daily_overlap', '—')} (n={result.get('auc_daily_overlap_n', 0)})"
     )
-    gcs.upload_text("\n".join(lines), f"{REPORT_STEM}.md")
+    gcs.upload_text("\n".join(lines), f"{report_stem(sid)}.md")
     print(
-        f"[eval] {result.get('n_entries', 0)} emisiones · exceso total "
+        f"[eval:{sid}] {result.get('n_entries', 0)} emisiones · exceso total "
         f"{result.get('excess_total_pct', '—')} · AUC grilla {result.get('auc_grid', '—')} "
         f"(n={result.get('auc_grid_n', 0)})"
     )
@@ -399,18 +453,21 @@ def evaluate_and_report() -> int:
 
 
 def main() -> int:
-    p = argparse.ArgumentParser(description="Shadow pre-firewall H12 ext5-h28")
-    p.add_argument("--freeze", action="store_true")
-    p.add_argument("--emit", action="store_true")
+    p = argparse.ArgumentParser(description="Shadow pre-firewall H12 (multi-stream)")
+    p.add_argument("--freeze", action="store_true", help="congela al campeón logístico")
+    p.add_argument("--emit", action="store_true", help="emite UN stream (--model)")
+    p.add_argument("--emit-all", action="store_true", help="emite todos los streams")
     p.add_argument("--eval", action="store_true")
+    p.add_argument("--model", default=CHAMPION_ID, choices=sorted(STREAMS))
     a = p.parse_args()
     if a.freeze:
         return freeze()
+    if a.emit_all:
+        return emit(sorted(STREAMS))
     if a.emit:
-        rc = emit()
-        return rc if rc else evaluate_and_report()
+        return emit([a.model])
     if a.eval:
-        return evaluate_and_report()
+        return evaluate_and_report(a.model)
     p.print_help()
     return 2
 

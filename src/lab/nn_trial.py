@@ -21,6 +21,7 @@ Corre como job:  gcloud run jobs execute hermes-lab
 """
 
 import argparse
+import hashlib
 import json
 import os
 import sys
@@ -102,14 +103,9 @@ def build_sequences(panel: pd.DataFrame, spec: NnSpec) -> tuple[np.ndarray, pd.D
     return x, meta
 
 
-def _fit_predict_nn(
-    x_tr: np.ndarray, y_tr: np.ndarray, x_vas: list[np.ndarray], spec: NnSpec
-) -> list[np.ndarray]:
-    """Entrena UNA vez (épocas fijas, determinista por seed) y puntúa cada x_va."""
-    import torch
+def _build_net(spec: NnSpec) -> Any:
+    """Instancia la GruNet del §7.1 (torch lazy — CI corre sin el extra nn)."""
     from torch import nn
-
-    torch.manual_seed(spec.seed)
 
     class GruNet(nn.Module):
         def __init__(self) -> None:
@@ -122,9 +118,17 @@ def _fit_predict_nn(
             out, _ = self.gru(x)
             return self.head(self.drop(out[:, -1])).squeeze(-1)
 
-    net = GruNet()
+    return GruNet()
+
+
+def _train(x_tr: np.ndarray, y_tr: np.ndarray, spec: NnSpec) -> Any:
+    """Entrena UNA vez (épocas fijas, determinista por seed) y devuelve la red."""
+    import torch
+
+    torch.manual_seed(spec.seed)
+    net = _build_net(spec)
     opt = torch.optim.Adam(net.parameters(), lr=spec.lr)
-    loss_fn = nn.BCEWithLogitsLoss()
+    loss_fn = torch.nn.BCEWithLogitsLoss()
     xt = torch.from_numpy(x_tr)
     yt = torch.from_numpy(y_tr.astype(np.float32))
     gen = torch.Generator().manual_seed(spec.seed)
@@ -137,17 +141,81 @@ def _fit_predict_nn(
             loss = loss_fn(net(xt[idx]), yt[idx])
             loss.backward()
             opt.step()
+    return net
+
+
+def _predict(net: Any, x: np.ndarray) -> np.ndarray:
+    import torch
 
     net.eval()
-    outs: list[np.ndarray] = []
     with torch.no_grad():
-        for x_va in x_vas:
-            chunks = [
-                torch.sigmoid(net(torch.from_numpy(x_va[i : i + 4096]))).numpy()
-                for i in range(0, len(x_va), 4096)
-            ]
-            outs.append(np.concatenate(chunks) if chunks else np.empty(0, dtype=np.float32))
-    return outs
+        chunks = [
+            torch.sigmoid(net(torch.from_numpy(x[i : i + 4096]))).numpy()
+            for i in range(0, len(x), 4096)
+        ]
+    return np.concatenate(chunks) if chunks else np.empty(0, dtype=np.float32)
+
+
+def _fit_predict_nn(
+    x_tr: np.ndarray, y_tr: np.ndarray, x_vas: list[np.ndarray], spec: NnSpec
+) -> list[np.ndarray]:
+    net = _train(x_tr, y_tr, spec)
+    return [_predict(net, x_va) for x_va in x_vas]
+
+
+# ── artefacto congelado (shadow §12.1): state_dict como tensores planos JSON ──
+def artifact_from_net(net: Any, spec: NnSpec, extra: dict[str, Any]) -> dict[str, Any]:
+    """Red → artefacto auditable sin pickle (mismo principio que el campeón)."""
+    art: dict[str, Any] = {
+        "kind": "gru_seq",
+        "spec": asdict(spec),
+        "state": {k: v.tolist() for k, v in net.state_dict().items()},
+        **extra,
+    }
+    art["sha256"] = hashlib.sha256(json.dumps(art, sort_keys=True).encode()).hexdigest()
+    return art
+
+
+def predict_artifact(artifact: dict[str, Any], x: np.ndarray) -> np.ndarray:
+    """Puntúa con la red congelada reconstruida del JSON (paridad exacta)."""
+    import torch
+
+    spec = NnSpec(**artifact["spec"])
+    net = _build_net(spec)
+    net.load_state_dict({k: torch.tensor(v) for k, v in artifact["state"].items()})
+    return _predict(net, x)
+
+
+def freeze(spec_uri: str, model_id: str) -> int:
+    """Congela la receta §7.1 re-entrenada sobre TODA la iteración (la
+    confirmación jamás entrena) → models/<model_id>.json para el shadow."""
+    bucket = os.environ["HERMES_RESEARCH_BUCKET"]
+    path = spec_uri.removeprefix(f"gs://{bucket}/")
+    spec = NnSpec(**json.loads(gcs.bucket().blob(path).download_as_text()))
+    panel = extremes_label(load_panel(spec.horizon_days), k=5)
+    x_all, meta = build_sequences(panel, spec)
+    iteration, confirmation = partitions(pd.DatetimeIndex(panel["ts"].unique()))
+    keep = (meta["ts"].isin(iteration) & meta["y"].notna()).to_numpy()
+    x_tr, meta_tr = x_all[keep], meta[keep]
+    net = _train(x_tr, meta_tr["y"].to_numpy(), spec)
+    art = artifact_from_net(
+        net,
+        spec,
+        {
+            "model_id": model_id,
+            "train_rows": int(len(meta_tr)),
+            "train_from": str(meta_tr["ts"].min().date()),
+            "train_to": str(meta_tr["ts"].max().date()),
+            "confirmation_cut": str(pd.Timestamp(confirmation.min()).date()),
+            "frozen_at": datetime.now(UTC).isoformat(),
+        },
+    )
+    gcs.upload_json(art, f"models/{model_id}.json")
+    print(
+        f"[freeze-nn] {model_id}: {art['train_rows']:,} filas "
+        f"({art['train_from']} → {art['train_to']}) · sha {art['sha256'][:12]}"
+    )
+    return 0
 
 
 def run_nn_trial(spec: NnSpec) -> dict[str, Any]:
@@ -257,7 +325,11 @@ def run_nn_trial(spec: NnSpec) -> dict[str, Any]:
 def main() -> int:
     parser = argparse.ArgumentParser(description="Fase NN H12 — trial de secuencias")
     parser.add_argument("--spec", required=True, help="URI GCS del spec JSON")
+    parser.add_argument("--freeze", action="store_true", help="congela para el shadow §12.1")
+    parser.add_argument("--model-id", default="h12-gru-h28", help="id del artefacto congelado")
     args = parser.parse_args()
+    if args.freeze:
+        return freeze(args.spec, args.model_id)
     bucket = os.environ["HERMES_RESEARCH_BUCKET"]
     path = args.spec.removeprefix(f"gs://{bucket}/")
     spec = NnSpec(**json.loads(gcs.bucket().blob(path).download_as_text()))
