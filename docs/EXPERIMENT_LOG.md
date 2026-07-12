@@ -880,3 +880,20 @@ seguido, gana enorme rara vez (PF>2-3 aun así); (4) tope de data: H>28 dejaría
 bloques por fase en el holdout — la grilla NO se extiende más; el juez de régimen
 sigue siendo el slice de confirmación (virgen). Siguiente: fase NN §7 sobre H=28/14
 y decisión de metas con Erika.
+
+### H12 — Metas v3 evaluadas (2026-07-12): H=28 pasa 3/4; M4 falla por 0.0015
+
+| Meta | H=28 | Veredicto |
+|---|---|---|
+| M1 exceso phase-mean > 0 en {14,21,28} | +1.45 / +2.44 / +5.02 | ✅ |
+| M2 PF phase-mean ≥ 1.5 | 3.14 | ✅ |
+| M3 exceso > 0 SIN el mejor bloque | **+0.80/periodo, 21/28 fases** | ✅ (¡sobrevive al anti-episodio!) |
+| M4 AUC > 0.52 en ambas | temporal 0.5236 ✅ · **bloques 0.5185** | ❌ por 0.0015 |
+
+Notas: H21 FALLA M3 (−0.40 sin top1 — su exceso sí era episodio); H14 pasa M3 apenas
+(+0.33, 9/14). H=28 es el único robusto de punta a punta en lo económico. M4 falla en
+los sorteos por bloques (incluyen 2021-22 bear, donde el momentum se apaga — consistente
+con el patrón de régimen del dossier). **Regla del proyecto: la meta NO se ablanda
+después de ver el resultado** (eso sería verdict-shopping) → el candidato NO entra al
+firewall todavía. Camino pre-registrado que sigue: fase NN §7 sobre H=28 (¿un modelo
+con más información puede subir el piso de ranking sin perder M1-M3?). n_trials=19.
