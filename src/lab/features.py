@@ -78,6 +78,22 @@ FEATURE_SET_V1 = [
     "hurst_100d",  # conditioner de régimen (débil p=0.26 — a prueba, sale en v2 si no aporta)
 ]
 
+# Conjunto v2 — label rel_median (enmienda §9), gate aprobado por Erika 2026-07-12
+# ("VAMOS!"). Evidencia: dossier v2 (reports/feature_dossier_v2_relmedian.md, IC
+# contra retorno RELATIVO — el beta no puntúa). El espacio relativo INVIERTE señales
+# del absoluto: el "reversal" de ret_* era beta (ahora momentum relativo +), y la vol
+# pasa de carrier mecánico a anomalía low-vol cross-seccional (−, monótona 57→48%).
+# Fuera: breadth_20d (constante por día — no rankea intradía; su IC era artefacto),
+# rel_ret_5d (n.s. — lo predictivo de ret_5d es su componente de mercado vía beta),
+# hurst_100d (muere por 2ª vez — fuera definitivo), dow/quincena/usdmxn (muertas).
+FEATURE_SET_V2 = [
+    "ret_2d",  # momentum relativo corto (IC +0.028, p=0.009; mejor de su cluster)
+    "abs_ret_1d",  # calma ayer → outperformance relativa (IC −0.035, p=0.001)
+    "btc_ret_1d",  # catch-up de beta tras BTC-up (IC +0.033, p=0.002; deciles 50→54%)
+    "rv_20d",  # low-vol cross-seccional (IC −0.054, p<1e-4; 57→48% monótona)
+    "hl_range",  # rango intradía de ayer (IC −0.056, la más fuerte; ~rv_20d < 0.7)
+]
+
 
 # ── registro de candidatas ─────────────────────────────────────────────────────
 def build_candidates() -> list[Candidate]:
