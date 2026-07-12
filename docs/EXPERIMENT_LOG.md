@@ -1007,3 +1007,14 @@ Lectura honesta:
    evidencia. Caveats: alta varianza por ventana (rango ±35%), ~8 ventanas/año,
    re-entreno ve futuro relativo a su ventana (robustez de señal, no deploy —
    el shadow multi-stream sigue siendo el juez). n_trials sin cambio (20).
+
+### H12 — Decisión Erika (2026-07-12): el GRU es el CANDIDATO PRIMARIO del arco
+
+"Quedémonos con el GRU." Tras window_check §13, `ext5-h28` queda DEGRADADO
+(su economía era artefacto del régimen reciente; no se acerca al firewall).
+`nn1-gru-h28` pasa a candidato primario. Ambos streams del shadow SIGUEN
+emitiendo (costo ~cero): el ex-campeón queda como control vivo del forward —
+si el GRU no le gana también ahí, sabremos algo importante. El slice one-shot
+sigue virgen y reservado para el candidato que llegue con evidencia completa;
+challenger pendiente: NN-2 (TTM, §7.2 antes de correr) contra el nuevo baseline
+GRU: mediana window_check +1.99, 62.5% positivas, 4/5 años, AUC temporal 0.5995.
