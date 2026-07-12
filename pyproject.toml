@@ -128,9 +128,11 @@ module = [
 ignore_errors = true
 
 # CI corre mypy SIN el extra nn: torch es Any y la GruNet subclasea nn.Module.
+# En ttm_trial los stubs parciales de torch marcan backward() como untyped.
 [[tool.mypy.overrides]]
-module = ["src.lab.nn_trial"]
+module = ["src.lab.nn_trial", "src.lab.ttm_trial"]
 disallow_subclassing_any = false
+disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
