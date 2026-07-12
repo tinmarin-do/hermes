@@ -656,3 +656,22 @@ budget real 4,900 MXN con alertas 50/80% en vez de ledgers (autonomía cloud tot
 | Trial | Qué | Resultado | Veredicto |
 |---|---|---|---|
 | (pendiente) | baseline logística, conjunto sense-first | — | — |
+
+### H11 — Gate D1 cerrado + primeros trials (2026-07-12)
+
+**Gate D1 (Erika)**: conjunto v1 aprobado = ret_1d, abs_ret_1d (derivada del U-shape
+del dossier), btc_ret_1d, rv_20d, hl_range_z30, hurst_100d (a prueba). Fuera:
+ewma_vol_20 (canary + redundancia 0.914 con rv_20d), vol_z30 (corr 0.822 con
+hl_range_z30), rel_ret_5d/breadth/dow/usdmxn_ret_5d/quincena (sin señal — la
+quincena salió CONTRARIA a la hipótesis de nómina). Puente v2 con FX del venue:
+9/9 libros TRANSFIEREN (BTC 7.1bps; el FIX de FRED inflaba la regla de medición).
+
+| Trial | Qué | Resultado | Veredicto |
+|---|---|---|---|
+| baseline-logistic | logística v1, umbral 0.5 | F1 0.094±0.025 / 0.048 temporal — artefacto de umbral (clase 34% casi nunca supera p>0.5). TP3 pierde MENOS que base (−0.06 vs −0.14%/día) | ❌ config, no señal |
+| logistic-balanced | + class_weight=balanced | F1 0.440±0.022 / 0.405 temporal · precision 0.408 vs base rate ~0.34 (+7pp lift REAL) · backtest −0.26%/día: turnover 1.24/día × 46bps ≈ −0.57%/día de fricción | 🟡 señal débil; el turnover es el asesino |
+
+**Aprendizaje del día**: (1) hay señal (lift de precisión consistente con el dossier);
+(2) F1 0.60 en ambas validaciones sigue LEJOS (mejor: 0.44 < naive 0.51); (3) ninguna
+estrategia diaria sobrevive turnover ~1.2/día a 46bps — los siguientes trials van a
+umbral alto/menos trades y LightGBM (interacciones + U-shape). n_trials acumulado: 2.
