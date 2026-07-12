@@ -27,8 +27,11 @@ def _daily_close(df: pd.DataFrame) -> pd.Series:
 
 
 def main() -> int:
-    fx = gcs.read_parquet("fx/usdmxn.parquet").set_index("date")["usdmxn"]
-    r_fx = fx.pct_change()
+    # FX v2 (decisión Erika 2026-07-11): el juez es el FX DEL VENUE (libro USD/MXN
+    # de Bitso, mercado 24/7 con el mismo reloj que los cripto-MXN). El FIX de FRED
+    # (tasa bancaria de mediodía) queda como referencia — medía con regla desfasada.
+    fx_fred = gcs.read_parquet("fx/usdmxn.parquet").set_index("date")["usdmxn"].pct_change()
+    fx_venue = _daily_close(gcs.read_parquet("bronze/bitso_ohlcv_1h/USD_MXN.parquet")).pct_change()
 
     bitso_blobs = gcs.list_blobs("bronze/bitso_ohlcv_1h/")
     binance_blobs = set(gcs.list_blobs("bronze/binance_ohlcv_1h/"))
@@ -43,24 +46,27 @@ def main() -> int:
         r_bitso = _daily_close(gcs.read_parquet(blob)).pct_change()
         r_usdt = _daily_close(gcs.read_parquet(twin)).pct_change()
         df = pd.concat(
-            {"bitso": r_bitso, "usdt": r_usdt, "fx": r_fx}, axis=1, join="inner"
+            {"bitso": r_bitso, "usdt": r_usdt, "fxv": fx_venue, "fxf": fx_fred},
+            axis=1,
+            join="inner",
         ).dropna()
         if len(df) < 60:
             rows.append({"book": book, "days": len(df), "verdict": "TRASLAPE_INSUFICIENTE"})
             continue
-        binance_mxn = (1 + df.usdt) * (1 + df.fx) - 1
-        delta = df.bitso - binance_mxn
-        med_bps = float(delta.abs().median() * 1e4)
-        te_bps = float(delta.std() * 1e4)
-        corr = float(np.corrcoef(df.bitso, binance_mxn)[0, 1])
-        ok = med_bps <= THRESH_MEDIAN_BPS and corr >= THRESH_CORR
+        via_venue = (1 + df.usdt) * (1 + df.fxv) - 1
+        via_fred = (1 + df.usdt) * (1 + df.fxf) - 1
+        d_v, d_f = df.bitso - via_venue, df.bitso - via_fred
+        med_v = float(d_v.abs().median() * 1e4)
+        corr_v = float(np.corrcoef(df.bitso, via_venue)[0, 1])
+        ok = med_v <= THRESH_MEDIAN_BPS and corr_v >= THRESH_CORR
         rows.append(
             {
                 "book": book,
                 "days": len(df),
-                "median_abs_bps": round(med_bps, 1),
-                "tracking_err_bps": round(te_bps, 1),
-                "corr": round(corr, 4),
+                "median_abs_bps": round(med_v, 1),
+                "median_abs_bps_fred": round(float(d_f.abs().median() * 1e4), 1),
+                "tracking_err_bps": round(float(d_v.std() * 1e4), 1),
+                "corr": round(corr_v, 4),
                 "verdict": "TRANSFIERE" if ok else "REVISAR_CON_ERIKA",
             }
         )
@@ -68,15 +74,17 @@ def main() -> int:
     lines = [
         "# Puente de tracking Binance↔Bitso — arco H11",
         f"\nGenerado: {datetime.now(UTC).isoformat()} · retornos DIARIOS del traslape",
+        "FX v2: juez = FX del venue (libro USD/MXN de Bitso, 24/7); FRED FIX como referencia.",
         f"Umbral pre-registrado: mediana |Δr| ≤ {THRESH_MEDIAN_BPS:.0f} bps "
         f"y corr ≥ {THRESH_CORR}\n",
-        "| libro | días | mediana \\|Δr\\| (bps) | TE (bps) | corr | veredicto |",
-        "|---|---|---|---|---|---|",
+        "| libro | días | mediana \\|Δr\\| venue (bps) | vs FRED | TE (bps) | corr | veredicto |",
+        "|---|---|---|---|---|---|---|",
     ]
     for r in rows:
         lines.append(
             f"| {r['book']} | {r['days']} | {r.get('median_abs_bps', '—')} "
-            f"| {r.get('tracking_err_bps', '—')} | {r.get('corr', '—')} | {r['verdict']} |"
+            f"| {r.get('median_abs_bps_fred', '—')} | {r.get('tracking_err_bps', '—')} "
+            f"| {r.get('corr', '—')} | {r['verdict']} |"
         )
         print(f"  {r['book']:12s} {r['verdict']}")
     gcs.upload_text("\n".join(lines), "reports/venue_bridge.md")
