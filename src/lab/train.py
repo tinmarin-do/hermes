@@ -35,6 +35,7 @@ class TrialSpec:
     top_k: int = 5
     take_profit_variant: float = 0.03  # decisión #10: SIEMPRE se corre la variante
     params: dict[str, Any] = field(default_factory=dict)
+    strategy: dict[str, Any] = field(default_factory=dict)  # extras de StrategyParams
     seed: int = 42
 
 
@@ -140,6 +141,7 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
         "features": spec.features,
         "threshold": spec.threshold,
         "params": spec.params,
+        "strategy": spec.strategy,
         "seed": spec.seed,
         "n_rows": int(len(matrix)),
         "f1_blocks_mean": round(float(np.mean(block_f1)), 4) if block_f1 else None,
@@ -152,9 +154,12 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
         # backtest solo sobre símbolos OPERABLES (delistados entrenan, no operan)
         sig = temporal_signals[temporal_signals["operable"]].copy()
         n_trials = _current_n_trials() + 1
-        base = StrategyParams(threshold=spec.threshold, top_k=spec.top_k)
+        base = StrategyParams(threshold=spec.threshold, top_k=spec.top_k, **spec.strategy)
         tp = StrategyParams(
-            threshold=spec.threshold, top_k=spec.top_k, take_profit=spec.take_profit_variant
+            threshold=spec.threshold,
+            top_k=spec.top_k,
+            take_profit=spec.take_profit_variant,
+            **spec.strategy,
         )
         result["backtest_base"] = run_backtest(sig, base, n_trials=n_trials)
         result["backtest_tp3"] = run_backtest(sig, tp, n_trials=n_trials)

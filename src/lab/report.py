@@ -22,8 +22,8 @@ def main() -> int:
         f"\nGenerado: {datetime.now(UTC).isoformat()} · {len(trials)} trials "
         f"(n_trials para DSR) · meta: F1 ≥ {META_F1} en AMBAS validaciones\n",
         "| trial | modelo | F1 bloques (μ±σ) | F1 temporal | meta | %/día base | %/día TP3 "
-        "| Sharpe | maxDD | DSR |",
-        "|---|---|---|---|---|---|---|---|---|---|",
+        "| exceso vs B&H | Sharpe | maxDD | DSR |",
+        "|---|---|---|---|---|---|---|---|---|---|---|",
     ]
     for t in trials:
         fb, fs = t.get("f1_blocks_mean"), t.get("f1_blocks_std")
@@ -33,6 +33,7 @@ def main() -> int:
         lines.append(
             f"| {t['trial_id']} | {t.get('model')} | {fb}±{fs} | {ft} | {meta} "
             f"| {base.get('mean_daily_net_pct', '—')} | {tp3.get('mean_daily_net_pct', '—')} "
+            f"| {base.get('excess_vs_ew_pct', '—')} "
             f"| {base.get('sharpe_ann', '—')} | {base.get('max_drawdown_pct', '—')} "
             f"| {base.get('dsr', '—')} |"
         )

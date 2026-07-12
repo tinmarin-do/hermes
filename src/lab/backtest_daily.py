@@ -10,6 +10,13 @@ día siguiente toca entrada×(1+tp), el retorno de esa pata se corta en +tp y se
 cobra una pata extra de fee (la venta anticipada; la recompra la captura el
 turnover del día siguiente).
 
+v2 (trials 6+): `smooth_alpha` — ejecución suavizada w_exec = α·target + (1−α)·w_prev
+(α=1 ≡ sin suavizado). Hipótesis: los trials 1-5 mostraron bruto ~+0.3%/día con el
+umbral bajo, aniquilado por turnover 1.2-1.4/día × 46bps; suavizar corta el costo
+sin tocar la señal. Posiciones <0.5% se liquidan (polvo). Además cada backtest
+reporta el benchmark buy&hold equal-weight del mismo periodo (entrada única con fee)
+— el control que separa alpha del modelo vs beta del mercado en el holdout.
+
 Todo en MXN · PPY=365 · PSR/DSR importados puros de src.brain.backtest.
 """
 
@@ -26,6 +33,9 @@ FEE_RATE = 0.0036  # Bitso taker
 SLIPPAGE = 0.0010  # sensibilidad por liquidez del venue
 
 
+MIN_WEIGHT = 0.005  # posiciones suavizadas por debajo se liquidan (polvo)
+
+
 @dataclass
 class StrategyParams:
     threshold: float = 0.5
@@ -33,6 +43,7 @@ class StrategyParams:
     fee_rate: float = FEE_RATE
     slippage: float = SLIPPAGE
     take_profit: float | None = None  # 0.03 → variante TP-3%
+    smooth_alpha: float | None = None  # α de ejecución suavizada (None ≡ 1.0)
 
 
 def _weights_for_day(day: pd.DataFrame, p: StrategyParams) -> pd.Series:
@@ -57,12 +68,20 @@ def run_backtest(
     """
     signals = signals.sort_values(["ts", "symbol"])
     daily_net: list[float] = []
+    daily_bench: list[float] = []
     turnover_hist: list[float] = []
     prev_w = pd.Series(dtype=float)
 
     for _, day in signals.groupby("ts", sort=True):
         day = day.set_index("symbol")
         w = _weights_for_day(day, params)
+
+        if params.smooth_alpha is not None:
+            idx = prev_w.index.union(w.index)
+            w = params.smooth_alpha * w.reindex(idx).fillna(0) + (
+                1 - params.smooth_alpha
+            ) * prev_w.reindex(idx).fillna(0)
+            w = w[w >= MIN_WEIGHT]
 
         ret = day["fwd_ret_24h_mxn"]
         tp_fee_extra = 0.0
@@ -75,7 +94,9 @@ def run_backtest(
                 (params.fee_rate + params.slippage) * w.reindex(hit[hit].index).fillna(0).sum()
             )
 
-        gross = float((w * ret.reindex(w.index)).sum()) if len(w) else 0.0
+        # símbolo retenido sin fila hoy (hueco de data) → se asume plano
+        gross = float((w * ret.reindex(w.index).fillna(0.0)).sum()) if len(w) else 0.0
+        daily_bench.append(float(day["fwd_ret_24h_mxn"].mean()))
         turnover = float(
             (
                 w.reindex(prev_w.index.union(w.index)).fillna(0)
@@ -92,6 +113,9 @@ def run_backtest(
     r = np.asarray(daily_net)
     if len(r) < 30:
         return {"error": "menos de 30 días de validación", "days": len(r)}
+    # benchmark: equal-weight buy&hold aprox (entrada única con fee; sin rebalanceo)
+    b = np.asarray(daily_bench)
+    b[0] -= params.fee_rate + params.slippage
     mu, sd = float(r.mean()), float(r.std(ddof=1))
     sharpe = (mu / sd) * np.sqrt(PPY) if sd > 0 else 0.0
     equity = np.cumprod(1 + r)
@@ -107,7 +131,10 @@ def run_backtest(
         "max_drawdown_pct": round(maxdd * 100, 2),
         "hit_rate": round(float((r > 0).mean()), 4),
         "avg_turnover": round(float(np.mean(turnover_hist)), 4),
+        "benchmark_ew_daily_pct": round(float(b.mean()) * 100, 4),
+        "excess_vs_ew_pct": round((mu - float(b.mean())) * 100, 4),
         "take_profit": params.take_profit,
         "threshold": params.threshold,
         "top_k": params.top_k,
+        "smooth_alpha": params.smooth_alpha,
     }
