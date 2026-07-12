@@ -156,6 +156,7 @@ def run_backtest(
         "max_drawdown_pct": round(maxdd * 100, 2),
         "hit_rate": round(float((r > 0).mean()), 4),
         "profit_factor": profit_factor,
+        "net_series": [round(float(x), 6) for x in r],
         "avg_turnover": round(float(np.mean(turnover_hist)), 4),
         "benchmark_ew_daily_pct": round(float(b.mean()) * 100, 4),
         "excess_vs_ew_pct": round((mu - float(b.mean())) * 100, 4),
