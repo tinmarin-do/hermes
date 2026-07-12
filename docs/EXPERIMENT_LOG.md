@@ -1018,3 +1018,34 @@ si el GRU no le gana también ahí, sabremos algo importante. El slice one-shot
 sigue virgen y reservado para el candidato que llegue con evidencia completa;
 challenger pendiente: NN-2 (TTM, §7.2 antes de correr) contra el nuevo baseline
 GRU: mediana window_check +1.99, 62.5% positivas, 4/5 años, AUC temporal 0.5995.
+
+### H12 — ONE-SHOT §14 DISPARADO (2026-07-12): el GRU PASA — B1✅ B2✅ B3✅
+
+Slice virgen 2025-09-11 → 2026-06-12 (~9 meses JAMÁS vistos; sha del artefacto
+verificado antes de puntuar; 6,868 filas puntuadas, 2,750 etiquetadas):
+
+| Criterio (vara §14, fijada antes) | Resultado | |
+|---|---|---|
+| B1 exceso phase-mean > 0 | **+1.85%/periodo (25/28 fases +)** | ✅ |
+| B2 anti-episodio (sin top1) > 0 | **+0.87 (21/28)** | ✅ |
+| B3 AUC pooled > 0.52 | **0.6153** | ✅ |
+| PF phase-mean (reportado, sin gate) | 0.2175 | — |
+
+**La lectura que importa (dos caras):**
+1. **El slice fue un BEAR brutal**: la canasta EW perdió −9.0%/periodo; el GRU
+   −7.16%/periodo en absoluto (PF 0.22 — casi todos los periodos negativos).
+   Long-only en mercado cayendo pierde; el GRU perdió MENOS, consistentemente.
+2. **Y justo por eso el pase vale doble**: el miedo era que el GRU fuese
+   artefacto del régimen alcista reciente — y su mejor AUC de la historia
+   (0.615, vs 0.60 del holdout alcista) llegó en un régimen BAJISTA fresco.
+   Con window_check (4/5 años) + slice bear, la evidencia ya cruza regímenes.
+   Lo que valida: la claim DEFENSIVA de Hermes (alpha de selección, caer menos
+   / subir más que la canasta) — NO retorno absoluto en mercado bajista.
+
+**Estatus formal: GRU = CANDIDATO CONFIRMADO del arco (§14).** El slice queda
+USADO — jamás se re-evalúa contra él (ni GRU ni retoques suyos). Camino al live
+(condición (b) aceptada por Erika): shadow ≥45d a cadencia 28 (corre desde
+2026-07-12, ancla 07-11 → elegible ~2026-08-25) + scheduler alineado (⛰️ §3) +
+sign-off. TTM (§7.2) queda como challenger opcional la próxima sesión — deberá
+vencer TODO el expediente del GRU incluido este one-shot (que para él ya no
+existe: su juez sería window_check + shadow).
