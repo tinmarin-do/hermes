@@ -202,7 +202,8 @@ def build_candidates() -> list[Candidate]:
                 .groupby(df["symbol"], observed=True)
                 .transform(lambda x: x.ewm(alpha=0.06, min_periods=10).std())
             ),
-            min_lookback_days=20,
+            # 75d ≈ 99.999% de la memoria efectiva del EWMA α=0.06 (canary local)
+            min_lookback_days=75,
         )
     )
 

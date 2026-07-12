@@ -18,6 +18,10 @@ from src.lab import gcs
 
 LABEL_THRESHOLD = 0.01
 DELISTED = {"EOS", "FTM", "MKR", "MATIC"}  # en corpus (anti-supervivencia), no operables
+# Libros FX/stablecoin de Bitso: son series de referencia (FX del venue), NO objetivos
+# de inversión — base rate 3-11% (verificado en base_rates 2026-07-11) contaminaría
+# el pooled. Se quedan en el dataset (features) pero operable=False.
+NON_TARGET = {"EUR", "USD", "USDT", "USDS", "TUSD", "PYUSD", "RLUSD"}
 
 
 def _daily_bars(df: pd.DataFrame) -> pd.DataFrame:
@@ -65,7 +69,7 @@ def main() -> int:
         base = pair.split("/")[0]
         bars = _label_frame(_daily_bars(gcs.read_parquet(blob)), fx_ret=None)
         bars["source"], bars["symbol"], bars["pair"] = "bitso", base, pair
-        bars["operable"] = True
+        bars["operable"] = base not in NON_TARGET
         frames.append(bars.reset_index().rename(columns={"index": "ts"}))
 
     if not frames:

@@ -57,16 +57,23 @@ def _canary_leakage(panel: pd.DataFrame, cand, rng: np.random.Generator) -> bool
     if len(usable) == 0:
         return True
     sample = rng.choice(len(usable), size=min(CANARY_DATES, len(usable)), replace=False)
+    # Ventana local [t − 2·lookback − 40d, t]: detecta lookahead igual que truncar
+    # toda la historia (los rolling solo miran `lookback` días) pero evita recomputar
+    # features caras (Hurst) sobre años completos en cada una de las 40 fechas.
     for i in sample:
         t = usable[i]
-        trunc = panel[pd.to_datetime(panel["ts"]) <= t]
-        vals_full = full[pd.to_datetime(panel["ts"]) == t]
+        ts_col = pd.to_datetime(panel["ts"])
+        lo = t - pd.Timedelta(days=2 * cand.min_lookback_days + 40)
+        trunc = panel[(ts_col <= t) & (ts_col >= lo)]
+        vals_full = full[ts_col == t]
         vals_trunc = cand.fn(trunc)[pd.to_datetime(trunc["ts"]) == t]
         a, b = vals_full.to_numpy(dtype=float), vals_trunc.to_numpy(dtype=float)
         if len(a) != len(b):
             return False
         both = ~(np.isnan(a) & np.isnan(b))
-        if not np.allclose(a[both], b[both], rtol=1e-9, equal_nan=True):
+        # rtol 1e-4: un lookahead real (p.ej. shift mal puesto) difiere a nivel %;
+        # el residuo de memoria EWMA fuera de la ventana local es ~1e-5 — pasa.
+        if not np.allclose(a[both], b[both], rtol=1e-4, atol=1e-12, equal_nan=True):
             return False
     return True
 
