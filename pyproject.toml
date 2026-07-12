@@ -55,6 +55,7 @@ lab = [
     "pyarrow>=17",
 ]
 nn = [
+    "granite-tsfm>=0.2",
     # Fase NN H12 §7 (challenger del campeón): secuencias OHLCV → GRU/TCN + TTM.
     # torch resuelve del index CPU (tool.uv.sources) — jobs sin GPU, imagen chica.
     "torch>=2.4",
@@ -127,9 +128,11 @@ module = [
 ignore_errors = true
 
 # CI corre mypy SIN el extra nn: torch es Any y la GruNet subclasea nn.Module.
+# En ttm_trial los stubs parciales de torch marcan backward() como untyped.
 [[tool.mypy.overrides]]
-module = ["src.lab.nn_trial"]
+module = ["src.lab.nn_trial", "src.lab.ttm_trial"]
 disallow_subclassing_any = false
+disallow_untyped_calls = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
