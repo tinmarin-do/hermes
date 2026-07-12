@@ -71,6 +71,54 @@ class TestFeesAndReturns:
         assert base["mean_daily_net_pct"] == pytest.approx(tp["mean_daily_net_pct"])
 
 
+def _alternating(days: int = 60) -> pd.DataFrame:
+    """Dos símbolos, la señal salta de uno al otro cada día; mismo retorno en ambos."""
+    rows = []
+    for i, ts in enumerate(pd.date_range("2024-01-01", periods=days, freq="D")):
+        rows.append(
+            {
+                "ts": ts,
+                "symbol": "BTC",
+                "p": 0.9 if i % 2 == 0 else 0.1,
+                "rv_20d": 0.03,
+                "fwd_ret_24h_mxn": 0.01,
+                "fwd_high_ret": 0.012,
+            }
+        )
+        rows.append(
+            {
+                "ts": ts,
+                "symbol": "ETH",
+                "p": 0.1 if i % 2 == 0 else 0.9,
+                "rv_20d": 0.03,
+                "fwd_ret_24h_mxn": 0.01,
+                "fwd_high_ret": 0.012,
+            }
+        )
+    return pd.DataFrame(rows)
+
+
+class TestSmoothingAndBenchmark:
+    def test_smoothing_cuts_turnover_and_improves_net(self):
+        """Señal que rota 100% a diario: suavizar corta turnover; con el mismo retorno
+        en ambos símbolos el bruto es ~igual → el ahorro de fees gana."""
+        base = run_backtest(_alternating(), StrategyParams())
+        sm = run_backtest(_alternating(), StrategyParams(smooth_alpha=0.33))
+        assert sm["avg_turnover"] < base["avg_turnover"] / 3
+        assert sm["mean_daily_net_pct"] > base["mean_daily_net_pct"]
+
+    def test_alpha_one_is_identity(self):
+        base = run_backtest(_signals(days=40), StrategyParams())
+        sm = run_backtest(_signals(days=40), StrategyParams(smooth_alpha=1.0))
+        assert sm["mean_daily_net_pct"] == pytest.approx(base["mean_daily_net_pct"])
+
+    def test_benchmark_and_excess(self):
+        """Universo de 1 símbolo: el benchmark EW es el mismo activo → exceso ≈ 0."""
+        r = run_backtest(_signals(days=40), StrategyParams())
+        assert r["benchmark_ew_daily_pct"] == pytest.approx(2.0 - 0.46 / 40, abs=0.01)
+        assert r["excess_vs_ew_pct"] == pytest.approx(0.0, abs=0.01)
+
+
 class TestMetrics:
     def test_needs_30_days(self):
         assert "error" in run_backtest(_signals(days=10), StrategyParams())
