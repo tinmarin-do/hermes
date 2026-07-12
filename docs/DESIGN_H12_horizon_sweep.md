@@ -89,3 +89,12 @@ Regla lookback ≥ H aplicada; evidencia: dossiers `feature_dossier_v2_relmedian
 Excluidas: ewma_vol_20 (canary FUGA ×3 — definitivo), breadth_20d (day-constant,
 artefacto), hl_range/hl_range_z30 (lookback 1d < H; z30 muere con horizonte),
 usdmxn_ret_5d (IC +0.032 a H7 pero lookback 5 < 7 — la regla manda).
+
+## §9 Cambio de protocolo (2026-07-12, directiva Erika)
+
+Erika descartó su gate de aprobación en decisiones de research ("no lo veo muy útil
+— descartar de una"): dossiers, sets por horizonte y enmiendas de label dentro del
+arco ya NO esperan su OK. El rigor NO cambia: sense-first, pre-registro fechado ANTES
+de correr, conteo íntegro de trials, reporte honesto con caveats. La extensión de
+grilla {21, 28} del §2 pasa a requerir solo enmienda pre-registrada (sin gate).
+**El firewall del §5 (dinero real) queda INTACTO, incluido su sign-off explícito.**
