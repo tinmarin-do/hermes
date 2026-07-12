@@ -840,3 +840,17 @@ PF 3.26 ≥ meta 1.5; acc temporal 0.553 ≥ 0.55). PERO honestidad completa:
 no cuenta como trial nuevo — no se selecciona nada con él); (b) distribución por
 bloque (¿cuántos de los 25 aportan el exceso?); (c) si sobrevive → fase NN §7 sobre
 H=14 y considerar grilla extendida {21, 28} vía nueva enmienda con gate.
+
+### H12 — Phase check de H=14 (diagnóstico, 2026-07-12): EL EXCESO SOBREVIVE
+
+Mismo modelo del trial 17 re-evaluado en las 14 fases de la grilla (offsets 0-13;
+NO cuenta como trial — no se seleccionó nada): **13/14 fases con exceso POSITIVO**,
+media **+1.45%/periodo**, rango [−0.46, +2.63], σ 0.87. El +2.03 del offset 0 no era
+suerte de calendario. Matices honestos: (1) un bloque de **+97.9%** (rally alt de 2
+semanas en el holdout) carga gran parte del total — sin él, el neto medio del offset
+0 cae de 5.60 a 1.75%/periodo (aún > 0); (2) 14/25 bloques positivos (56%); (3) todas
+las fases comparten el MISMO año de mercado — la robustez es a la fase, no al régimen.
+El slice de confirmación (otro régimen) sigue virgen y será el juez final.
+**Siguiente (sin gate, protocolo §9): fase NN §7 sobre H=14 (máx 2 configs) y
+enmienda de grilla {21, 28} pre-registrada.** Meta formal aún NO cumplida (acc
+bloques 0.525 < 0.55) — el firewall no se dispara todavía.
