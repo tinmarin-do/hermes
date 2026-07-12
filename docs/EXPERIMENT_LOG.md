@@ -854,3 +854,29 @@ El slice de confirmación (otro régimen) sigue virgen y será el juez final.
 **Siguiente (sin gate, protocolo §9): fase NN §7 sobre H=14 (máx 2 configs) y
 enmienda de grilla {21, 28} pre-registrada.** Meta formal aún NO cumplida (acc
 bloques 0.525 < 0.55) — el firewall no se dispara todavía.
+
+### H12 — Tanda 2: grilla extendida {21, 28} (trials 18-19 + phase checks) (2026-07-12)
+
+Enmienda §10. Sets por regla lookback ≥ H desde dossiers _h21/_h28 (el IC de ret_63d
+siguió creciendo: +0.094 a 21d, +0.104 a 28d; hurst revivió débil en U — fuera).
+H=28 quedó en UNA variable: ret_63d (momentum trimestral puro — superficie mínima
+de overfit). Métrica primaria = media del phase check (§10; el holdout da 13-17
+periodos por fase a estos H).
+
+| H | acc blq/temp | exceso medio (fases) | positivas | equiv. %/día | PF (off0) | top1 bloque |
+|---|---|---|---|---|---|---|
+| 14 | 0.525/0.553 | +1.45 | 13/14 | +0.10 | 3.26 | +98% |
+| 21 | 0.518/0.498 | +2.44 | 17/21 | +0.12 | 2.06 | +169% |
+| 28 | 0.526/0.527 | **+5.02** | **26/28** | **+0.18** | 3.31 | +174% |
+
+**Aprendizajes (n_trials: 19):** (1) el exceso crece MONÓTONO con H en toda la grilla
+medible — la fisiología es momentum cross-seccional de formación trimestral cosechado
+a cadencia mensual; (2) la acc de clasificación NO acompaña (H21 temporal 0.498 —
+¡moneda! — con economía positiva): el dinero está en la MAGNITUD concentrada de los
+extremos que el ranking captura, no en la tasa de acierto → la meta acc>0.55 mide la
+dimensión equivocada para esta familia (tema para Erika); (3) los bloques monstruo
+(+98/+169/+174%) dominan los totales — estrategia de cola derecha: pierde chico
+seguido, gana enorme rara vez (PF>2-3 aun así); (4) tope de data: H>28 dejaría <10
+bloques por fase en el holdout — la grilla NO se extiende más; el juez de régimen
+sigue siendo el slice de confirmación (virgen). Siguiente: fase NN §7 sobre H=28/14
+y decisión de metas con Erika.
