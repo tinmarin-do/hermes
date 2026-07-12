@@ -175,3 +175,15 @@ class TestHybridSplits:
         b = hybrid_splits(self.dates, seed=7)
         for sa, sb in zip(a, b, strict=True):
             assert np.array_equal(sa.val_dates, sb.val_dates)
+
+    def test_horizon_scales_purge_and_embargo(self):
+        """H12 §4: con horizonte H=14 ningún día de train queda a <14d de un bloque
+        de validation (labels solapados train↔val = leakage directo)."""
+        for split in hybrid_splits(self.dates, seed=7, horizon_days=14):
+            val = pd.Series(split.val_dates)
+            blocks = (val.diff() > pd.Timedelta(days=1)).cumsum()
+            for _, block in val.groupby(blocks):
+                lo = block.min() - pd.Timedelta(days=14)
+                hi = block.max() + pd.Timedelta(days=14)
+                inside = (split.train_dates >= lo) & (split.train_dates <= hi)
+                assert not inside.any(), f"{split.name}: train dentro de la purga H"

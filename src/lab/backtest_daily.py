@@ -52,7 +52,11 @@ class StrategyParams:
     slippage: float = SLIPPAGE
     take_profit: float | None = None  # ENTERRADO (solo reproducibilidad trials 1-8)
     smooth_alpha: float | None = None  # α de ejecución suavizada (None ≡ 1.0)
-    stop_loss: float | None = None  # 0.03 → variante SL-3% (corta cola izquierda)
+    stop_loss: float | None = None  # ENTERRADO (solo reproducibilidad trials 9-12)
+    # H12: cadencia del rebalanceo = horizonte del label (REGLA EN PIEDRA §3 del
+    # pre-registro). signals debe traer SOLO fechas de rebalanceo y fwd_ret del
+    # horizonte; anualización y mínimo de observaciones escalan con H.
+    horizon_days: int = 1
 
 
 def _weights_for_day(day: pd.DataFrame, p: StrategyParams) -> pd.Series:
@@ -128,13 +132,15 @@ def run_backtest(
         prev_w = w
 
     r = np.asarray(daily_net)
-    if len(r) < 30:
-        return {"error": "menos de 30 días de validación", "days": len(r)}
+    min_obs = 30 if params.horizon_days == 1 else 20
+    if len(r) < min_obs:
+        return {"error": f"menos de {min_obs} periodos de validación", "days": len(r)}
     # benchmark: equal-weight buy&hold aprox (entrada única con fee; sin rebalanceo)
     b = np.asarray(daily_bench)
     b[0] -= params.fee_rate + params.slippage
     mu, sd = float(r.mean()), float(r.std(ddof=1))
-    sharpe = (mu / sd) * np.sqrt(PPY) if sd > 0 else 0.0
+    ppy = PPY / params.horizon_days
+    sharpe = (mu / sd) * np.sqrt(ppy) if sd > 0 else 0.0
     wins, losses = float(r[r > 0].sum()), float(-r[r < 0].sum())
     profit_factor = round(wins / losses, 4) if losses > 0 else None
     equity = np.cumprod(1 + r)
@@ -158,4 +164,5 @@ def run_backtest(
         "threshold": params.threshold,
         "top_k": params.top_k,
         "smooth_alpha": params.smooth_alpha,
+        "horizon_days": params.horizon_days,
     }
