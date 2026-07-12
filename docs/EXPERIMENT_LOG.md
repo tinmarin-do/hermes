@@ -906,3 +906,59 @@ Camino honesto acordado, sin ablandar la vara: (1) **shadow pre-firewall a caden
 periodo suma un punto de evidencia fresca OOS que puede zanjar M4 legítimamente;
 (2) la fase NN §7 corre como CHALLENGER del campeón; (3) el one-shot del slice
 sigue reservado para cuando la evidencia acumulada lo justifique + sign-off.
+
+### H12 — Shadow pre-firewall del campeón ARRANCADO (2026-07-12, §12 del pre-registro)
+
+Modelo congelado `models/h12-ext5-h28.json` (sha 0be0129e7e5f): receta del spec
+re-entrenada sobre TODA la iteración (16,489 filas, 2021-03-05 → 2025-09-10; el
+slice de confirmación jamás entrena). Emisión diaria vía Cloud Scheduler
+(`hermes-shadow-h12-emit`, 00:20 UTC) sobre el universo Bitso MXN operable
+(10 libros); **rebalanceo solo en la grilla ancla+k·28**. Ledger:
+`shadow/h12-ext5-h28/days/` · reporte vivo: `reports/shadow_h12_ext5_h28.md`.
+
+**Incidente documentado**: la emisión inaugural corrió a las ~19h UTC y la barra
+del día EN CURSO (20 velas ≥ umbral 20 de `_daily_bars`) pasó como día completo —
+decisión con día parcial. Fix: filtro por fecha (`complete_days`, solo barras
+< hoy UTC) + test; el ledger (1 entrada, minutos de vida, defecto conocido) se
+RESETEÓ y se re-ancló con el último día completo. Único reset permitido: día 0,
+antes de acumular evidencia.
+
+**Hallazgo que corrige la narrativa — el campeón NO es momentum, es REVERSIÓN
+débil en los extremos**: el freeze expuso coef(ret_63d) = −0.067, y la
+verificación read-only del modelo EVALUADO (temporal holdout) da −0.082 (todos
+los block draws negativos: −0.016…−0.076). La regla que pasó M1-M3 compra los
+símbolos MÁS GOLPEADOS del trimestre (bottom ret_63d), no los ganadores. El IC
++0.104 del dossier era sobre TODAS las filas (momentum en el rango medio); en el
+contraste de extremos top-5/bottom-5 domina la reversión — ambas cosas son
+ciertas a la vez. Nada cambia en la evidencia (misma regla evaluada, mismo
+freeze, y el top-5 de un modelo monótono de 1 variable es invariante a la
+magnitud del coef); cambia la ETIQUETA económica: contrarian trimestral con
+tilt inverse-vol. n_trials sigue en 19 (freeze/shadow no son trials).
+
+### H12 — Fase NN, config 1 (GRU secuencias): trial `nn1-gru-h28-20260712` (n_trials=20)
+
+Pre-registro §7.1 (hiperparámetros congelados antes de correr). GRU(32) sobre
+secuencias 84d de canales estacionarios del OHLCV, extremes_k5 H=28, mismo split
+y mismo motor de backtest que el campeón.
+
+| Métrica (holdout temporal 2024-09→2025-09) | GRU NN-1 | Campeón ext5-h28 |
+|---|---|---|
+| Exceso fase-media (28 offsets) | **+7.61%/periodo (28/28 fases +)** | +5.02 (26/28) |
+| Anti-episodio (sin top1) | **+3.53 (27/28)** | +0.80 (21/28) |
+| PF fase-media | **4.13** | 3.14 |
+| AUC temporal | **0.5995** | 0.5236 |
+| AUC bloques (K=5 sorteos) | **0.5052 ❌** (rango 0.45–0.55) | 0.5185 ❌ (por 0.0015) |
+
+Lectura honesta: el GRU le gana al campeón en TODO lo económico del holdout —
+supera el baseline en el año reciente por margen amplio — pero su ranking en los
+sorteos por bloques es MONEDA AL AIRE con varianza brutal (draws en 0.45 = ranking
+activamente equivocado en regímenes viejos; pred_rate 0.12–0.53 entre draws =
+calibración inestable del umbral). M1-M3 como challenger: ✅✅✅. M4: ❌ en bloques
+(peor que el campeón en robustez, mejor en el régimen reciente). Caveats: 13
+periodos en offset0, DSR 0.077 (n=20 trials, pocas obs), maxDD −45.8%, y la
+expectativa pre-registrada de que el holdout fue año excepcional aplica DOBLE a
+un modelo de más capacidad. Veredicto: **challenger legítimo, mismo talón de
+Aquiles (M4-bloques) que el campeón pero amplificado en ambas direcciones** — la
+adjudicación honesta es forward: candidato natural a segundo stream del shadow
+(decisión de infra para la próxima sesión). Config NN-2 (TTM) pendiente, §7.2
+congelará sus hiperparámetros antes de correr.

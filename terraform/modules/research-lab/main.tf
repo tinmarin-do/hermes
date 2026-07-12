@@ -88,6 +88,79 @@ resource "google_cloud_run_v2_job" "lab" {
   }
 }
 
+# ── Shadow pre-firewall H12 (DESIGN_H12 §12): emisión diaria del campeón ──────
+# Job DEDICADO con args fijos (papel, cero riesgo, no toca el stack live): un
+# :run con overrides exigiría run.jobs.runWithOverrides (no está en run.invoker,
+# verificado 2026-07-12 con 403) — el job propio mantiene el mínimo privilegio.
+# Cadencia de REBALANCEO = 28d la decide el producer (grilla anclada); la
+# emisión diaria solo acumula evidencia AUC.
+# 00:20 UTC: la barra diaria D cierra a las 00:00 — se decide con el día completo.
+resource "google_cloud_run_v2_job" "shadow" {
+  project             = var.project_id
+  name                = "hermes-shadow-h12"
+  location            = var.region
+  deletion_protection = false
+
+  template {
+    task_count  = 1
+    parallelism = 1
+
+    template {
+      service_account = google_service_account.lab.email
+      timeout         = "1200s"
+      max_retries     = 0
+
+      containers {
+        image = local.lab_image
+        args  = ["src.lab.shadow_producer", "--emit"]
+
+        env {
+          name  = "HERMES_RESEARCH_BUCKET"
+          value = google_storage_bucket.research.name
+        }
+
+        resources {
+          limits = {
+            cpu    = "2"
+            memory = "4Gi"
+          }
+        }
+      }
+    }
+  }
+}
+
+resource "google_cloud_run_v2_job_iam_member" "shadow_scheduler_invoker" {
+  project  = var.project_id
+  location = var.region
+  name     = google_cloud_run_v2_job.shadow.name
+  role     = "roles/run.invoker"
+  member   = "serviceAccount:${var.scheduler_sa_email}"
+}
+
+resource "google_cloud_scheduler_job" "shadow_emit" {
+  project          = var.project_id
+  region           = var.region
+  name             = "hermes-shadow-h12-emit"
+  description      = "Shadow pre-firewall ext5-h28: delta Bitso + señal diaria + eval (§12)"
+  schedule         = "20 0 * * *"
+  time_zone        = "Etc/UTC"
+  attempt_deadline = "180s"
+
+  retry_config {
+    retry_count = 1
+  }
+
+  http_target {
+    http_method = "POST"
+    uri         = "https://run.googleapis.com/v2/projects/${var.project_id}/locations/${var.region}/jobs/${google_cloud_run_v2_job.shadow.name}:run"
+    oauth_token {
+      service_account_email = var.scheduler_sa_email
+      scope                 = "https://www.googleapis.com/auth/cloud-platform"
+    }
+  }
+}
+
 # ── Billing budget REAL — la protección de gasto del arco ─────────────────────
 # EXCLUDE_ALL_CREDITS es CRÍTICO: con créditos incluidos el costo neto es $0 y
 # las alertas del 50/80% jamás dispararían. Regla dura del arco: no pasar del

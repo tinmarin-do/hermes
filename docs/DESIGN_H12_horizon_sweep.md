@@ -124,3 +124,68 @@ AMBOS, grilla cerrada de nuevo). Reglas:
   a cadencia H + scheduler alineado + sign-off de Erika). Sin cambios.
 Expectativa pre-registrada: el holdout fue año excepcional; confirmación/shadow
 mostrarán menos. Un exceso robusto de +0.05%/día ya sería extraordinario.
+
+## §12 Shadow pre-firewall del campeón ext5-h28 (2026-07-12, pre-registrado ANTES de la 1ª emisión)
+
+Directiva Erika 2026-07-12 ("NO descartaría todavía al candidato... ha sido nuestro
+mejor candidato"): `ext5-h28-logistic-20260712` es el CAMPEÓN del arco (M1-M3 ✅,
+M4 ❌ por 0.0015 en bloques). El shadow forward es la única evidencia que puede
+zanjar M4 sin verdict-shopping: papel, cero riesgo, NO consume el slice one-shot,
+NO es el shadow ≥45d del firewall §5 (ese arranca formalmente cuando el candidato
+entre al firewall; este pre-firewall acumula desde YA y sus días CUENTAN como
+historia forward del mismo modelo congelado).
+
+**Implementación** (`src/lab/shadow_producer.py`, modos --freeze/--emit/--eval):
+
+1. **Freeze**: la receta del spec re-entrenada UNA vez sobre TODA la iteración
+   (corpus Binance; el slice de confirmación jamás entrena — `partitions()` lo
+   excluye). Artefacto JSON auditable con sha256 (μ/σ del scaler + coef + b), sin
+   pickle → `models/h12-ext5-h28.json`. El sha se registra en cada emisión: si el
+   modelo cambia, deja huella.
+2. **Emisión diaria, rebalanceo cada 28d (⛰️ §3)**: scheduler 00:20 UTC dispara
+   `--emit` (delta Bitso → features → p → ledger). La grilla de rebalanceo queda
+   ANCLADA en la fecha de la primera emisión; día de grilla perdido → catch-up en
+   la siguiente emisión SIN re-anclar. La emisión diaria de p solo acumula
+   evidencia AUC — los pesos NO se tocan entre fechas de grilla.
+3. **Universo y features = Bitso MXN nativo** (la caja registradora del arco):
+   ~10 libros operables (NON_TARGET fuera). El modelo entrenó sobre Binance
+   (~25 operables) — DESVIACIÓN DOCUMENTADA en dos frentes: (a) top-5 de 10 es
+   menos selectivo que top-5 de 25; (b) con n=10 y k=5, extremes_k5 degenera a
+   beats-median. Es EXACTAMENTE el universo que enfrentaría el live en el venue —
+   el shadow mide la regla como operaría, no como entrenó. ret_63d desde closes
+   MXN: el modelo es monótono en su única feature y el FX es factor común del día
+   → el top-5 es idéntico al ranking USDT; ret_63d crudo se registra por símbolo
+   para auditar el puente.
+4. **Ledger en el bucket de research** (`shadow/h12-ext5-h28/days/<fecha>.json`),
+   NO en el DuckDB del brain: state_sync sincroniza por download→modify→upload y
+   un segundo escritor haría race con la corrida diaria live. Esquema espejo de
+   `shadow_signals` — importable si se promueve. **El pipeline live no se toca.**
+5. **Evaluación** (`--eval`, corre tras cada emisión → `reports/shadow_h12_ext5_h28.md`):
+   track record con fees Bitso (0.36% + 10bps slippage sobre turnover DRIFTEADO —
+   más realista que el backtest) vs benchmark EW buy&hold del universo; exceso por
+   periodo de 28d. **AUC forward**: p emitida vs label realizado a 28d —
+   **grilla = primaria** (apuestas independientes), diaria solapada = secundaria
+   (obs correlacionadas, solo indicativa). Madurez con tolerancia +3d.
+6. **Qué puede y qué no puede esta evidencia**: NO re-abre el M4 de bloques (los
+   draws 2021-22 son los que son); aporta una línea NUEVA de evidencia fuera de
+   muestra que Erika pondera en el sign-off. La vara del §11 NO se ablanda: metas
+   fijas, el shadow solo suma datos. Expectativa pre-registrada: a 28d de cadencia
+   cada periodo es UN punto económico — la lectura honesta temprana es el AUC
+   diario indicativo + la direccional del primer periodo, nada más.
+
+## §7.1 Config NN-1 CONGELADA (2026-07-12, pre-registrada ANTES de correr)
+
+GRU supervisado sobre secuencias derivadas del OHLCV crudo (`src/lab/nn_trial.py`).
+Instanciación honesta de "secuencias OHLCV crudas": canales ESTACIONARIOS derivados
+1:1 del OHLCV (ret_1d, hl_range, vol_rel=log(vol/MA20)) — precios crudos no son
+comparables entre símbolos; z-norm POR VENTANA (μ/σ de la propia secuencia, causal).
+
+Hiperparámetros fijos (sin tuning; 1 config = 1 trial contado):
+window=84 (≈ la formación ret_63d del campeón + margen) · GRU hidden=32, 1 capa,
+dropout=0.2 · Adam lr=1e-3 · batch=256 · **épocas=15 FIJAS** (sin early-stopping
+sobre validation — sería selección de modelo con el set de evaluación) · seed=42 ·
+label extremes_k5 H=28 · threshold 0.5 · top-5. Split híbrido purgado a H=28 y
+phase check completo (28 offsets) DENTRO del trial. Baseline a vencer (campeón):
+exceso fase-media +5.02%/periodo, PF fase-media 3.14, sin-top1 +0.80, AUC bloques
+0.5185 / temporal 0.5236. La config NN-2 (TTM fine-tune) congelará sus
+hiperparámetros en §7.2 antes de SU corrida.

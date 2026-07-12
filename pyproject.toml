@@ -54,6 +54,11 @@ lab = [
     "scikit-learn>=1.5",
     "pyarrow>=17",
 ]
+nn = [
+    # Fase NN H12 §7 (challenger del campeón): secuencias OHLCV → GRU/TCN + TTM.
+    # torch resuelve del index CPU (tool.uv.sources) — jobs sin GPU, imagen chica.
+    "torch>=2.4",
+]
 news = [
     "sentence-transformers>=3.0",   # embeddings de noticias (local, CPU)
     "umap-learn>=0.5.6",           # reducción de dimensión para clusterizar
@@ -63,6 +68,16 @@ news = [
     "scikit-learn>=1.5",           # K-Means, Agglomerative, métricas de validez
     "matplotlib>=3.9",             # gráfica 2D (t-SNE) de inspección
 ]
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+# torch SIEMPRE CPU (ningún entorno Hermes tiene GPU): aplica también al torch
+# que arrastra sentence-transformers (extra news) — wheels ~5x más chicos.
+torch = { index = "pytorch-cpu" }
 
 [build-system]
 requires = ["hatchling"]
@@ -110,6 +125,11 @@ module = [
     "src.brain.calibrate",
 ]
 ignore_errors = true
+
+# CI corre mypy SIN el extra nn: torch es Any y la GruNet subclasea nn.Module.
+[[tool.mypy.overrides]]
+module = ["src.lab.nn_trial"]
+disallow_subclassing_any = false
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"

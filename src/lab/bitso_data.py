@@ -3,9 +3,12 @@
 Modos:
   python -m src.lab.bitso_data --probe      → reports/bitso_universe_audit.md
   python -m src.lab.bitso_data --backfill   → bronze/bitso_ohlcv_1h/<BOOK>.parquet
+  python -m src.lab.bitso_data --delta      → append de velas nuevas a los parquet
 
 El probe mide profundidad/completitud/volumen por libro; el backfill baja TODO el
 histórico 1h que el venue entregue (incluye usdt_mxn — la serie FX del venue).
+El delta trae solo lo posterior a la última vela de cada parquet (lo usa el
+shadow producer H12 antes de cada emisión — Bitso no bloquea GCP).
 """
 
 import argparse
@@ -173,15 +176,44 @@ def backfill() -> int:
     return 0
 
 
+def delta() -> int:
+    """Append incremental: por parquet existente, baja velas > última ts y sube."""
+    ex = ccxt.bitso({"enableRateLimit": True})
+    updated = 0
+    for name in sorted(gcs.list_blobs("bronze/bitso_ohlcv_1h/")):
+        book = name.split("/")[-1].removesuffix(".parquet").replace("_", "/")
+        old = gcs.read_parquet(name)
+        last = pd.Timestamp(old.ts.max())
+        try:
+            new = _fetch_all(ex, book, last.tz_localize(UTC) + pd.Timedelta(hours=1))
+        except Exception as e:  # noqa: BLE001
+            print(f"  {book:12s} ERROR delta: {e}")
+            continue
+        new = new[new.ts > last]
+        if new.empty:
+            continue
+        merged = (
+            pd.concat([old, new], ignore_index=True).drop_duplicates(subset="ts").sort_values("ts")
+        )
+        gcs.upload_parquet(merged, name)
+        updated += 1
+        print(f"  {book:12s} +{len(new):,} velas (→ {merged.ts.max()})")
+    print(f"[delta] {updated} libros actualizados")
+    return 0
+
+
 def main() -> int:
     p = argparse.ArgumentParser()
     p.add_argument("--probe", action="store_true")
     p.add_argument("--backfill", action="store_true")
+    p.add_argument("--delta", action="store_true")
     a = p.parse_args()
     if a.probe:
         return probe()
     if a.backfill:
         return backfill()
+    if a.delta:
+        return delta()
     p.print_help()
     return 2
 

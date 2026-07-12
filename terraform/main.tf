@@ -149,6 +149,7 @@ module "research_lab" {
   budget_units       = var.research_budget_units
   alert_email        = var.alert_email
   vm_enabled         = var.lab_vm_enabled
+  scheduler_sa_email = google_service_account.scheduler.email
 }
 
 # El dashboard (SA runtime) dispara el job de emergencia con la secuencia

@@ -35,3 +35,8 @@ variable "vm_enabled" {
   default     = false
   description = "Enciende la VM spot c2d-highcpu-32 de iteración interactiva (default: apagada)"
 }
+
+variable "scheduler_sa_email" {
+  type        = string
+  description = "SA de Cloud Scheduler que dispara la emisión diaria del shadow H12"
+}
