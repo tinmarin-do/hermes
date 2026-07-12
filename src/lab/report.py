@@ -20,7 +20,13 @@ def _meta_v2(t: dict[str, Any]) -> str:
     ab, at = t.get("acc_blocks_mean"), t.get("acc_temporal")
     base = t.get("backtest_base", {})
     pf, exc = base.get("profit_factor"), base.get("excess_vs_ew_pct")
-    if t.get("label") != "rel_median" or ab is None or at is None or pf is None or exc is None:
+    if (
+        t.get("label") not in ("rel_median", "extremes_k5")
+        or ab is None
+        or at is None
+        or pf is None
+        or exc is None
+    ):
         return "—"
     ok = ab > META_ACC and at > META_ACC and pf >= META_PF and exc > 0
     return "✅" if ok else "—"

@@ -756,3 +756,37 @@ suavizado desde el arranque (lección de la tanda 2), SL-3% siempre como variant
 4. Metas v2 a hoy: acc 0.513 vs 0.55 · PF 1.21 vs 1.5 · exceso −0.062 vs >0.
    Sí mejoró TODO vs la familia absoluta (Sharpe 1.25 vs 0.85; maxDD −39 vs −57;
    DSR 0.38 vs 0.32) — dirección correcta, magnitud insuficiente.
+
+### H11 — Tanda 4: label de extremos (§10) + barrido de formación larga (2026-07-12)
+
+Enmienda §10 (idea Erika: top-k como target + purga de banda de ruido): label
+`extremes_k5` — top-5 vs bottom-5 del día, banda media fuera del training, 50/50 por
+construcción. Regla anti-leakage explícita: el backtest puntúa TODAS las filas con
+features válidas. Métrica nueva: precision@5 (naive ≈ 24%). Salidas intradía ±3%
+retiradas del default (TP y SL enterrados).
+
+| Trial | Qué | Resultado | Veredicto |
+|---|---|---|---|
+| ext5-logistic-sm015 | logística extremos, α=0.15 | acc 0.520±0.008/0.517 · AUC 0.536 (récord) · **+0.196%/día, +73.8% total, Sharpe 1.41, maxDD −38.6% (récords del arco)** · PF 1.24 · **exceso −0.043** · precision@5 0.230 ≈ naive 0.238 | 🟡 mejor config del arco; exceso aún <0 |
+| ext5-lightgbm-sm015 | LGBM extremos | acc 0.517/0.508 · +0.093%/día · exceso −0.146 | ❌ LGBM pierde vs logística por 3ª vez |
+
+**Barrido de formación larga (D1, sin costo de trial)**: ret_21d IC +0.0247 (p=0.023)
+pero deciles NO-monótonos (50.3/54.4/49.6 — joroba en D5); ret_63d IC +0.0294 (p=0.008)
+con deciles PLANOS (49.5/50.5/49.3 — correlación sin patrón rankeable). Sin redundancia
+con el set v2. Veredicto: ⚠️ NO es la palanca — IC nominal sin estructura económica.
+Patrón de régimen consistente en TODO el cluster momentum: IC positivo en vol baja/media,
+~0 o negativo en vol alta.
+
+**Aprendizajes de la tanda (n_trials: 14):**
+1. **La progresión por label es monótona y converge SIN cruzar**: exceso −0.13 (absoluto)
+   → −0.062 (mediana) → **−0.043 (extremos)**. Cada refinamiento acerca al benchmark;
+   ninguno lo supera. Con costo ~4.8bps/día, el exceso BRUTO de extremos ≈ 0 otra vez.
+2. **precision@5 ≈ naive**: el modelo NO identifica el top-5 real mejor que el azar,
+   aunque clasifica extremos a 52% y su backtest es el mejor del arco — la mejora vino
+   de mejor *tilt* de cartera (low-vol + momentum suave), no de selección de ganadores.
+3. El barrido sense-first del espacio relativo diario está COMPLETO: momentum corto
+   (débil+), formación larga (débil/plano), vol (limpia−, la mejor), lead-lag BTC
+   (débil+), calendario/FX (muertos). No quedan esquinas teóricas obvias sin medir
+   a esta granularidad.
+4. Metas: acc 0.520 vs 0.55 · PF 1.24 vs 1.5 · exceso −0.043 vs >0. Todo mejoró de
+   nuevo; nada cruzó.

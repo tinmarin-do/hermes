@@ -114,6 +114,26 @@ def build_candidates() -> list[Candidate]:
                 min_lookback_days=d,
             )
         )
+    # Formación larga (candidatas 2026-07-12, post-tanda 4): los lookbacks CANÓNICOS
+    # del momentum cross-seccional (1 y 3 meses, literatura de factor investing y
+    # crypto momentum). Sin probar contra NINGÚN label relativo — ret_10d salió n.s.
+    # pero la formación mensual es otra fisiología (rebalanceo institucional, drift
+    # post-narrativa). Cumplen mejor la regla observación >> horizonte de Erika.
+    for d in (21, 63):
+        C.append(
+            Candidate(
+                name=f"ret_{d}d",
+                group="1_retornos",
+                rationale=(
+                    f"Momentum de formación {d}d ({'1 mes' if d == 21 else '3 meses'}): "
+                    "lookback canónico del momentum cross-seccional; en relativo, los "
+                    "ganadores de formación mensual tienden a persistir (o revertir — "
+                    "el estudio decide; ret_10d fue n.s., esta escala es distinta)."
+                ),
+                fn=partial(_ret, days=d),
+                min_lookback_days=d,
+            )
+        )
     C.append(
         Candidate(
             name="abs_ret_1d",

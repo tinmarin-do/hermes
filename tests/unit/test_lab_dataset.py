@@ -10,6 +10,7 @@ from src.lab.dataset import (
     MIN_BASKET,
     _daily_bars,
     _label_frame,
+    extremes_label,
     relative_label,
 )
 from src.lab.splits import (
@@ -104,6 +105,32 @@ class TestRelativeLabel:
         out = relative_label(panel)
         assert list(out["symbol"]) == list(panel["symbol"])
         assert set(out["y"].unique()) == {0.0, 1.0}
+
+
+class TestExtremesLabel:
+    def test_top_bottom_and_middle(self):
+        """13 símbolos escalonados: top-5 y=1, bottom-5 y=0, 3 del medio NaN."""
+        rets = [round(-0.06 + 0.01 * i, 4) for i in range(13)]  # −6%..+6%
+        out = extremes_label(_panel_one_day(rets), k=5)
+        assert out["y"].sum() == 5.0
+        assert (out["y"] == 0.0).sum() == 5
+        assert out["y"].isna().sum() == 3
+        assert out.loc[out["fwd_ret_24h_mxn"] == 0.06, "y"].iloc[0] == 1.0
+        assert out.loc[out["fwd_ret_24h_mxn"] == -0.06, "y"].iloc[0] == 0.0
+        assert pd.isna(out.loc[out["fwd_ret_24h_mxn"] == 0.0, "y"].iloc[0])
+
+    def test_small_basket_all_nan(self):
+        """Canasta de 10 < 2k+1=11 → todo NaN (no hay banda media que purgar)."""
+        out = extremes_label(_panel_one_day([0.01 * i for i in range(10)]), k=5)
+        assert out["y"].isna().all()
+
+    def test_balanced_and_order_preserved(self):
+        rets = [round(0.005 * i - 0.03, 4) for i in range(15)]
+        panel = _panel_one_day(rets)
+        out = extremes_label(panel, k=5)
+        assert list(out["symbol"]) == list(panel["symbol"])
+        labeled = out["y"].dropna()
+        assert labeled.mean() == 0.5  # 50/50 exacto por construcción
 
 
 class TestHybridSplits:
