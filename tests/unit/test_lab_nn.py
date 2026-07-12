@@ -105,3 +105,22 @@ class TestGru:
         from sklearn.metrics import roc_auc_score
 
         assert roc_auc_score(y, p) > 0.9
+
+
+class TestFrozenArtifact:
+    def test_roundtrip_parity(self):
+        """Red → artefacto JSON (sin pickle) → red reconstruida: MISMAS predicciones."""
+        pytest.importorskip("torch")
+        import json
+
+        from src.lab.nn_trial import _predict, _train, artifact_from_net, predict_artifact
+
+        rng = np.random.default_rng(9)
+        x = rng.normal(0, 1, (300, 30, 3)).astype(np.float32)
+        y = (x[:, -1, 0] > 0).astype(float)
+        spec = NnSpec(trial_id="t", window=30, epochs=3, hidden=8, batch_size=64)
+        net = _train(x, y, spec)
+        art = artifact_from_net(net, spec, {"model_id": "test"})
+        art = json.loads(json.dumps(art))  # viaje completo por JSON (como GCS)
+        np.testing.assert_allclose(predict_artifact(art, x), _predict(net, x), atol=1e-6)
+        assert "sha256" in art and art["kind"] == "gru_seq"

@@ -189,3 +189,25 @@ phase check completo (28 offsets) DENTRO del trial. Baseline a vencer (campeón)
 exceso fase-media +5.02%/periodo, PF fase-media 3.14, sin-top1 +0.80, AUC bloques
 0.5185 / temporal 0.5236. La config NN-2 (TTM fine-tune) congelará sus
 hiperparámetros en §7.2 antes de SU corrida.
+
+## §12.1 Segundo stream del shadow: GRU NN-1 (2026-07-12, pre-registrado ANTES de su 1ª emisión)
+
+Tras el trial `nn1-gru-h28-20260712` (M1-M3 ✅ con margen, M4-bloques ❌ 0.5052 con
+varianza 0.45-0.55), la adjudicación honesta entre campeón y challenger es forward:
+ambos fallan M4 en histórico y el holdout fue año excepcional. El GRU entra al
+shadow con el MISMO protocolo del §12 — congelado con la receta §7.1 re-entrenada
+sobre toda la iteración (confirmación jamás entrena), artefacto JSON sin pickle
+(state_dict como tensores planos + sha256), universo Bitso operable, cadencia 28d,
+ledger y reporte propios (`shadow/h12-gru-h28/`).
+
+Reglas anti-trampa del multi-stream:
+1. **Mismas fechas de grilla y mismo universo** para todos los streams → la
+   comparación es cara a cara, sin ventajas de calendario.
+2. **Agregar streams NO multiplica boletos al firewall**: si algún día se
+   promueve uno, la evidencia forward se lee CONTANDO cuántos streams compitieron
+   (selection effect declarado; hoy: 2). Congelar un stream nuevo requiere
+   enmienda §12.x pre-registrada, y sus días de shadow cuentan desde SU freeze —
+   nunca retroactivos.
+3. Los canales del GRU se computan de velas Bitso MXN (z-norm por ventana absorbe
+   escala; caveat de venue idéntico al del campeón, documentado en §12.3).
+4. El pipeline live sigue intocado; el slice one-shot sigue virgen.

@@ -962,3 +962,14 @@ Aquiles (M4-bloques) que el campeón pero amplificado en ambas direcciones** —
 adjudicación honesta es forward: candidato natural a segundo stream del shadow
 (decisión de infra para la próxima sesión). Config NN-2 (TTM) pendiente, §7.2
 congelará sus hiperparámetros antes de correr.
+
+### H12 — GRU entra al shadow como segundo stream (2026-07-12, §12.1)
+
+Artefacto congelado `models/h12-gru-h28.json` (sha 4a52a1d4e870; 16,184 filas,
+2021-04-03 → 2025-09-10, receta §7.1, state_dict JSON sin pickle). Primera
+emisión multi-stream (misma ancla 2026-07-11, mismo universo):
+- campeón `h12-ext5-h28`: BCH/AVAX/MANA/ETH/LTC (contrarian trimestral)
+- challenger `h12-gru-h28`: BAT/TRX/XRP/SOL/BTC (secuencias)
+**Portafolios 100% disjuntos** — se repartieron el universo en visiones opuestas;
+el forward va a separar señal de ruido con contraste máximo. Selection effect
+declarado: 2 streams compiten (§12.1); la promoción eventual lo descuenta.

@@ -112,7 +112,8 @@ resource "google_cloud_run_v2_job" "shadow" {
 
       containers {
         image = local.lab_image
-        args  = ["src.lab.shadow_producer", "--emit"]
+        # --emit-all: todos los streams congelados (§12 campeón + §12.1 GRU)
+        args = ["src.lab.shadow_producer", "--emit-all"]
 
         env {
           name  = "HERMES_RESEARCH_BUCKET"
