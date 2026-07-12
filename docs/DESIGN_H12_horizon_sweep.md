@@ -111,3 +111,16 @@ AMBOS, grilla cerrada de nuevo). Reglas:
   el holdout temporal solo da ~12-16 bloques por fase a estos H; el motor baja su
   mínimo a 10 periodos para H>14 y TODO resultado carga el caveat de n chico.
 - Metas y firewall sin cambio. Trials contados (n=17 al pre-registrar).
+
+## §11 METAS v3 (2026-07-12, aprobadas por Erika: "Ok") — reemplazan acc>0.55
+
+- **M1** exceso phase-mean > 0 en los TRES horizontes {14,21,28} (anti H-shopping).
+- **M2** PF ≥ 1.5 como phase-mean del horizonte candidato (anti fase-suertuda).
+- **M3** ANTI-EPISODIO: exceso medio > 0 quitando el MEJOR bloque de cada fase
+  (anti "un-rally-lo-es-todo" — los bloques +98/+174% obligan).
+- **M4** AUC-ROC > 0.52 en ambas validaciones (piso de calidad de ranking;
+  reemplaza acc>0.55, que mide frecuencia donde la estrategia vive de magnitud).
+- **M5** pasar M1-M4 = ENTRADA al firewall §5 (one-shot slice virgen + shadow ≥45d
+  a cadencia H + scheduler alineado + sign-off de Erika). Sin cambios.
+Expectativa pre-registrada: el holdout fue año excepcional; confirmación/shadow
+mostrarán menos. Un exceso robusto de +0.05%/día ya sería extraordinario.

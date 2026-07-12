@@ -88,6 +88,10 @@ def main(spec_uri: str) -> int:
                 "periods": r["days"],
             }
         )
+        ns, bs = r.get("net_series", []), r.get("bench_series", [])
+        if ns and bs:
+            e = np.asarray(ns) - np.asarray(bs)
+            fases[-1]["exc_sin_top1_pct"] = round(float(np.delete(e, e.argmax()).mean()) * 100, 4)
         if off == 0:
             series0 = r.get("net_series", [])
 
@@ -104,6 +108,13 @@ def main(spec_uri: str) -> int:
         "fases_positivas": int((ex > 0).sum()),
         "fases": fases,
     }
+    pfm = [f["profit_factor"] for f in fases if f.get("profit_factor")]
+    est = [f["exc_sin_top1_pct"] for f in fases if "exc_sin_top1_pct" in f]
+    if pfm:
+        resumen["pf_phase_mean"] = round(float(np.mean(pfm)), 4)  # M2
+    if est:
+        resumen["exc_sin_top1_mean"] = round(float(np.mean(est)), 4)  # M3
+        resumen["fases_pos_sin_top1"] = int(sum(1 for x in est if x > 0))
     if series0:
         s = np.asarray(series0)
         top = np.sort(s)[::-1]
