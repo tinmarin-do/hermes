@@ -5,11 +5,12 @@ Las filas Bitso nativas quedan para el slice de confirmación y el shadow (Fase 
 "Bitso mide"). El slice de confirmación (últ. 15%) JAMÁS se toca aquí.
 
 Métricas en las DOS validaciones (media±σ de los K=5 sorteos por bloques mensuales
-purgados + corte temporal puro). Metas v2 (enmienda §9.2): accuracy > 0.55 en AMBAS
-(label `rel_median`, naive = 0.50) + profit factor ≥ 1.5 y exceso vs B&H > 0 en el
-holdout. F1 se sigue reportando por comparabilidad con los trials 1-8.
-El backtest de estrategia (base + SL-3%; el TP quedó enterrado) corre sobre el corte
-temporal — el único split que simula el futuro de verdad.
+purgados + corte temporal puro). Metas vigentes (§9.2 + §10.2): accuracy > 0.55 en
+AMBAS (sobre filas etiquetadas; naive = 0.50) + profit factor ≥ 1.5 y exceso vs B&H
+> 0 en el holdout + precision@5 reportada. F1 queda por comparabilidad (trials 1-8).
+Salidas intradía ±3% RETIRADAS (§10.3: TP y SL enterrados con evidencia).
+El backtest corre sobre el corte temporal — el único split que simula el futuro — y
+SIEMPRE sobre todas las filas con features válidas (anti-leakage §10.1).
 """
 
 from dataclasses import dataclass, field
@@ -30,7 +31,7 @@ from sklearn.preprocessing import StandardScaler
 
 from src.lab import gcs
 from src.lab.backtest_daily import StrategyParams, run_backtest
-from src.lab.dataset import relative_label
+from src.lab.dataset import extremes_label, relative_label
 from src.lab.features import FEATURE_SET_V1, build_candidates, compute_matrix
 from src.lab.splits import Split, hybrid_splits, partitions
 
@@ -39,11 +40,13 @@ from src.lab.splits import Split, hybrid_splits, partitions
 class TrialSpec:
     trial_id: str
     model: str = "logistic"  # logistic | lightgbm
-    label: str = "abs_1pct"  # abs_1pct (v1) | rel_median (enmienda §9.1)
+    label: str = "abs_1pct"  # abs_1pct (v1) | rel_median (§9.1) | extremes_k5 (§10)
     features: list[str] = field(default_factory=lambda: list(FEATURE_SET_V1))
     threshold: float = 0.5
     top_k: int = 5
-    stop_loss_variant: float = 0.03  # §9.3: SIEMPRE se corre la variante SL
+    # §10.3: salidas intradía ±3% ENTERRADAS (TP tanda 2, SL tanda 3) — default None;
+    # un float lo reactiva SOLO para reproducir trials viejos.
+    stop_loss_variant: float | None = None
     params: dict[str, Any] = field(default_factory=dict)
     strategy: dict[str, Any] = field(default_factory=dict)  # extras de StrategyParams
     seed: int = 42
@@ -71,8 +74,9 @@ def load_panel() -> pd.DataFrame:
 
 
 def _fit_predict(
-    X_tr: pd.DataFrame, y_tr: pd.Series, X_va: pd.DataFrame, spec: TrialSpec
-) -> np.ndarray:
+    X_tr: pd.DataFrame, y_tr: pd.Series, X_vas: list[pd.DataFrame], spec: TrialSpec
+) -> list[np.ndarray]:
+    """Entrena UNA vez y predice sobre cada frame de X_vas (mismo modelo)."""
     if spec.model == "logistic":
         scaler = StandardScaler().fit(X_tr)
         clf = LogisticRegression(
@@ -81,7 +85,7 @@ def _fit_predict(
             class_weight=spec.params.get("class_weight"),
             random_state=spec.seed,
         ).fit(scaler.transform(X_tr), y_tr)
-        return np.asarray(clf.predict_proba(scaler.transform(X_va))[:, 1])
+        return [np.asarray(clf.predict_proba(scaler.transform(X))[:, 1]) for X in X_vas]
     if spec.model == "lightgbm":
         import lightgbm as lgb
 
@@ -99,7 +103,7 @@ def _fit_predict(
         }
         base.update(spec.params)
         booster = lgb.train(base, lgb.Dataset(X_tr, label=y_tr), num_boost_round=300)
-        return np.asarray(booster.predict(X_va))
+        return [np.asarray(booster.predict(X)) for X in X_vas]
     raise ValueError(f"modelo desconocido: {spec.model}")
 
 
@@ -116,10 +120,25 @@ def _split_metrics(y_true: pd.Series, p: np.ndarray, threshold: float) -> dict[s
     }
 
 
+def _precision_at_k(sig: pd.DataFrame, k: int = 5) -> float | None:
+    """De los k elegidos por p cada día, fracción que quedó en el top-k real."""
+    hits, total = 0, 0
+    for _, day in sig.groupby("ts"):
+        if len(day) < 2 * k + 1:
+            continue
+        pred = set(day.nlargest(k, "p")["symbol"])
+        actual = set(day.nlargest(k, "fwd_ret_24h_mxn")["symbol"])
+        hits += len(pred & actual)
+        total += k
+    return round(hits / total, 4) if total else None
+
+
 def run_trial(spec: TrialSpec) -> dict[str, Any]:
     panel = load_panel()
     if spec.label == "rel_median":
         panel = relative_label(panel)  # solo agrega/reescribe columnas, mismo orden
+    elif spec.label == "extremes_k5":
+        panel = extremes_label(panel, k=5)
     elif spec.label != "abs_1pct":
         raise ValueError(f"label desconocido: {spec.label}")
     matrix = compute_matrix(panel, build_candidates())
@@ -130,28 +149,32 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
     dates = pd.DatetimeIndex(matrix["ts"].unique())
     iteration, confirmation = partitions(dates)
     matrix = matrix[matrix["ts"].isin(iteration)]  # confirmación: INTOCABLE
-    matrix = matrix.dropna(subset=[*spec.features, "y", "fwd_ret_24h_mxn"])
+    # base = features válidas (para PUNTUAR); labeled = además con y (para APRENDER).
+    # En extremes_k5 la banda media queda en base pero fuera de labeled — el backtest
+    # SIEMPRE corre sobre base (anti-leakage §10.1: puntuar solo filas que terminaron
+    # extremas sería mirar el futuro).
+    matrix = matrix.dropna(subset=[*spec.features, "fwd_ret_24h_mxn"])
+    labeled = matrix.dropna(subset=["y"])
 
     splits: list[Split] = hybrid_splits(iteration, seed=spec.seed)
     block_f1: list[float] = []
     block_acc: list[float] = []
     per_split: dict[str, dict[str, Any]] = {}
     temporal_signals: pd.DataFrame | None = None
+    precision_at_5: float | None = None
 
     for split in splits:
-        tr = matrix[matrix["ts"].isin(split.train_dates)]
-        va = matrix[matrix["ts"].isin(split.val_dates)]
+        tr = labeled[labeled["ts"].isin(split.train_dates)]
+        va = labeled[labeled["ts"].isin(split.val_dates)]
         if len(tr) < 500 or len(va) < 100:
             per_split[split.name] = {"error": "muestras insuficientes"}
             continue
-        p = _fit_predict(tr[spec.features], tr["y"], va[spec.features], spec)
-        m = _split_metrics(va["y"], p, spec.threshold)
-        per_split[split.name] = m
-        if split.name.startswith("block_draw"):
-            block_f1.append(m["f1"])
-            block_acc.append(m["accuracy"])
-        elif split.name == "temporal_holdout":
-            temporal_signals = va[
+        if split.name == "temporal_holdout":
+            va_all = matrix[matrix["ts"].isin(split.val_dates)]
+            p, p_all = _fit_predict(
+                tr[spec.features], tr["y"], [va[spec.features], va_all[spec.features]], spec
+            )
+            temporal_signals = va_all[
                 [
                     "ts",
                     "symbol",
@@ -161,7 +184,17 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
                     "fwd_low_ret",
                     "operable",
                 ]
-            ].assign(p=p)
+            ].assign(p=p_all)
+            precision_at_5 = _precision_at_k(
+                va_all[["ts", "symbol", "fwd_ret_24h_mxn"]].assign(p=p_all)
+            )
+        else:
+            (p,) = _fit_predict(tr[spec.features], tr["y"], [va[spec.features]], spec)
+        m = _split_metrics(va["y"], p, spec.threshold)
+        per_split[split.name] = m
+        if split.name.startswith("block_draw"):
+            block_f1.append(m["f1"])
+            block_acc.append(m["accuracy"])
 
     result: dict[str, Any] = {
         "trial_id": spec.trial_id,
@@ -179,6 +212,7 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
         "acc_blocks_mean": round(float(np.mean(block_acc)), 4) if block_acc else None,
         "acc_blocks_std": round(float(np.std(block_acc)), 4) if block_acc else None,
         "acc_temporal": per_split.get("temporal_holdout", {}).get("accuracy"),
+        "precision_at_5": precision_at_5,
         "per_split": per_split,
     }
 
@@ -187,14 +221,15 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
         sig = temporal_signals[temporal_signals["operable"]].copy()
         n_trials = _current_n_trials() + 1
         base = StrategyParams(threshold=spec.threshold, top_k=spec.top_k, **spec.strategy)
-        sl = StrategyParams(
-            threshold=spec.threshold,
-            top_k=spec.top_k,
-            stop_loss=spec.stop_loss_variant,
-            **spec.strategy,
-        )
         result["backtest_base"] = run_backtest(sig, base, n_trials=n_trials)
-        result["backtest_sl3"] = run_backtest(sig, sl, n_trials=n_trials)
+        if spec.stop_loss_variant is not None:  # retirada por default (§10.3)
+            sl = StrategyParams(
+                threshold=spec.threshold,
+                top_k=spec.top_k,
+                stop_loss=spec.stop_loss_variant,
+                **spec.strategy,
+            )
+            result["backtest_sl3"] = run_backtest(sig, sl, n_trials=n_trials)
 
     return result
 

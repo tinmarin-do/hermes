@@ -151,3 +151,44 @@ de mercado, no contra pares) vs label v2, mismo protocolo del §5 (distribución
 estabilidad, y-rate por decil, IC, canary, redundancia) →
 `reports/feature_dossier_v2_relmedian.md`. **Erika aprueba el conjunto v2 antes del
 primer trial de entrenamiento.**
+
+---
+
+## 10. ENMIENDA v3 — label de extremos top-k (2026-07-12, aprobada por Erika: "VA!")
+
+**Razón (tanda 3, trials 9-12):** rel_median dio la mejor config del arco (+0.169%/día,
+Sharpe 1.25, DSR 0.38) pero con exceso bruto ≈ 0 sobre la canasta: acc 51.3% hecha de
+aciertos SIN magnitud (empates pegados a la mediana). Diagnóstico: la frontera de
+decisión vive en la zona más densa de la distribución cross-seccional. Además quedó
+enterrado el SL-3% junto al TP-3% (±3% intradía = banda de ruido a vol diaria cripto;
+ningún mecanismo de salida intradía a ese nivel sobrevive — dónde-no-ir del arco).
+
+### 10.1 Label v3 (`extremes_k5`) — idea de Erika (top-k) + purga de la banda de ruido
+
+- **y = 1 si el símbolo queda en el top-5 del día siguiente** (por fwd_ret_24h_mxn,
+  rank cross-seccional del corpus); **y = 0 si queda en el bottom-5**; la banda media
+  queda **NaN y fuera del TRAINING** (el modelo solo aprende contraste alto:
+  "ganó por mucho" vs "perdió por mucho").
+- 50/50 exacto por construcción (5 vs 5) — sin class_weight ni artefactos de umbral.
+- Canasta mínima: **≥ 2k+1 = 11 símbolos/día**; días menores → NaN. Empates de rank:
+  method="first" (determinista).
+- **En la decisión se puntúa TODO el universo** (incluida la banda media que el modelo
+  no vio en training — estándar del diseño de cuantiles extremos; el backtest juzga).
+  Regla anti-leakage explícita: el backtest del holdout usa TODAS las filas con
+  features válidas, jamás solo las que terminaron extremas (eso sería lookahead).
+
+### 10.2 Metas y métricas (§9.2 transfiere + una nueva)
+
+- accuracy > 0.55 en AMBAS validaciones **sobre filas extremas** (naive = 0.50).
+- **precision@5 en el holdout temporal** (de los 5 elegidos por p, cuántos quedaron en
+  el top-5 real; naive ≈ 5/N ≈ 24%) — métrica de decisión, se reporta siempre.
+- Económicas sin cambio: profit factor ≥ 1.5 + exceso vs B&H > 0. PSR/DSR siguen;
+  n_trials continúa (12 al momento de esta enmienda).
+
+### 10.3 Estrategia
+
+- **Variantes de salida intradía RETIRADAS** (TP-3% y SL-3% enterrados con evidencia,
+  EXPERIMENT_LOG tandas 2-3). Se corre solo la estrategia base (suavizada).
+- Conjunto de features: **FEATURE_SET_V2 tal cual** (aprobado para predicción relativa;
+  el IC del dossier v2 se midió contra el retorno relativo, que no cambia — solo cambia
+  qué filas enseñan). Splits, firewall y slice de confirmación intactos.

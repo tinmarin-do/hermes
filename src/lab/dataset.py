@@ -6,6 +6,8 @@ Label v1 (SIEMPRE en MXN, umbral +1%):
   bitso:    y(D) = 1  si  close_mxn(D+1)/close_mxn(D) − 1 > 0.01  (nativo)
 Label v2 `rel_median` (enmienda §9.1): `relative_label()` — se deriva del MISMO
 parquet, sin re-ingesta; y = 1 si el símbolo le gana mañana a la mediana de la canasta.
+Label v3 `extremes_k5` (enmienda §10): `extremes_label()` — y = 1 top-k del día /
+y = 0 bottom-k / banda media NaN (fuera del training; en decisión se puntúa todo).
 
 Corre como job:  gcloud run jobs execute hermes-lab --args="src.lab.dataset"
 Escribe datasets/daily_v1.parquet + reports/base_rates.md
@@ -14,6 +16,7 @@ Escribe datasets/daily_v1.parquet + reports/base_rates.md
 import sys
 from datetime import UTC, datetime
 
+import numpy as np
 import pandas as pd
 
 from src.lab import gcs
@@ -41,6 +44,28 @@ def relative_label(panel: pd.DataFrame) -> pd.DataFrame:
     med, n = g.transform("median"), g.transform("count")
     out["fwd_rel_ret"] = (out["fwd_ret_24h_mxn"] - med).where(n >= MIN_BASKET)
     out["y"] = (out["fwd_rel_ret"] > 0).astype(float).where(out["fwd_rel_ret"].notna())
+    return out
+
+
+def extremes_label(panel: pd.DataFrame, k: int = 5) -> pd.DataFrame:
+    """Label v3 `extremes_k5` (DESIGN_H11 §10, idea Erika top-k + purga de ruido):
+    y = 1 si el símbolo queda en el top-k de fwd_ret_24h_mxn del día; y = 0 si queda
+    en el bottom-k; banda media NaN (el training solo ve contraste alto). 50/50 por
+    construcción. Canasta mínima 2k+1; empates de rank: method="first" (determinista).
+    NO filtra filas (rolling por símbolo intacto); preserva el orden del panel.
+    Incluye fwd_rel_ret (misma definición que el label v2) como referencia.
+    """
+    out = panel.copy()
+    g = out.groupby("ts")["fwd_ret_24h_mxn"]
+    n = g.transform("count")
+    rank_desc = g.rank(method="first", ascending=False)
+    rank_asc = g.rank(method="first", ascending=True)
+    y = pd.Series(np.nan, index=out.index)
+    y[rank_desc <= k] = 1.0
+    y[rank_asc <= k] = 0.0
+    y[(n < 2 * k + 1) | out["fwd_ret_24h_mxn"].isna()] = np.nan
+    out["y"] = y
+    out["fwd_rel_ret"] = out["fwd_ret_24h_mxn"] - g.transform("median")
     return out
 
 
