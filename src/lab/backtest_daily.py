@@ -57,6 +57,9 @@ class StrategyParams:
     # pre-registro). signals debe traer SOLO fechas de rebalanceo y fwd_ret del
     # horizonte; anualización y mínimo de observaciones escalan con H.
     horizon_days: int = 1
+    # §14: override del mínimo de observaciones — SOLO para el one-shot del slice
+    # (~9-10 periodos por offset a H=28). None ≡ fórmula estándar por horizonte.
+    min_obs: int | None = None
 
 
 def _weights_for_day(day: pd.DataFrame, p: StrategyParams) -> pd.Series:
@@ -133,7 +136,8 @@ def run_backtest(
 
     r = np.asarray(daily_net)
     h = params.horizon_days
-    min_obs = 30 if h == 1 else (20 if h <= 14 else 10)  # §10: H>14 → phase-mean manda
+    # §10: H>14 → phase-mean manda · §14: override pre-registrado para el slice
+    min_obs = params.min_obs or (30 if h == 1 else (20 if h <= 14 else 10))
     if len(r) < min_obs:
         return {"error": f"menos de {min_obs} periodos de validación", "days": len(r)}
     # benchmark: equal-weight buy&hold aprox (entrada única con fee; sin rebalanceo)

@@ -107,3 +107,22 @@ class TestAggregate:
     def test_fails_on_pct_positive(self):
         a = aggregate(self._windows([2.0, -0.1, -0.1, 0.5]))  # 50% < 55%
         assert a["pass_pct_positive"] is False and a["verdict"] is False
+
+
+class TestOneshotVerdict:
+    def test_bar_and_engine_override(self):
+        from src.lab.backtest_daily import StrategyParams, run_backtest
+        from src.lab.confirmation_oneshot import slice_verdict
+        from tests.unit.test_lab_backtest import _signals
+
+        assert slice_verdict(0.5, 0.1, 0.53)["pasa"] is True
+        assert slice_verdict(0.5, -0.1, 0.53)["pasa"] is False  # B2
+        assert slice_verdict(0.5, 0.1, 0.52)["pasa"] is False  # B3 estricto
+        assert slice_verdict(None, 0.1, 0.53)["pasa"] is False  # sin dato = falla
+        # min_obs override §14: 9 periodos pasan con 8, fallan con la fórmula (10)
+        sig = _signals(days=9 * 28)
+        grid = sorted(sig["ts"].unique())[::28]
+        sig9 = sig[sig["ts"].isin(grid)]
+        assert "error" in run_backtest(sig9, StrategyParams(horizon_days=28))
+        r = run_backtest(sig9, StrategyParams(horizon_days=28, min_obs=8))
+        assert r["days"] == 9
