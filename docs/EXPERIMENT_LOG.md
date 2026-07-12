@@ -675,3 +675,37 @@ quincena salió CONTRARIA a la hipótesis de nómina). Puente v2 con FX del venu
 (2) F1 0.60 en ambas validaciones sigue LEJOS (mejor: 0.44 < naive 0.51); (3) ninguna
 estrategia diaria sobrevive turnover ~1.2/día a 46bps — los siguientes trials van a
 umbral alto/menos trades y LightGBM (interacciones + U-shape). n_trials acumulado: 2.
+
+### H11 — Tanda 2: umbral alto, LightGBM, motor v2 (suavizado + benchmark) (2026-07-12)
+
+Motor v2 del backtest (`smooth_alpha` = ejecución suavizada w_exec = α·target +
+(1−α)·w_prev; benchmark buy&hold equal-weight del mismo periodo en cada corrida —
+el control alpha-vs-beta que faltaba). `TrialSpec.strategy` pasa extras al motor
+vía spec JSON. Fee real verificado en el adapter live: maker 0.30% vs taker 0.36%
+(libros USDT/USD; los /MXN cobran DOBLE y el live ya los evita) → el fee NO es la
+palanca; el turnover sí.
+
+| Trial | Qué | Resultado | Veredicto |
+|---|---|---|---|
+| thr060 | balanced, umbral 0.60 | F1 0.134/0.077 (recall 4%) · precision 0.427 · bruto ≈ −0.03%/día | ❌ la convicción alta NO tiene edge bruto |
+| thr065 | balanced, umbral 0.65 | precision 0.523 (¡>50%!) pero bruto ≈ 0 · TP3 −0.002%/día (breakeven) | ❌ ídem — precisión ≠ retorno |
+| lightgbm-base | LGBM is_unbalance, 0.5 | F1 0.432±0.024 / 0.441 (mejor temporal hasta hoy) · bruto +0.26%/día · neto −0.39 (turnover 1.39) | 🟡 no rescata; mismo techo |
+| logistic-sm033 | balanced + α=0.33 | **neto +0.11%/día** · turnover 0.39 · Sharpe 0.55 | 🟡 primera config positiva |
+| logistic-sm015 | balanced + α=0.15 | **neto +0.164%/día, +39% total, Sharpe 0.85, DSR 0.32** · turnover 0.18 · **exceso vs B&H −0.076%/día** | 🟡 mejor config del arco; NO le gana al mercado |
+| lgbm-sm033 | LGBM + α=0.33 | neto +0.02%/día · exceso −0.22 | ❌ |
+
+**Aprendizajes de la tanda (n_trials: 8):**
+1. **El benchmark responde la pregunta central: B&H equal-weight hizo +0.239%/día en
+   el holdout → TODO el "bruto positivo" de los modelos era mayormente beta.** Ningún
+   trial tiene exceso positivo sobre simplemente sostener la canasta (mejor: −0.076).
+2. El edge de clasificación (lift +7pp precision, +18pp en p>0.65) NO se convierte en
+   retorno: la cola de alta convicción tiene bruto ~0 — la asimetría de los errores se
+   come la precisión.
+3. Suavizar la ejecución funciona exactamente como se hipotetizó (turnover 1.24→0.18)
+   y produce las primeras configs netas positivas — pero cuando α→0 la estrategia
+   CONVERGE al benchmark sin superarlo: la señal diaria no agrega encima del mercado.
+4. **TP-3% (task #10) en configs ganadoras: DESTRUYE** (+0.164 → −0.086%/día). En un
+   holdout tendencial, capear la cola derecha amputa los días que pagan todo. Evidencia
+   acumulada: el TP solo "ayudó" reduciendo pérdidas de configs perdedoras.
+5. Meta dual a hoy: F1 mejor 0.44 vs 0.60 (naive 0.51) · neto mejor +0.164%/día vs ~1%.
+   La familia actual (clasificador diario absoluto >1%) muestra techo estructural.
