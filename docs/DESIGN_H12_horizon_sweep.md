@@ -280,3 +280,32 @@ PF/маxDD/hit se REPORTAN sin gate (~9 periodos → PF ruidoso). PASA = B1∧B2
 Si PASA: GRU = candidato CONFIRMADO del arco (TTM §7.2 queda como challenger
 opcional la próxima sesión). Si FALLA: GRU falsificado sobre data fresca, slice
 quemado, se documenta — y el arco se re-piensa con el shadow como única línea.
+
+## §7.2 Config NN-2 CONGELADA: TTM fine-tune (2026-07-12, pre-registrada ANTES de correr)
+
+`ibm-granite/granite-timeseries-ttm-r2` (805k params, context 512 días,
+forecast 96 → se usan los primeros 28). Serie: closes USDT diarios por símbolo
+(univariante; el FX es factor común del día y cancela en el rank cross-seccional).
+
+**Hiperparámetros fijos** (sin tuning; 1 config = 1 trial, n_trials=21):
+fine-tune COMPLETO · lr 5e-4 · 3 épocas · batch 64 · stride 7 (subsample de
+ventanas de train) · MSE en el espacio normalizado del modelo (loc/scale) ·
+seed 42 · sin early-stopping. Fallback ÚNICO declarado: si el job excede el
+timeout, stride 14 — nada más se toca.
+
+**Score y decisión** (idéntica regla que todos): pred_ret_28 =
+forecast[t+28]/close_t − 1 → **p = percentil de rank cross-seccional del día**
+(§7: "forecast → rank → top-5"); threshold 0.5 = mitad superior; top-5; pesos
+p/rv_20d. Splits híbridos purgados a H=28 + phase check 28 offsets DENTRO del
+trial — mismo juez que el GRU.
+
+**Anti-leakage del forecast (más estricto que la purga del split):** el target
+del fine-tune se extiende 96 días — toda ventana de train cuyo rango objetivo
+[t+1, t+96] toque una fecha de validación queda FUERA del entrenamiento.
+
+**Regla de cierre pre-registrada:** el slice ya NO existe para nadie; el
+expediente del GRU (one-shot pasado) es el incumbente. TTM avanza a
+window_check §13 SOLO si en el trial supera al GRU en AMBAS primarias
+económicas: exceso fase-media > +7.61 Y anti-episodio sin-top1 > +3.53.
+Empatar no premia — con menos que eso, la fase NN CIERRA con el GRU como
+único candidato y TTM queda documentado.

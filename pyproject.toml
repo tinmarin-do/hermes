@@ -55,6 +55,7 @@ lab = [
     "pyarrow>=17",
 ]
 nn = [
+    "granite-tsfm>=0.2",
     # Fase NN H12 §7 (challenger del campeón): secuencias OHLCV → GRU/TCN + TTM.
     # torch resuelve del index CPU (tool.uv.sources) — jobs sin GPU, imagen chica.
     "torch>=2.4",
