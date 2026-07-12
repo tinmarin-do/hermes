@@ -813,3 +813,30 @@ datos duales Binance/Bitso con puente validado. Gasto: ~$5 de $290 (1.7%).
 producción) = horizonte del label entrenado, sin excepciones. Purga/embargo escalan
 con H. Mini-D1 por horizonte con gate de Erika antes de entrenar.
 Pre-registro completo: `docs/DESIGN_H12_horizon_sweep.md`.
+
+### H12 — Tanda 1: barrido de horizontes (trials 15-17) (2026-07-12)
+
+Gate de sets cerrado (§8). Logística por horizonte, label extremes_k5, top-5, sin
+suavizado, cadencia = H (regla en piedra §3), purga/embargo = H. n_trials: 17.
+
+| H | acc bloques/temporal | p@5 | %/periodo | bench | **EXCESO/periodo** | PF | Sharpe | periodos |
+|---|---|---|---|---|---|---|---|---|
+| 3d | 0.521/0.535 | 0.251 | +0.450 | +0.748 | −0.298 | 1.34 | 1.18 | 115 |
+| 7d | 0.525/0.533 | 0.237 | +0.305 | +1.616 | −1.311 | 1.13 | 0.31 | 49 |
+| **14d** | **0.525/0.553** | 0.265 | **+5.597** | +3.568 | **+2.029** 🎯 | **3.26** | 1.34 | **25** ⚠️ |
+
+**H=14 es el PRIMER exceso positivo del proyecto** (+171% total vs +140% del B&H;
+PF 3.26 ≥ meta 1.5; acc temporal 0.553 ≥ 0.55). PERO honestidad completa:
+1. **25 periodos** — muestra diminuta; 2-3 bloques afortunados pueden explicar todo.
+   DSR 0.17 (castigado por n_trials=17 y n chico). La meta acc falla en BLOQUES
+   (0.525 < 0.55) → metas NO cumplidas formalmente (exigen ambas validaciones).
+2. **No-monotonicidad sospechosa**: H3 −0.30, H7 −1.31 (el peor), H14 +2.03. Si el
+   patrón fuera señal pura se esperaría transición suave. Alerta de ruido.
+3. La grilla t0+k·14 usa UNA fase — la robustez a las 14 fases posibles (offsets
+   0..13, mismo modelo entrenado, sin re-elegir nada) es el siguiente test OBLIGADO
+   antes de cualquier entusiasmo. Se reporta media±rango de las 14 fases.
+
+**Siguiente**: (a) test de robustez de fase para H=14 (diagnóstico del mismo trial,
+no cuenta como trial nuevo — no se selecciona nada con él); (b) distribución por
+bloque (¿cuántos de los 25 aportan el exceso?); (c) si sobrevive → fase NN §7 sobre
+H=14 y considerar grilla extendida {21, 28} vía nueva enmienda con gate.

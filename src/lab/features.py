@@ -94,6 +94,15 @@ FEATURE_SET_V2 = [
     "hl_range",  # rango intradía de ayer (IC −0.056, la más fuerte; ~rv_20d < 0.7)
 ]
 
+# Sets H12 por horizonte — gate cerrado (Erika 2026-07-12, DESIGN_H12 §8).
+# Regla dura lookback ≥ H; evidencia: dossiers feature_dossier_v2_relmedian_h{3,7,14}
+# (el IC del momentum CRECE con H: ret_63d +0.039/+0.041/+0.080; rv_20d vive en los 3).
+FEATURE_SETS_H12 = {
+    3: ["rv_20d", "ret_5d", "ret_21d", "ret_63d"],
+    7: ["rv_20d", "ret_10d", "ret_21d", "ret_63d"],
+    14: ["rv_20d", "ret_21d", "ret_63d"],
+}
+
 
 # ── registro de candidatas ─────────────────────────────────────────────────────
 def build_candidates() -> list[Candidate]:
