@@ -253,6 +253,15 @@ def freeze() -> int:
     return 0
 
 
+def complete_days(matrix: pd.DataFrame, now_utc: datetime) -> pd.DataFrame:
+    """Solo barras de días COMPLETOS: la barra de hoy cierra a las 00:00 de mañana.
+
+    El umbral de ≥20 velas de _daily_bars deja pasar el día en curso si el job
+    corre tarde (visto en la emisión inaugural, corrida a las ~19h UTC con 20
+    velas) — el filtro por fecha lo excluye siempre, a cualquier hora."""
+    return matrix[matrix["ts"] < pd.Timestamp(now_utc.date())]
+
+
 # ── emit: delta Bitso → features → p → ledger del día ─────────────────────────
 def _bitso_matrix(needed: list[str]) -> pd.DataFrame:
     """Panel diario Bitso operable → matriz con las features del modelo (cómputo
@@ -283,7 +292,7 @@ def emit() -> int:
     model = json.loads(gcs.bucket().blob(MODEL_BLOB).download_as_text())
     spec = model["spec"]
     needed = [*model["features"], "rv_20d"]
-    matrix = _bitso_matrix(needed)
+    matrix = complete_days(_bitso_matrix(needed), datetime.now(UTC))
 
     decision = pd.Timestamp(matrix["ts"].max())
     day = matrix[matrix["ts"] == decision].dropna(subset=needed).set_index("symbol")

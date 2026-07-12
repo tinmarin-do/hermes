@@ -191,3 +191,25 @@ class TestEvaluateAuc:
         assert evaluate([e0, ok])["auc_grid_n"] == 2
         far = _entry("2026-08-15", {"A": 120, "B": 90}, {"A": 1.0}, False, u)
         assert evaluate([e0, far])["auc_grid_n"] == 0
+
+
+class TestCompleteDays:
+    def test_partial_today_excluded_late_run(self):
+        """Job corriendo a las 19h UTC: la barra de hoy (parcial) queda fuera."""
+        from datetime import UTC, datetime
+
+        from src.lab.shadow_producer import complete_days
+
+        m = pd.DataFrame({"ts": pd.to_datetime(["2026-07-10", "2026-07-11", "2026-07-12"])})
+        now = datetime(2026, 7, 12, 19, 0, tzinfo=UTC)
+        assert str(complete_days(m, now)["ts"].max().date()) == "2026-07-11"
+
+    def test_yesterday_kept_just_after_midnight(self):
+        """A las 00:20 UTC el día de ayer ya está completo y es la decisión."""
+        from datetime import UTC, datetime
+
+        from src.lab.shadow_producer import complete_days
+
+        m = pd.DataFrame({"ts": pd.to_datetime(["2026-07-11", "2026-07-12"])})
+        now = datetime(2026, 7, 13, 0, 20, tzinfo=UTC)
+        assert str(complete_days(m, now)["ts"].max().date()) == "2026-07-12"

@@ -1,5 +1,6 @@
-# Hermes Lab — imagen del Cloud Run Job hermes-lab (arco H11).
-# Ligera a propósito: SIN extra news (torch/transformers) — build ~2 min vs ~15.
+# Hermes Lab — imagen del Cloud Run Job hermes-lab (arcos H11/H12).
+# SIN extra news (sentence-transformers etc.); el extra nn trae torch CPU
+# (index pytorch-cpu pineado en pyproject — sin wheels CUDA) para la fase NN §7.
 # Build context = repo root:
 #   gcloud builds submit --config src/lab/cloudbuild.yaml
 FROM python:3.12-slim
@@ -12,7 +13,7 @@ WORKDIR /app
 
 RUN pip install --no-cache-dir uv
 COPY pyproject.toml uv.lock ./
-RUN uv sync --frozen --no-dev --no-install-project --extra lab
+RUN uv sync --frozen --no-dev --no-install-project --extra lab --extra nn
 
 ENV PATH="/app/.venv/bin:$PATH" \
     PYTHONUNBUFFERED=1

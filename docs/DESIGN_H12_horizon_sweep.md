@@ -172,3 +172,20 @@ historia forward del mismo modelo congelado).
    fijas, el shadow solo suma datos. Expectativa pre-registrada: a 28d de cadencia
    cada periodo es UN punto económico — la lectura honesta temprana es el AUC
    diario indicativo + la direccional del primer periodo, nada más.
+
+## §7.1 Config NN-1 CONGELADA (2026-07-12, pre-registrada ANTES de correr)
+
+GRU supervisado sobre secuencias derivadas del OHLCV crudo (`src/lab/nn_trial.py`).
+Instanciación honesta de "secuencias OHLCV crudas": canales ESTACIONARIOS derivados
+1:1 del OHLCV (ret_1d, hl_range, vol_rel=log(vol/MA20)) — precios crudos no son
+comparables entre símbolos; z-norm POR VENTANA (μ/σ de la propia secuencia, causal).
+
+Hiperparámetros fijos (sin tuning; 1 config = 1 trial contado):
+window=84 (≈ la formación ret_63d del campeón + margen) · GRU hidden=32, 1 capa,
+dropout=0.2 · Adam lr=1e-3 · batch=256 · **épocas=15 FIJAS** (sin early-stopping
+sobre validation — sería selección de modelo con el set de evaluación) · seed=42 ·
+label extremes_k5 H=28 · threshold 0.5 · top-5. Split híbrido purgado a H=28 y
+phase check completo (28 offsets) DENTRO del trial. Baseline a vencer (campeón):
+exceso fase-media +5.02%/periodo, PF fase-media 3.14, sin-top1 +0.80, AUC bloques
+0.5185 / temporal 0.5236. La config NN-2 (TTM fine-tune) congelará sus
+hiperparámetros en §7.2 antes de SU corrida.

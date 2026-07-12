@@ -906,3 +906,31 @@ Camino honesto acordado, sin ablandar la vara: (1) **shadow pre-firewall a caden
 periodo suma un punto de evidencia fresca OOS que puede zanjar M4 legítimamente;
 (2) la fase NN §7 corre como CHALLENGER del campeón; (3) el one-shot del slice
 sigue reservado para cuando la evidencia acumulada lo justifique + sign-off.
+
+### H12 — Shadow pre-firewall del campeón ARRANCADO (2026-07-12, §12 del pre-registro)
+
+Modelo congelado `models/h12-ext5-h28.json` (sha 0be0129e7e5f): receta del spec
+re-entrenada sobre TODA la iteración (16,489 filas, 2021-03-05 → 2025-09-10; el
+slice de confirmación jamás entrena). Emisión diaria vía Cloud Scheduler
+(`hermes-shadow-h12-emit`, 00:20 UTC) sobre el universo Bitso MXN operable
+(10 libros); **rebalanceo solo en la grilla ancla+k·28**. Ledger:
+`shadow/h12-ext5-h28/days/` · reporte vivo: `reports/shadow_h12_ext5_h28.md`.
+
+**Incidente documentado**: la emisión inaugural corrió a las ~19h UTC y la barra
+del día EN CURSO (20 velas ≥ umbral 20 de `_daily_bars`) pasó como día completo —
+decisión con día parcial. Fix: filtro por fecha (`complete_days`, solo barras
+< hoy UTC) + test; el ledger (1 entrada, minutos de vida, defecto conocido) se
+RESETEÓ y se re-ancló con el último día completo. Único reset permitido: día 0,
+antes de acumular evidencia.
+
+**Hallazgo que corrige la narrativa — el campeón NO es momentum, es REVERSIÓN
+débil en los extremos**: el freeze expuso coef(ret_63d) = −0.067, y la
+verificación read-only del modelo EVALUADO (temporal holdout) da −0.082 (todos
+los block draws negativos: −0.016…−0.076). La regla que pasó M1-M3 compra los
+símbolos MÁS GOLPEADOS del trimestre (bottom ret_63d), no los ganadores. El IC
++0.104 del dossier era sobre TODAS las filas (momentum en el rango medio); en el
+contraste de extremos top-5/bottom-5 domina la reversión — ambas cosas son
+ciertas a la vez. Nada cambia en la evidencia (misma regla evaluada, mismo
+freeze, y el top-5 de un modelo monótono de 1 variable es invariante a la
+magnitud del coef); cambia la ETIQUETA económica: contrarian trimestral con
+tilt inverse-vol. n_trials sigue en 19 (freeze/shadow no son trials).
