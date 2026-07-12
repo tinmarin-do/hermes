@@ -1049,3 +1049,22 @@ USADO — jamás se re-evalúa contra él (ni GRU ni retoques suyos). Camino al 
 sign-off. TTM (§7.2) queda como challenger opcional la próxima sesión — deberá
 vencer TODO el expediente del GRU incluido este one-shot (que para él ya no
 existe: su juez sería window_check + shadow).
+
+### H12 — NN-2 (TTM) FALSIFICADO: la fase NN CIERRA con el GRU (2026-07-12, n_trials=21)
+
+Trial `nn2-ttm-h28-20260712` (§7.2, hiperparámetros congelados antes de correr;
+granite-ttm-r2 fine-tune completo, forecast 28d → rank → top-5):
+- AUC bloques 0.4864 · **AUC temporal 0.4233** (rankea activamente al revés en
+  el año reciente) · exceso fase-media **−6.25%/periodo (0/28 fases positivas)**
+  · sin-top1 −7.71 · PF 1.19 (muy por debajo de la canasta).
+- Regla de cierre §7.2 (pre-registrada): debía superar al GRU en AMBAS primarias
+  (exceso >+7.61 Y sin-top1 >+3.53) — no superó NINGUNA, por márgenes enormes.
+- Lectura: consistente con el análisis de misfit del §7 — un forecaster
+  univariante de precios optimizado a MSE no resuelve un problema de RANKING
+  cross-seccional; el forecast puntual ignora la estructura relativa del día.
+  El AUC 0.42 NO se re-usa invertido (dónde-no-ir #17: nada de flipear signos
+  post-hoc sin pre-registro).
+
+**FASE NN CERRADA (máx 2 configs, ambas corridas): el GRU `nn1-gru-h28` queda
+como candidato ÚNICO y CONFIRMADO del arco.** Camino restante: shadow ≥45d
+(elegible ~2026-08-25) + scheduler a 28d + sign-off de Erika. n_trials=21.
