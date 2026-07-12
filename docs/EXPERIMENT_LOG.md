@@ -934,3 +934,31 @@ ciertas a la vez. Nada cambia en la evidencia (misma regla evaluada, mismo
 freeze, y el top-5 de un modelo monótono de 1 variable es invariante a la
 magnitud del coef); cambia la ETIQUETA económica: contrarian trimestral con
 tilt inverse-vol. n_trials sigue en 19 (freeze/shadow no son trials).
+
+### H12 — Fase NN, config 1 (GRU secuencias): trial `nn1-gru-h28-20260712` (n_trials=20)
+
+Pre-registro §7.1 (hiperparámetros congelados antes de correr). GRU(32) sobre
+secuencias 84d de canales estacionarios del OHLCV, extremes_k5 H=28, mismo split
+y mismo motor de backtest que el campeón.
+
+| Métrica (holdout temporal 2024-09→2025-09) | GRU NN-1 | Campeón ext5-h28 |
+|---|---|---|
+| Exceso fase-media (28 offsets) | **+7.61%/periodo (28/28 fases +)** | +5.02 (26/28) |
+| Anti-episodio (sin top1) | **+3.53 (27/28)** | +0.80 (21/28) |
+| PF fase-media | **4.13** | 3.14 |
+| AUC temporal | **0.5995** | 0.5236 |
+| AUC bloques (K=5 sorteos) | **0.5052 ❌** (rango 0.45–0.55) | 0.5185 ❌ (por 0.0015) |
+
+Lectura honesta: el GRU le gana al campeón en TODO lo económico del holdout —
+supera el baseline en el año reciente por margen amplio — pero su ranking en los
+sorteos por bloques es MONEDA AL AIRE con varianza brutal (draws en 0.45 = ranking
+activamente equivocado en regímenes viejos; pred_rate 0.12–0.53 entre draws =
+calibración inestable del umbral). M1-M3 como challenger: ✅✅✅. M4: ❌ en bloques
+(peor que el campeón en robustez, mejor en el régimen reciente). Caveats: 13
+periodos en offset0, DSR 0.077 (n=20 trials, pocas obs), maxDD −45.8%, y la
+expectativa pre-registrada de que el holdout fue año excepcional aplica DOBLE a
+un modelo de más capacidad. Veredicto: **challenger legítimo, mismo talón de
+Aquiles (M4-bloques) que el campeón pero amplificado en ambas direcciones** — la
+adjudicación honesta es forward: candidato natural a segundo stream del shadow
+(decisión de infra para la próxima sesión). Config NN-2 (TTM) pendiente, §7.2
+congelará sus hiperparámetros antes de correr.
