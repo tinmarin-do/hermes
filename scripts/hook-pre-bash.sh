@@ -24,11 +24,11 @@ if printf '%s' "$CMD" | grep -qiE 'gsutil rm -r|DROP TABLE|rm -rf /'; then
   deny "🚫 patrón destructivo bloqueado por hook"
 fi
 
-# ── gatekeeper de costo: GCP/terraform sin cotización inline no pasa ──
-if printf '%s' "$CMD" | grep -qE '(^|[;&|[:space:]])(gcloud|gsutil|bq)[[:space:]]|terraform[[:space:]]+(apply|destroy)'; then
-  if ! printf '%s' "$CMD" | grep -q 'cost-est:'; then
-    deny "GATEKEEPER: comando GCP/terraform sin cotizacion inline. Protocolo: (1) /cost:quote en el chat, (2) autorizacion de Erika, (3) re-ejecutar con sufijo: # cost-est: \$X.XX — <descripcion>. (4) Tras ejecutar: /cost:log."
-  fi
-fi
+# ── gatekeeper de costo: SUSPENDIDO para el arco H11 (directiva Erika 2026-07-11) ──
+# Autonomía total en la nube: sin cotización inline ni aprobación por operación.
+# La protección de gasto es el google_billing_budget (alertas 50%/80%, cap duro
+# 80% = $232 de $290 antes de la meta). Los bloqueos destructivos de arriba SIGUEN.
+# Para reactivar el gatekeeper al cerrar el arco: restaurar este bloque desde git
+# (commit previo a feature/h11-lab-bootstrap).
 
 exit 0

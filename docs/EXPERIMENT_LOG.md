@@ -631,3 +631,28 @@ Lo que QUEDA VIVO y por qué:
   actual (Bitso spot long-only); documentadas, no probadas.
 - **La claim defensiva del campeón sigue siendo la única validada en holdout.** Todo el
   research de hoy la REFUERZA: nada de lo probado le gana ni de cerca a fees reales.
+
+---
+
+## ARCO H11 (abierto 2026-07-11) — clasificador binario diario, laboratorio cloud, MXN
+
+**Redefinición de research de Erika (2026-07-11):** el modelo de todas las hipótesis
+pasa a clasificador binario; target POR SÍMBOLO `y = 1 si ret 24h en MXN > +1%`; meta
+dual F1 ≥ 0.60 OOS (split híbrido 80/20: K=5 sorteos por bloques mensuales purgados +
+corte temporal puro — ambos deben cumplir) y ~1% diario neto MXN en backtest. Modo
+"iterar hasta lograrlo" CON firewall: live intocado; promoción solo vía slice de
+confirmación one-shot (último 15%, intocable) + shadow ≥45d + sign-off.
+Metodología sense-first: dossier de variables con gate de Erika antes de entrenar.
+Pre-registro completo: `docs/DESIGN_H11_daily_classifier.md`.
+
+**Antecedentes en contra (honestidad):** Exp. 0 (LightGBM binario 7d) y H7 (logística
+7d) falsificados. Esto es horizonte/moneda/universo NUEVOS, pero el arco cuenta TODOS
+sus trials en `experiments/trials.jsonl` (bucket research) para el DSR.
+
+**Infra:** laboratorio 100% cloud (bucket `hermes-research-*`, job `hermes-lab`,
+imagen `lab:vN`); datos duales Binance (observar, cable local) / Bitso (medir, MXN);
+budget real 4,900 MXN con alertas 50/80% en vez de ledgers (autonomía cloud total).
+
+| Trial | Qué | Resultado | Veredicto |
+|---|---|---|---|
+| (pendiente) | baseline logística, conjunto sense-first | — | — |
