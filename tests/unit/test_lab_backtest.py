@@ -7,8 +7,10 @@ import pytest
 from src.lab.backtest_daily import PPY, StrategyParams, _weights_for_day, run_backtest
 
 
-def _signals(days: int = 60, ret: float = 0.02, high: float = 0.05) -> pd.DataFrame:
-    """Un símbolo, p=0.9 constante, retorno y high forward fijos."""
+def _signals(
+    days: int = 60, ret: float = 0.02, high: float = 0.05, low: float = -0.01
+) -> pd.DataFrame:
+    """Un símbolo, p=0.9 constante, retornos forward (close/high/low) fijos."""
     ts = pd.date_range("2024-01-01", periods=days, freq="D")
     return pd.DataFrame(
         {
@@ -18,6 +20,7 @@ def _signals(days: int = 60, ret: float = 0.02, high: float = 0.05) -> pd.DataFr
             "rv_20d": 0.03,
             "fwd_ret_24h_mxn": ret,
             "fwd_high_ret": high,
+            "fwd_low_ret": low,
         }
     )
 
@@ -69,6 +72,36 @@ class TestFeesAndReturns:
         base = run_backtest(_signals(days=40, ret=0.005, high=0.01), StrategyParams())
         tp = run_backtest(_signals(days=40, ret=0.005, high=0.01), StrategyParams(take_profit=0.03))
         assert base["mean_daily_net_pct"] == pytest.approx(tp["mean_daily_net_pct"])
+
+
+class TestStopLossAndProfitFactor:
+    def test_sl_caps_loss_when_low_breaches(self):
+        """Cierra −5% pero el low tocó −6%: el SL-3% corta la pérdida en −3% + pata extra."""
+        base = run_backtest(_signals(days=40, ret=-0.05, low=-0.06), StrategyParams())
+        sl = run_backtest(_signals(days=40, ret=-0.05, low=-0.06), StrategyParams(stop_loss=0.03))
+        assert sl["mean_daily_net_pct"] > base["mean_daily_net_pct"]
+        assert sl["mean_daily_net_pct"] == pytest.approx(
+            -3.0 - 0.46 - 0.46 / 40, abs=0.02
+        )  # −3% − pata SL diaria − entrada día 1
+
+    def test_sl_inert_when_low_above(self):
+        base = run_backtest(_signals(days=40, low=-0.01), StrategyParams())
+        sl = run_backtest(_signals(days=40, low=-0.01), StrategyParams(stop_loss=0.03))
+        assert sl["mean_daily_net_pct"] == pytest.approx(base["mean_daily_net_pct"])
+
+    def test_pessimistic_stop_fires_before_tp(self):
+        """Día que toca −4% Y +5%: con SL+TP simultáneos manda el stop (§9.3 pesimista)."""
+        sig = _signals(days=40, ret=0.04, high=0.05, low=-0.04)
+        tp_only = run_backtest(sig, StrategyParams(take_profit=0.03))
+        both = run_backtest(sig, StrategyParams(take_profit=0.03, stop_loss=0.03))
+        assert both["mean_daily_net_pct"] < 0 < tp_only["mean_daily_net_pct"]
+        assert both["mean_daily_net_pct"] == pytest.approx(-3.0 - 0.46 - 0.46 / 40, abs=0.02)
+
+    def test_profit_factor_edges(self):
+        all_win = run_backtest(_signals(days=40, ret=0.02), StrategyParams())
+        all_loss = run_backtest(_signals(days=40, ret=-0.02), StrategyParams())
+        assert all_win["profit_factor"] is None  # sin días perdedores
+        assert all_loss["profit_factor"] == 0.0  # sin días ganadores
 
 
 def _alternating(days: int = 60) -> pd.DataFrame:

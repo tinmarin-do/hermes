@@ -709,3 +709,21 @@ palanca; el turnover sí.
    acumulada: el TP solo "ayudó" reduciendo pérdidas de configs perdedoras.
 5. Meta dual a hoy: F1 mejor 0.44 vs 0.60 (naive 0.51) · neto mejor +0.164%/día vs ~1%.
    La familia actual (clasificador diario absoluto >1%) muestra techo estructural.
+
+### H11 — ENMIENDA v2: pivote a target relativo + entierro del TP-3% (2026-07-12)
+
+**Decisión de Erika tras ping-pong** (opción A de la bifurcación): label v2
+`rel_median` (¿le gana el símbolo a la mediana de la canasta mañana? — 50/50 por
+construcción, el beta se cancela) + metas renegociadas: **accuracy > 0.55 en ambas
+validaciones + profit factor ≥ 1.5 + exceso vs B&H > 0** (reemplazan F1 0.60 y el
+~1%/día — este último reconocido como no realista: 1%/día = +3,678% anual).
+Enmienda completa: `DESIGN_H11_daily_classifier.md` §9. n_trials continúa (no se
+resetea). Mini-D1 sense-first contra el label nuevo ANTES de entrenar (gate Erika).
+
+**TP-3% (task #10) — VEREDICTO FINAL: ❌ ENTERRADO.** Evidencia (8 trials, variante
+siempre-corrida): destruye toda config ganadora (+0.164 → −0.086%/día en la mejor)
+porque amputa la cola derecha que paga la estrategia; solo "ayudó" reduciendo
+pérdidas de configs ya perdedoras (trials 1, 3, 4). Contradice además la meta de
+asimetría ("ganancias >> pérdidas" exige colas derechas LARGAS). El watchdog upside
+NO se construye. Reemplazo pre-registrado: variante **stop-loss −3%** (corta la cola
+izquierda — el lado correcto de la distribución para esa meta).

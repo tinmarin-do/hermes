@@ -5,7 +5,13 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-from src.lab.dataset import LABEL_THRESHOLD, _daily_bars, _label_frame
+from src.lab.dataset import (
+    LABEL_THRESHOLD,
+    MIN_BASKET,
+    _daily_bars,
+    _label_frame,
+    relative_label,
+)
 from src.lab.splits import (
     EMBARGO_DAYS,
     K_DRAWS,
@@ -60,6 +66,44 @@ class TestDailyBarsAndLabel:
         df = df[~((df.ts >= "2024-01-02") & (df.ts < "2024-01-02 12:00"))]  # día 2 con 12 velas
         bars = _daily_bars(df)
         assert len(bars) == 1  # el día incompleto (<20 velas) se descarta
+
+
+def _panel_one_day(rets: list[float], ts: str = "2024-01-01") -> pd.DataFrame:
+    return pd.DataFrame(
+        {
+            "ts": [pd.Timestamp(ts)] * len(rets),
+            "symbol": [f"S{i}" for i in range(len(rets))],
+            "fwd_ret_24h_mxn": rets,
+        }
+    )
+
+
+class TestRelativeLabel:
+    def test_median_split_is_balanced(self):
+        """7 símbolos con retornos escalonados: 3 arriba de la mediana → y=1."""
+        out = relative_label(_panel_one_day([-0.03, -0.02, -0.01, 0.0, 0.01, 0.02, 0.03]))
+        assert out["y"].sum() == 3.0
+        assert out.loc[out["fwd_ret_24h_mxn"] == 0.0, "y"].iloc[0] == 0.0  # mediana: y=0
+
+    def test_crash_day_still_has_winners(self):
+        """Día de crash (todos negativos): y=1 para los que caen MENOS — el beta se cancela."""
+        out = relative_label(_panel_one_day([-0.10, -0.08, -0.06, -0.04, -0.02]))
+        assert out["y"].sum() == 2.0
+        assert out.loc[out["fwd_ret_24h_mxn"] == -0.02, "y"].iloc[0] == 1.0
+
+    def test_small_basket_gets_nan_not_dropped(self):
+        """Canasta < MIN_BASKET: y NaN pero la fila SIGUE (rolling por símbolo intacto)."""
+        assert MIN_BASKET == 5
+        out = relative_label(_panel_one_day([0.01, 0.02, 0.03]))
+        assert len(out) == 3
+        assert out["y"].isna().all()
+
+    def test_preserves_row_order_and_abs_label_untouched(self):
+        panel = _panel_one_day([0.05, -0.05, 0.01, -0.01, 0.0])
+        panel["y"] = 9.9  # centinela: el label v2 debe REEMPLAZAR y, no depender de él
+        out = relative_label(panel)
+        assert list(out["symbol"]) == list(panel["symbol"])
+        assert set(out["y"].unique()) == {0.0, 1.0}
 
 
 class TestHybridSplits:

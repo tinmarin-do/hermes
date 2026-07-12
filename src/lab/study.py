@@ -6,9 +6,13 @@ Por cada candidata del catálogo (features.py), sobre el sample de estudio:
 Redundancia: matriz de correlación entre candidatas (sección global).
 
 Corre como job:  gcloud run jobs execute hermes-lab --args="src.lab.study"
-Escribe reports/feature_dossier.md + .json  →  GATE: Erika aprueba el conjunto.
+Con `--label rel_median` (enmienda §9.4): label v2 sobre el corpus COMPLETO (la
+mediana se calcula contra toda la canasta, no solo el sample), IC contra el retorno
+RELATIVO (fwd_rel_ret) → reports/feature_dossier_v2_relmedian.md + .json.
+Escribe reports/feature_dossier*.md + .json  →  GATE: Erika aprueba el conjunto.
 """
 
+import argparse
 import sys
 from datetime import UTC, datetime
 from typing import Any
@@ -18,6 +22,7 @@ import pandas as pd
 from scipy.stats import spearmanr
 
 from src.lab import gcs
+from src.lab.dataset import relative_label
 from src.lab.features import Candidate, build_candidates, compute_matrix
 from src.lab.splits import CONFIRMATION_FRACTION
 
@@ -79,29 +84,36 @@ def _canary_leakage(panel: pd.DataFrame, cand: Candidate, rng: np.random.Generat
     return True
 
 
-def main() -> int:
+def main(label: str = "abs_1pct") -> int:
     panel = gcs.read_parquet("datasets/daily_v1.parquet")
-    panel = panel[(panel["source"] == "binance") & (panel["symbol"].isin(STUDY_SYMBOLS))]
+    panel = panel[panel["source"] == "binance"]
     panel["ts"] = pd.to_datetime(panel["ts"])
+    if label == "rel_median":
+        panel = relative_label(panel)  # mediana vs corpus COMPLETO (§9.1), luego sample
+    panel = panel[panel["symbol"].isin(STUDY_SYMBOLS)]
 
     # FX como columna del panel (para el grupo 6)
     fx = gcs.read_parquet("fx/usdmxn.parquet")
     panel = panel.merge(fx.rename(columns={"date": "ts"}), on="ts", how="left")
 
     panel = _iteration_only(panel).sort_values(["symbol", "ts"]).reset_index(drop=True)
-    print(f"[study] sample: {STUDY_SYMBOLS} · {len(panel):,} filas (solo iteración)")
+    print(f"[study] label={label} · sample: {STUDY_SYMBOLS} · {len(panel):,} filas (iteración)")
 
     candidates = build_candidates()
     matrix = compute_matrix(panel, candidates)
+    # target del IC: retorno RELATIVO para el label v2 (el beta no debe puntuar)
+    target_col = "fwd_rel_ret" if label == "rel_median" else "fwd_ret_24h_mxn"
+    if target_col not in matrix.columns:
+        matrix[target_col] = panel[target_col].values  # panel ya ordenado (symbol, ts)
     rng = np.random.default_rng(11)
 
     fichas = []
     for cand in candidates:
         feat, y = matrix[cand.name], matrix["y"]
-        valid = feat.notna()
+        valid = feat.notna() & matrix[target_col].notna() & y.notna()
         ic, ic_p = (np.nan, np.nan)
         if valid.sum() > 100 and feat[valid].nunique() > 1:
-            ic, ic_p = spearmanr(feat[valid], matrix.loc[valid, "fwd_ret_24h_mxn"])
+            ic, ic_p = spearmanr(feat[valid], matrix.loc[valid, target_col])
         per_year = (
             pd.DataFrame({"f": feat, "yr": matrix.ts.dt.year})
             .dropna()
@@ -118,7 +130,7 @@ def main() -> int:
             for t in ["vol_baja", "vol_media", "vol_alta"]:
                 m = (tercil == t) & valid
                 if m.sum() > 100 and feat[m].nunique() > 1:
-                    r, _ = spearmanr(feat[m], matrix.loc[m, "fwd_ret_24h_mxn"])
+                    r, _ = spearmanr(feat[m], matrix.loc[m, target_col])
                     by_regime[t] = round(float(r), 4)
         leak_ok = _canary_leakage(panel, cand, rng)
         fichas.append(
@@ -157,29 +169,43 @@ def main() -> int:
         if abs(corr.loc[a, b]) > 0.7
     ]
 
+    suffix = "_v2_relmedian" if label == "rel_median" else ""
     gcs.upload_json(
         {
             "generated": datetime.now(UTC).isoformat(),
+            "label": label,
             "sample": STUDY_SYMBOLS,
             "rows": len(panel),
             "fichas": fichas,
             "redundancia_corr_gt_070": high_pairs,
         },
-        "reports/feature_dossier.json",
+        f"reports/feature_dossier{suffix}.json",
     )
-    gcs.upload_text(_render_md(fichas, high_pairs, len(panel)), "reports/feature_dossier.md")
-    print("[study] → reports/feature_dossier.md (GATE: revisar con Erika)")
+    gcs.upload_text(
+        _render_md(fichas, high_pairs, len(panel), label), f"reports/feature_dossier{suffix}.md"
+    )
+    print(f"[study] → reports/feature_dossier{suffix}.md (GATE: revisar con Erika)")
     return 0
 
 
-def _render_md(fichas: list[dict[str, Any]], high_pairs: list[dict[str, Any]], n_rows: int) -> str:
+def _render_md(
+    fichas: list[dict[str, Any]], high_pairs: list[dict[str, Any]], n_rows: int, label: str
+) -> str:
     L = [
-        "# Dossier de variables — Fase D1 arco H11 (SENSE FIRST)",
+        f"# Dossier de variables — arco H11 (SENSE FIRST) · label `{label}`",
         f"\nGenerado: {datetime.now(UTC).isoformat()} · sample {STUDY_SYMBOLS} · "
         f"{n_rows:,} filas (slice de confirmación EXCLUIDO)",
         "\n**GATE**: ninguna variable entra al entrenamiento sin visto bueno de Erika.",
-        "Veredicto propuesto por ficha: ✅ entra · ⚠️ revisar · ❌ fuera.\n",
+        "Veredicto propuesto por ficha: ✅ entra · ⚠️ revisar · ❌ fuera.",
     ]
+    if label == "rel_median":
+        L.append(
+            "\nLabel v2 (§9.1): y = 1 si el símbolo le gana mañana a la mediana de la "
+            "canasta (mediana sobre el corpus completo). IC medido contra el retorno "
+            "RELATIVO — el beta de mercado no puntúa. Naive = 50%.\n"
+        )
+    else:
+        L.append("")
     for f in fichas:
         ic = f["ic_spearman"]
         strong = ic is not None and abs(ic) >= 0.02 and (f["ic_pvalue"] or 1) < 0.05
@@ -212,4 +238,6 @@ def _render_md(fichas: list[dict[str, Any]], high_pairs: list[dict[str, Any]], n
 
 
 if __name__ == "__main__":
-    sys.exit(main())
+    parser = argparse.ArgumentParser(description="Estudio sense-first H11")
+    parser.add_argument("--label", choices=["abs_1pct", "rel_median"], default="abs_1pct")
+    sys.exit(main(parser.parse_args().label))
