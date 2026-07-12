@@ -98,3 +98,16 @@ arco ya NO esperan su OK. El rigor NO cambia: sense-first, pre-registro fechado 
 de correr, conteo íntegro de trials, reporte honesto con caveats. La extensión de
 grilla {21, 28} del §2 pasa a requerir solo enmienda pre-registrada (sin gate).
 **El firewall del §5 (dinero real) queda INTACTO, incluido su sign-off explícito.**
+
+## §10 Enmienda: grilla extendida {21, 28} (2026-07-12, pre-registrada; sin gate §9)
+
+Motivación: phase check de H=14 PASADO (13/14 fases positivas, media +1.45%/periodo).
+Pregunta: ¿el exceso crece con H o 14 es el pico? Se agregan H=21 y H=28 (se corren
+AMBOS, grilla cerrada de nuevo). Reglas:
+- Sets desde el mini-D1 por horizonte (dossiers _h21/_h28) con la regla lookback ≥ H
+  (rv_20d queda EXCLUIDA a H≥21 — 20d < H; el universo elegible se reduce a
+  formaciones largas: ret_21d/ret_63d/hurst_100d si el dossier los sostiene).
+- **Evaluación económica primaria = media del phase check (todos los offsets)** —
+  el holdout temporal solo da ~12-16 bloques por fase a estos H; el motor baja su
+  mínimo a 10 periodos para H>14 y TODO resultado carga el caveat de n chico.
+- Metas y firewall sin cambio. Trials contados (n=17 al pre-registrar).

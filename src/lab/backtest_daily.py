@@ -132,7 +132,8 @@ def run_backtest(
         prev_w = w
 
     r = np.asarray(daily_net)
-    min_obs = 30 if params.horizon_days == 1 else 20
+    h = params.horizon_days
+    min_obs = 30 if h == 1 else (20 if h <= 14 else 10)  # §10: H>14 → phase-mean manda
     if len(r) < min_obs:
         return {"error": f"menos de {min_obs} periodos de validación", "days": len(r)}
     # benchmark: equal-weight buy&hold aprox (entrada única con fee; sin rebalanceo)
