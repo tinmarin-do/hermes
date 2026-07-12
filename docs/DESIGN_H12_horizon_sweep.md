@@ -211,3 +211,38 @@ Reglas anti-trampa del multi-stream:
 3. Los canales del GRU se computan de velas Bitso MXN (z-norm por ventana absorbe
    escala; caveat de venue idéntico al del campeón, documentado en §12.3).
 4. El pipeline live sigue intocado; el slice one-shot sigue virgen.
+
+## §13 window_check — economía en ventanas aleatorias multi-año (idea Erika 2026-07-12, pre-registrado ANTES de correr)
+
+Motivación (Erika): "en vez de probar con un año completo (podría sesgar todo),
+probar con periodos aleatorios de 28 días con coherencia interna, a lo largo de
+varios años". Diagnóstico: los block draws ya hacen esto para AUC/acc (M4), pero
+M1-M3 (dinero) solo viven en el año del holdout temporal — evidencia económica
+sesgada al régimen reciente. window_check extiende el tratamiento de bloques
+aleatorios purgados a la ECONOMÍA (≈ CPCV de López de Prado).
+
+**Protocolo (fijo, seed=42):**
+- **W=40 ventanas de 28d no solapadas** (|t0_i−t0_j| ≥ 28), sorteadas sobre las
+  fechas del periodo de ITERACIÓN elegibles para AMBOS candidatos (mismas
+  ventanas para los dos — simetría total). Confirmación sigue virgen.
+- Por ventana: re-entrenar el candidato con las filas etiquetadas de iteración
+  EXCLUYENDO [t0−28, t0+28+28] (purga 28 + embargo 28 — ningún label solapa la
+  ventana); decidir en t0 (universo operable Binance, regla top-5/umbral del
+  spec); retorno del periodo = Σw·fwd_28d − costo de entrada completo
+  (fee+slip)·Σ|w|; benchmark = EW del universo − mismo costo de entrada.
+  Una ventana = UN punto económico coherente.
+- Reporte: mediana y media del exceso, % de ventanas positivas, desglose POR AÑO,
+  min/max → reports/window_check_<candidato>.{json,md}.
+
+**VARA (pre-registrada, no se ablanda tras ver resultados):**
+1. exceso MEDIANO > 0
+2. ≥ 55% de ventanas con exceso positivo
+3. ningún año con exceso medio < −1.0%/periodo (sin año catastrófico)
+
+**Estatus metodológico:** es un DIAGNÓSTICO (no trial — nada nuevo se selecciona;
+n_trials no cambia), corrido SIMÉTRICO sobre los dos candidatos congelados ya
+contados. Caveat pre-registrado: cada re-entreno ve datos futuros respecto a su
+ventana → mide robustez de señal entre regímenes, NO deployabilidad (el año
+temporal y el shadow siguen siendo los jueces de deploy). Sus resultados
+informan el juicio de Erika y se adoptan como estándar para candidatos futuros;
+las metas v3 NO se re-abren retroactivamente.
