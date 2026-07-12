@@ -897,3 +897,12 @@ con el patrón de régimen del dossier). **Regla del proyecto: la meta NO se abl
 después de ver el resultado** (eso sería verdict-shopping) → el candidato NO entra al
 firewall todavía. Camino pre-registrado que sigue: fase NN §7 sobre H=28 (¿un modelo
 con más información puede subir el piso de ranking sin perder M1-M3?). n_trials=19.
+
+**Directiva Erika (2026-07-12): ext5-h28 NO se descarta por M4** — "no pasó por un
+pelito de rana calva; hasta ahora es nuestro mejor candidato". Estatus formal:
+**CANDIDATO CAMPEÓN DEL ARCO** (M1-M3 ✅, PF 3.14, exceso anti-episodio +0.80).
+Camino honesto acordado, sin ablandar la vara: (1) **shadow pre-firewall a cadencia
+28d arranca lo antes posible** (papel, cero riesgo, no consume el slice) — cada
+periodo suma un punto de evidencia fresca OOS que puede zanjar M4 legítimamente;
+(2) la fase NN §7 corre como CHALLENGER del campeón; (3) el one-shot del slice
+sigue reservado para cuando la evidencia acumulada lo justifique + sign-off.
