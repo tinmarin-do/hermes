@@ -17,6 +17,14 @@ sin tocar la señal. Posiciones <0.5% se liquidan (polvo). Además cada backtest
 reporta el benchmark buy&hold equal-weight del mismo periodo (entrada única con fee)
 — el control que separa alpha del modelo vs beta del mercado en el holdout.
 
+v3 (enmienda §9.3, trials 9+): `stop_loss` — si el low del día siguiente toca
+entrada×(1−sl), la pata sale a −sl + fee extra. Fill al nivel del stop (cripto 24/7,
+sin gaps overnight; velas 1h subyacentes). Ambigüedad de path low/high el mismo día:
+PESIMISTA, el stop dispara primero (un TP simultáneo no aplica sobre patas ya
+stopeadas). El TP-3% quedó ENTERRADO con evidencia (EXPERIMENT_LOG 2026-07-12) —
+el parámetro se conserva solo por reproducibilidad de los trials 1-8. Métrica nueva:
+`profit_factor` = Σ días ganadores / |Σ días perdedores| (meta v2: ≥ 1.5).
+
 Todo en MXN · PPY=365 · PSR/DSR importados puros de src.brain.backtest.
 """
 
@@ -42,8 +50,9 @@ class StrategyParams:
     top_k: int = 5
     fee_rate: float = FEE_RATE
     slippage: float = SLIPPAGE
-    take_profit: float | None = None  # 0.03 → variante TP-3%
+    take_profit: float | None = None  # ENTERRADO (solo reproducibilidad trials 1-8)
     smooth_alpha: float | None = None  # α de ejecución suavizada (None ≡ 1.0)
+    stop_loss: float | None = None  # 0.03 → variante SL-3% (corta cola izquierda)
 
 
 def _weights_for_day(day: pd.DataFrame, p: StrategyParams) -> pd.Series:
@@ -84,15 +93,23 @@ def run_backtest(
             w = w[w >= MIN_WEIGHT]
 
         ret = day["fwd_ret_24h_mxn"]
-        tp_fee_extra = 0.0
-        if params.take_profit is not None and len(w):
-            hit = day.loc[day.index.intersection(w.index), "fwd_high_ret"] >= params.take_profit
-            capped = ret.copy()
-            capped[hit[hit].index] = params.take_profit
-            ret = capped
-            tp_fee_extra = float(
-                (params.fee_rate + params.slippage) * w.reindex(hit[hit].index).fillna(0).sum()
-            )
+        exit_fee_extra = 0.0
+        exit_leg = params.fee_rate + params.slippage
+        if len(w) and (params.stop_loss is not None or params.take_profit is not None):
+            ret = ret.copy()
+            held = day.index.intersection(w.index)
+            stopped = pd.Index([])
+            if params.stop_loss is not None:
+                hit = day.loc[held, "fwd_low_ret"] <= -params.stop_loss
+                stopped = hit[hit].index
+                ret[stopped] = -params.stop_loss
+                exit_fee_extra += float(exit_leg * w.reindex(stopped).fillna(0).sum())
+            if params.take_profit is not None:
+                hit = day.loc[held, "fwd_high_ret"] >= params.take_profit
+                # pesimista (§9.3): el stop dispara primero — sin TP sobre patas stopeadas
+                tp_idx = hit[hit].index.difference(stopped)
+                ret[tp_idx] = params.take_profit
+                exit_fee_extra += float(exit_leg * w.reindex(tp_idx).fillna(0).sum())
 
         # símbolo retenido sin fila hoy (hueco de data) → se asume plano
         gross = float((w * ret.reindex(w.index).fillna(0.0)).sum()) if len(w) else 0.0
@@ -105,7 +122,7 @@ def run_backtest(
             .abs()
             .sum()
         )
-        cost = (params.fee_rate + params.slippage) * turnover + tp_fee_extra
+        cost = (params.fee_rate + params.slippage) * turnover + exit_fee_extra
         daily_net.append(gross - cost)
         turnover_hist.append(turnover)
         prev_w = w
@@ -118,6 +135,8 @@ def run_backtest(
     b[0] -= params.fee_rate + params.slippage
     mu, sd = float(r.mean()), float(r.std(ddof=1))
     sharpe = (mu / sd) * np.sqrt(PPY) if sd > 0 else 0.0
+    wins, losses = float(r[r > 0].sum()), float(-r[r < 0].sum())
+    profit_factor = round(wins / losses, 4) if losses > 0 else None
     equity = np.cumprod(1 + r)
     peak = np.maximum.accumulate(equity)
     maxdd = float(((equity - peak) / peak).min())
@@ -130,10 +149,12 @@ def run_backtest(
         "dsr": round(float(deflated_sharpe(r.tolist(), n_trials=max(n_trials, 1))), 4),
         "max_drawdown_pct": round(maxdd * 100, 2),
         "hit_rate": round(float((r > 0).mean()), 4),
+        "profit_factor": profit_factor,
         "avg_turnover": round(float(np.mean(turnover_hist)), 4),
         "benchmark_ew_daily_pct": round(float(b.mean()) * 100, 4),
         "excess_vs_ew_pct": round((mu - float(b.mean())) * 100, 4),
         "take_profit": params.take_profit,
+        "stop_loss": params.stop_loss,
         "threshold": params.threshold,
         "top_k": params.top_k,
         "smooth_alpha": params.smooth_alpha,

@@ -66,11 +66,12 @@ def _run_and_register(spec_dict: dict[str, Any]) -> int:
         f"[experiment] {spec.trial_id}: F1_bloques={result.get('f1_blocks_mean')}"
         f"±{result.get('f1_blocks_std')} · F1_temporal={result.get('f1_temporal')}"
     )
-    for variant in ("backtest_base", "backtest_tp3"):
+    for variant in ("backtest_base", "backtest_sl3", "backtest_tp3"):
         bt = result.get(variant)
         if bt and "error" not in bt:
             print(
                 f"  {variant}: {bt['mean_daily_net_pct']:+.3f}%/día neto · "
+                f"PF {bt.get('profit_factor')} · exceso {bt.get('excess_vs_ew_pct')} · "
                 f"Sharpe {bt['sharpe_ann']} · maxDD {bt['max_drawdown_pct']}% · "
                 f"PSR {bt['psr_0']} · DSR {bt['dsr']}"
             )

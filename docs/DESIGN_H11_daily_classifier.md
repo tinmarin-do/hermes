@@ -97,3 +97,57 @@ El live (campeón momentum, ~$532 en Bitso) NO se toca durante el arco.
 $290 USD de créditos GCP (billing account MXN; budget real 4,900 MXN, alertas 50%/80%,
 EXCLUDE_ALL_CREDITS). **Regla dura: jamás gastar >80% antes de la meta del §1.**
 Ledgers markdown GCP suspendidos durante el arco (el budget real los reemplaza).
+
+---
+
+## 9. ENMIENDA v2 — target relativo (2026-07-12, aprobada por Erika: "Adelante")
+
+**Razón (evidencia de trials 1-8, n_trials=8):** el target absoluto (>+1%) convirtió el
+problema en market timing — el benchmark B&H equal-weight (+0.239%/día en el holdout)
+domina a toda configuración; el exceso fue SIEMPRE negativo (mejor: −0.076%/día) y la
+estrategia converge al mercado al suavizar la ejecución. La alta convicción no paga
+(precision 0.52 en p>0.65 con bruto ≈ 0). F1 máximo observado 0.44 vs meta 0.60
+(naive 0.51). Familia falsificada CON registro íntegro; el arco pivota a predicción
+RELATIVA, donde el beta se cancela y el modelo compite contra sus pares, no contra
+el mercado. Ping-pong completo con Erika 2026-07-12 (opción A + metas renegociadas).
+
+### 9.1 Label v2 (`rel_median`)
+
+`y = 1 si fwd_ret_24h_mxn(símbolo) > mediana(fwd_ret_24h_mxn de la canasta ese día)`.
+- Canasta = todos los símbolos del corpus presentes ese día (mín. 5; días con menos se
+  descartan). Derivado del MISMO `datasets/daily_v1.parquet` (sin re-ingesta).
+- 50/50 por construcción todos los días, en todo régimen (día de crash: y=1 para los
+  que caen menos). Sin class_weight ni artefactos de umbral.
+- Encaje con la decisión: en producción ya elegimos top-k a diario; el label ES esa
+  decisión. El slice de confirmación (últ. 15%, por fechas) queda intacto y aplica igual.
+
+### 9.2 Metas v2 (reemplazan §1; deciden fin de iteración y liberan el 20% final)
+
+- **Clasificación**: accuracy > 0.55 en AMBAS validaciones del split híbrido §4
+  (media de K sorteos por bloques Y corte temporal). Naive = 0.50. AUC se reporta.
+- **Económica ("ganancias >> pérdidas", Erika 2026-07-12)**: en el holdout temporal,
+  **profit factor ≥ 1.5** (Σ días ganadores / |Σ días perdedores|) **y exceso vs B&H
+  equal-weight > 0**. PSR/DSR siguen; n_trials NO se resetea (continúa del 8).
+- Honestidad de escala pre-registrada: exceso realista esperado +0.05–0.15%/día si las
+  cross-seccionales viven; puede salir 0 y se reporta igual. Relativo long-only en año
+  bajista puede perder en absoluto — se reporta sin maquillar.
+
+### 9.3 Variantes de estrategia v2
+
+- **TP +3% ENTERRADO** (decisión #10 cerrada con evidencia): destruye configs ganadoras
+  (+0.164 → −0.086%/día) — amputa la cola derecha que paga todo. Veredicto en
+  EXPERIMENT_LOG; el watchdog upside NO se construye.
+- **Nueva variante SIEMPRE-corrida: stop-loss −3%** (corta la cola IZQUIERDA — alineada
+  con la meta de asimetría): si el low del día siguiente toca entrada×(1−sl), la pata
+  sale a −sl + fee extra. Supuesto documentado: fill al nivel del stop (cripto 24/7,
+  sin gaps overnight; velas 1h subyacentes). Ambigüedad de path (low y high el mismo
+  día) se resuelve PESIMISTA: el stop dispara primero.
+
+### 9.4 Mini-D1 sense-first (gate de Erika)
+
+Antes de entrenar: re-juicio del catálogo COMPLETO de candidatas (las cross-seccionales
+rel_ret_5d/breadth/etc. murieron contra el target absoluto — compitiendo contra ruido
+de mercado, no contra pares) vs label v2, mismo protocolo del §5 (distribución,
+estabilidad, y-rate por decil, IC, canary, redundancia) →
+`reports/feature_dossier_v2_relmedian.md`. **Erika aprueba el conjunto v2 antes del
+primer trial de entrenamiento.**

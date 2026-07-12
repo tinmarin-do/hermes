@@ -1,9 +1,11 @@
 """Dataset builder H11 — spine diario pooled + label MXN (pre-registro en DESIGN_H11).
 
 Resampleo 1h→diario anclado a 00:00 UTC: la barra del día D cubre [D 00:00, D+1 00:00).
-Label (SIEMPRE en MXN, umbral +1%):
+Label v1 (SIEMPRE en MXN, umbral +1%):
   binance:  y(D) = 1  si  (1+r_usdt)(1+r_fx) − 1 > 0.01,  r sobre closes D→D+1
   bitso:    y(D) = 1  si  close_mxn(D+1)/close_mxn(D) − 1 > 0.01  (nativo)
+Label v2 `rel_median` (enmienda §9.1): `relative_label()` — se deriva del MISMO
+parquet, sin re-ingesta; y = 1 si el símbolo le gana mañana a la mediana de la canasta.
 
 Corre como job:  gcloud run jobs execute hermes-lab --args="src.lab.dataset"
 Escribe datasets/daily_v1.parquet + reports/base_rates.md
@@ -17,11 +19,29 @@ import pandas as pd
 from src.lab import gcs
 
 LABEL_THRESHOLD = 0.01
+MIN_BASKET = 5  # enmienda v2 (§9.1): días con canasta menor no reciben label relativo
 DELISTED = {"EOS", "FTM", "MKR", "MATIC"}  # en corpus (anti-supervivencia), no operables
 # Libros FX/stablecoin de Bitso: son series de referencia (FX del venue), NO objetivos
 # de inversión — base rate 3-11% (verificado en base_rates 2026-07-11) contaminaría
 # el pooled. Se quedan en el dataset (features) pero operable=False.
 NON_TARGET = {"EUR", "USD", "USDT", "USDS", "TUSD", "PYUSD", "RLUSD"}
+
+
+def relative_label(panel: pd.DataFrame) -> pd.DataFrame:
+    """Label v2 `rel_median` (DESIGN_H11 §9.1): y = 1 si fwd_ret_24h_mxn del símbolo
+    supera la mediana de la canasta ese día (todos los símbolos presentes; mín. 5).
+
+    50/50 por construcción en todo régimen (día de crash: y=1 para los que caen menos).
+    NO filtra filas (los rolling por símbolo necesitan la serie continua): donde la
+    canasta es chica, y/fwd_rel_ret quedan NaN y el dropna del trial los saca después.
+    Preserva el orden de filas del panel (transform).
+    """
+    out = panel.copy()
+    g = out.groupby("ts")["fwd_ret_24h_mxn"]
+    med, n = g.transform("median"), g.transform("count")
+    out["fwd_rel_ret"] = (out["fwd_ret_24h_mxn"] - med).where(n >= MIN_BASKET)
+    out["y"] = (out["fwd_rel_ret"] > 0).astype(float).where(out["fwd_rel_ret"].notna())
+    return out
 
 
 def _daily_bars(df: pd.DataFrame) -> pd.DataFrame:
