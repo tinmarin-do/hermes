@@ -64,6 +64,21 @@ def _rolling_hurst_series(x: pd.Series, window: int = 100) -> pd.Series:
     return x.rolling(window).apply(lambda a: h(a.values), raw=False)
 
 
+# ── conjunto v1 APROBADO (gate D1, Erika 2026-07-12) ──────────────────────────
+# Evidencia: dossier reports/feature_dossier.md (sample 8,570 filas, confirmación
+# excluida). abs_ret_1d se deriva de la forma de U del decil de ret_1d (D1 47% /
+# D10 40% vs centro 33%): una logística lineal promediaría la U a cero — la
+# magnitud entra como variable propia (pierna vol-clustering del reversal).
+FEATURE_SET_V1 = [
+    "ret_1d",  # reversal per-symbol (IC −0.048, p=9e-6)
+    "abs_ret_1d",  # magnitud del movimiento de ayer (U-shape del dossier)
+    "btc_ret_1d",  # lead-lag BTC→alts (IC −0.056, la más fuerte)
+    "rv_20d",  # carrier: y-rate 29→45% monótona, IC direccional nulo
+    "hl_range_z30",  # expansión de rango (IC +0.041, p=2e-4)
+    "hurst_100d",  # conditioner de régimen (débil p=0.26 — a prueba, sale en v2 si no aporta)
+]
+
+
 # ── registro de candidatas ─────────────────────────────────────────────────────
 def build_candidates() -> list[Candidate]:
     C: list[Candidate] = []
@@ -83,6 +98,17 @@ def build_candidates() -> list[Candidate]:
                 min_lookback_days=d,
             )
         )
+    C.append(
+        Candidate(
+            name="abs_ret_1d",
+            group="1_retornos",
+            rationale="Magnitud del retorno de ayer |ret_1d|: el decil del dossier mostró "
+            "forma de U — ambos extremos elevan p(y=1) (vol clustering). La logística "
+            "necesita la magnitud como variable aparte para no promediar la U a cero.",
+            fn=lambda df: _ret(df, 1).abs(),
+            min_lookback_days=1,
+        )
+    )
     C.append(
         Candidate(
             name="ret_5d_z60",
