@@ -84,20 +84,31 @@ def _canary_leakage(panel: pd.DataFrame, cand: Candidate, rng: np.random.Generat
     return True
 
 
-def main(label: str = "abs_1pct") -> int:
+def main(label: str = "abs_1pct", horizon_days: int = 1) -> int:
     panel = gcs.read_parquet("datasets/daily_v1.parquet")
     panel = panel[panel["source"] == "binance"]
     panel["ts"] = pd.to_datetime(panel["ts"])
+
+    # FX como columna del panel (para el grupo 6 y el forward H-días)
+    fx = gcs.read_parquet("fx/usdmxn.parquet")
+    panel = panel.merge(fx.rename(columns={"date": "ts"}), on="ts", how="left")
+
+    if horizon_days > 1:
+        # H12: fwd_ret del HORIZONTE (nombre 24h conservado por compat — ver train.py)
+        panel = panel.sort_values(["symbol", "ts"]).reset_index(drop=True)
+        g = panel.groupby("symbol", observed=True)
+        fwd = g["close"].shift(-horizon_days) / g["close"].shift(0) - 1.0
+        fx_fwd = g["usdmxn"].shift(-horizon_days) / g["usdmxn"].shift(0) - 1.0
+        panel["fwd_ret_24h_mxn"] = (1 + fwd) * (1 + fx_fwd.fillna(0.0)) - 1
     if label == "rel_median":
         panel = relative_label(panel)  # mediana vs corpus COMPLETO (§9.1), luego sample
     panel = panel[panel["symbol"].isin(STUDY_SYMBOLS)]
 
-    # FX como columna del panel (para el grupo 6)
-    fx = gcs.read_parquet("fx/usdmxn.parquet")
-    panel = panel.merge(fx.rename(columns={"date": "ts"}), on="ts", how="left")
-
     panel = _iteration_only(panel).sort_values(["symbol", "ts"]).reset_index(drop=True)
-    print(f"[study] label={label} · sample: {STUDY_SYMBOLS} · {len(panel):,} filas (iteración)")
+    print(
+        f"[study] label={label} H={horizon_days}d · sample: {STUDY_SYMBOLS} · "
+        f"{len(panel):,} filas (iteración)"
+    )
 
     candidates = build_candidates()
     matrix = compute_matrix(panel, candidates)
@@ -170,6 +181,8 @@ def main(label: str = "abs_1pct") -> int:
     ]
 
     suffix = "_v2_relmedian" if label == "rel_median" else ""
+    if horizon_days > 1:
+        suffix += f"_h{horizon_days}"
     gcs.upload_json(
         {
             "generated": datetime.now(UTC).isoformat(),
@@ -238,6 +251,8 @@ def _render_md(
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Estudio sense-first H11")
+    parser = argparse.ArgumentParser(description="Estudio sense-first H11/H12")
     parser.add_argument("--label", choices=["abs_1pct", "rel_median"], default="abs_1pct")
-    sys.exit(main(parser.parse_args().label))
+    parser.add_argument("--horizon", type=int, default=1, help="horizonte del label en días")
+    args = parser.parse_args()
+    sys.exit(main(args.label, args.horizon))

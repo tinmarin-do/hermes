@@ -790,3 +790,26 @@ Patrón de régimen consistente en TODO el cluster momentum: IC positivo en vol 
    a esta granularidad.
 4. Metas: acc 0.520 vs 0.55 · PF 1.24 vs 1.5 · exceso −0.043 vs >0. Todo mejoró de
    nuevo; nada cruzó.
+
+### ARCO H11 — CERRADO CON VEREDICTO (2026-07-12) → abre ARCO H12
+
+**VEREDICTO (14 trials, 3 familias de label, 2 modelos): a horizonte de 1 DÍA no hay
+alpha de selección cross-seccional sobre la canasta equal-weight en este corpus.**
+El exceso convergió monótonamente (−0.13 → −0.062 → −0.043) sin cruzar 0; el exceso
+bruto fue ≈ 0 en TODAS las familias; precision@5 ≈ azar. La señal de clasificación es
+real (acc 52%, AUC 0.536) pero vive en aciertos sin magnitud. Mejor config del arco:
+ext5-logistic-sm015 (+0.196%/día, Sharpe 1.41, DSR 0.363) — un TILT sano (low-vol +
+momentum suave + ejecución lenta), no un selector de ganadores. **El slice de
+confirmación queda VIRGEN** (ningún candidato pasó las metas — no se quema).
+Enterrados con evidencia: TP+3%, SL−3% (±3% intradía = ruido), formación larga a 1d
+(deciles planos), breadth day-constant (artefacto), quincena, hurst (×2).
+Activos que deja el arco: laboratorio cloud completo (bucket+job+imagen v11),
+motor de backtest con control B&H y cadencia, metodología dossier sense-first,
+datos duales Binance/Bitso con puente validado. Gasto: ~$5 de $290 (1.7%).
+
+**ARCO H12 ABIERTO** (directiva Erika: "De una. No me rindo"): mismo target ganador
+(extremos relativos) a horizontes H ∈ {3, 7, 14} — grilla CERRADA pre-registrada.
+⛰️ REGLA EN PIEDRA (§3 del pre-registro): cadencia de rebalanceo (backtest Y
+producción) = horizonte del label entrenado, sin excepciones. Purga/embargo escalan
+con H. Mini-D1 por horizonte con gate de Erika antes de entrenar.
+Pre-registro completo: `docs/DESIGN_H12_horizon_sweep.md`.

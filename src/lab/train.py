@@ -49,11 +49,20 @@ class TrialSpec:
     stop_loss_variant: float | None = None
     params: dict[str, Any] = field(default_factory=dict)
     strategy: dict[str, Any] = field(default_factory=dict)  # extras de StrategyParams
+    # H12: horizonte del label EN DÍAS. REGLA EN PIEDRA (DESIGN_H12 §3): la cadencia
+    # del backtest — y de producción si el candidato se promueve — ES este horizonte.
+    horizon_days: int = 1
     seed: int = 42
 
 
-def load_panel() -> pd.DataFrame:
-    """Panel Binance diario con features del catálogo + columnas de backtest."""
+def load_panel(horizon_days: int = 1) -> pd.DataFrame:
+    """Panel Binance diario con features del catálogo + columnas de backtest.
+
+    Con horizon_days=H la columna `fwd_ret_24h_mxn` se REESCRIBE con el retorno
+    forward de H días (close→close compuesto con FX H-días). El nombre `24h` se
+    conserva por compatibilidad con dataset/labels/backtest — H12 lo documenta;
+    la fuente de verdad del horizonte es TrialSpec.horizon_days.
+    """
     panel = gcs.read_parquet("datasets/daily_v1.parquet")
     panel = panel[panel["source"] == "binance"].copy()
     panel["ts"] = pd.to_datetime(panel["ts"])
@@ -62,9 +71,15 @@ def load_panel() -> pd.DataFrame:
     panel = panel.merge(fx[["ts", "usdmxn"]], on="ts", how="left")
     panel = panel.sort_values(["symbol", "ts"]).reset_index(drop=True)
 
-    # retornos close→HIGH y close→LOW del día siguiente (disparan TP/SL); FX del día
-    # se asume constante intradía para el trigger (aprox. documentada en DESIGN_H11)
     g = panel.groupby("symbol", observed=True)
+    if horizon_days > 1:
+        h = horizon_days
+        fwd = g["close"].shift(-h) / g["close"].shift(0) - 1.0
+        fx_fwd_h = g["usdmxn"].shift(-h) / g["usdmxn"].shift(0) - 1.0
+        panel["fwd_ret_24h_mxn"] = (1 + fwd) * (1 + fx_fwd_h.fillna(0.0)) - 1
+
+    # retornos close→HIGH/LOW del día siguiente (disparaban TP/SL — retirados §10.3;
+    # se conservan 1d por compatibilidad de columnas). FX intradía constante (aprox.)
     fwd_high = g["high"].shift(-1) / g["close"].shift(0) - 1.0
     fwd_low = g["low"].shift(-1) / g["close"].shift(0) - 1.0
     r_fx_fwd = g["usdmxn"].pct_change().shift(-1).fillna(0.0)
@@ -134,7 +149,7 @@ def _precision_at_k(sig: pd.DataFrame, k: int = 5) -> float | None:
 
 
 def run_trial(spec: TrialSpec) -> dict[str, Any]:
-    panel = load_panel()
+    panel = load_panel(spec.horizon_days)
     if spec.label == "rel_median":
         panel = relative_label(panel)  # solo agrega/reescribe columnas, mismo orden
     elif spec.label == "extremes_k5":
@@ -156,7 +171,7 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
     matrix = matrix.dropna(subset=[*spec.features, "fwd_ret_24h_mxn"])
     labeled = matrix.dropna(subset=["y"])
 
-    splits: list[Split] = hybrid_splits(iteration, seed=spec.seed)
+    splits: list[Split] = hybrid_splits(iteration, seed=spec.seed, horizon_days=spec.horizon_days)
     block_f1: list[float] = []
     block_acc: list[float] = []
     per_split: dict[str, dict[str, Any]] = {}
@@ -200,6 +215,7 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
         "trial_id": spec.trial_id,
         "model": spec.model,
         "label": spec.label,
+        "horizon_days": spec.horizon_days,
         "features": spec.features,
         "threshold": spec.threshold,
         "params": spec.params,
@@ -219,14 +235,26 @@ def run_trial(spec: TrialSpec) -> dict[str, Any]:
     if temporal_signals is not None:
         # backtest solo sobre símbolos OPERABLES (delistados entrenan, no operan)
         sig = temporal_signals[temporal_signals["operable"]].copy()
+        if spec.horizon_days > 1:
+            # REGLA EN PIEDRA (DESIGN_H12 §3): rebalanceo SOLO cada H días — la
+            # grilla de decisión del backtest es la cadencia del label, y la de
+            # producción si esto se promueve. Bloques no solapados por diseño.
+            grid = pd.DatetimeIndex(sorted(sig["ts"].unique()))[:: spec.horizon_days]
+            sig = sig[sig["ts"].isin(grid)]
         n_trials = _current_n_trials() + 1
-        base = StrategyParams(threshold=spec.threshold, top_k=spec.top_k, **spec.strategy)
+        base = StrategyParams(
+            threshold=spec.threshold,
+            top_k=spec.top_k,
+            horizon_days=spec.horizon_days,
+            **spec.strategy,
+        )
         result["backtest_base"] = run_backtest(sig, base, n_trials=n_trials)
         if spec.stop_loss_variant is not None:  # retirada por default (§10.3)
             sl = StrategyParams(
                 threshold=spec.threshold,
                 top_k=spec.top_k,
                 stop_loss=spec.stop_loss_variant,
+                horizon_days=spec.horizon_days,
                 **spec.strategy,
             )
             result["backtest_sl3"] = run_backtest(sig, sl, n_trials=n_trials)

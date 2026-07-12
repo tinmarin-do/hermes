@@ -35,19 +35,31 @@ def partitions(dates: pd.DatetimeIndex) -> tuple[pd.DatetimeIndex, pd.DatetimeIn
 
 
 def _exclude_around(
-    dates: pd.DatetimeIndex, val_blocks: list[tuple[pd.Timestamp, pd.Timestamp]]
+    dates: pd.DatetimeIndex,
+    val_blocks: list[tuple[pd.Timestamp, pd.Timestamp]],
+    purge_days: int = PURGE_DAYS,
+    embargo_days: int = EMBARGO_DAYS,
 ) -> pd.DatetimeIndex:
     """Train = fechas fuera de [ini−purga, fin+embargo] de todo bloque de validation."""
     mask = np.ones(len(dates), dtype=bool)
     for start, end in val_blocks:
-        lo = start - pd.Timedelta(days=PURGE_DAYS)
-        hi = end + pd.Timedelta(days=EMBARGO_DAYS)
+        lo = start - pd.Timedelta(days=purge_days)
+        hi = end + pd.Timedelta(days=embargo_days)
         mask &= ~((dates >= lo) & (dates <= hi))
     return dates[mask]
 
 
-def hybrid_splits(iteration_dates: pd.DatetimeIndex, seed: int = 42) -> list[Split]:
-    """K sorteos por bloques mensuales + corte temporal puro. Determinista por seed."""
+def hybrid_splits(
+    iteration_dates: pd.DatetimeIndex, seed: int = 42, horizon_days: int = 1
+) -> list[Split]:
+    """K sorteos por bloques mensuales + corte temporal puro. Determinista por seed.
+
+    H12 (§4 del pre-registro): con horizonte H el label usa info de [t, t+H] →
+    purga = max(PURGE_DAYS, H) y embargo = max(EMBARGO_DAYS, H) en cada frontera
+    (labels solapados entre train y val serían leakage directo).
+    """
+    purge = max(PURGE_DAYS, horizon_days)
+    embargo = max(EMBARGO_DAYS, horizon_days)
     dates = pd.DatetimeIndex(iteration_dates).sort_values().unique()
     months = pd.PeriodIndex(dates, freq="M").unique().sort_values()
     n_val_months = max(1, round(len(months) * VAL_FRACTION))
@@ -66,7 +78,7 @@ def hybrid_splits(iteration_dates: pd.DatetimeIndex, seed: int = 42) -> list[Spl
         out.append(
             Split(
                 name=f"block_draw_{k}",
-                train_dates=_exclude_around(dates[~val_mask], blocks),
+                train_dates=_exclude_around(dates[~val_mask], blocks, purge, embargo),
                 val_dates=dates[val_mask],
             )
         )
@@ -77,7 +89,9 @@ def hybrid_splits(iteration_dates: pd.DatetimeIndex, seed: int = 42) -> list[Spl
     out.append(
         Split(
             name="temporal_holdout",
-            train_dates=_exclude_around(dates[dates < cut], [(val.min(), val.max())]),
+            train_dates=_exclude_around(
+                dates[dates < cut], [(val.min(), val.max())], purge, embargo
+            ),
             val_dates=val,
         )
     )

@@ -156,6 +156,19 @@ class TestMetrics:
     def test_needs_30_days(self):
         assert "error" in run_backtest(_signals(days=10), StrategyParams())
 
+    def test_horizon_annualization_and_min_obs(self):
+        """H12 §3: mismas observaciones a H=7 → sharpe anualiza con 365/7 (√7 menor);
+        el mínimo de observaciones baja a 20 bloques para horizontes > 1d."""
+        rng = np.random.default_rng(5)
+        sig = _signals(days=40)
+        sig["fwd_ret_24h_mxn"] = rng.normal(0.002, 0.02, len(sig))
+        r1 = run_backtest(sig, StrategyParams())
+        r7 = run_backtest(sig, StrategyParams(horizon_days=7))
+        assert r7["sharpe_ann"] == pytest.approx(r1["sharpe_ann"] / np.sqrt(7), abs=0.01)
+        assert r7["horizon_days"] == 7
+        assert "error" in run_backtest(_signals(days=25), StrategyParams())
+        assert "error" not in run_backtest(_signals(days=25), StrategyParams(horizon_days=7))
+
     def test_ppy_365(self):
         assert PPY == 365
 
