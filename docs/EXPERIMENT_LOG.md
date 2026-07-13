@@ -1152,3 +1152,34 @@ simplemente NO genera: consistente con la anatomía del EDA §5b (prima inestabl
 factor único). La verificación de cierre cerró la pregunta como se pre-registró
 (§13.1, prior 15-25%). El siglo de evidencia multi-mercado NO transfiere a un
 universo de un solo factor. Trials: tsmom-l{21,63,126}-20260713.
+
+### H13-F4b — 🎯 EL SPREAD L/S DEL GRU PASA LA VARA §8.1 — AMBAS CONFIGS (2026-07-13, trials 25-26, n_trials=26)
+
+Primer candidato del proyecto en pasar una vara de retorno ABSOLUTO pre-registrada
+(aprobada por Erika antes de correr; costos §13.3; 40 ventanas estándar, 0 saltadas).
+
+| | ew | ivol |
+|---|---|---|
+| 2022+ mediana/media (%/ventana) | +0.80 / +1.11 | **+1.01 / +1.28** |
+| std 2022+ | 6.32 | **5.56** |
+| Por año 22/23/24/25 | +0.81/−0.10/+2.71/+1.10 | +1.09/−0.33/+2.45/+2.08 |
+| Estrés 2021 | −0.19 | −0.45 |
+| **W4: mediana cuando la canasta CAE (15 ventanas)** | **+0.77** | **+1.01** |
+| Piernas L/S (media) | +1.57 / −0.49 | +1.61 / −0.43 |
+| Veredicto W1·W2·W3·W4 | ✅✅✅✅ PASA | ✅✅✅✅ PASA |
+
+**ivol domina a ew en las 4 métricas de cabecera → candidato = gruls-ivol**
+(~+18%/año neto implícito, Sharpe/ventana 0.23 ≈ 0.83 anual). La lectura clave:
+W4 — el libro GANA con mediana >+1% en las ventanas donde el mercado cayó. La
+"energía cinética" de Erika, materializada: neutral al factor, cobra el spread.
+
+**Caveats obligados (sin gate, para el registro)**: (1) framework window_check =
+robustez de señal, NO deployabilidad — el retrain ve futuro relativo a su ventana;
+el juez de deploy es el shadow forward (corre desde 07-11, ranks completos →
+L/S computable retroactivamente). (2) La pierna corta tiene media NEGATIVA
+(−0.43%/ventana): es la prima del seguro — paga la neutralidad y cobra en las
+caídas (W4); no es pasajera, es cobertura. (3) 2023 fue plano-negativo (−0.33,
+sobre el piso −1.5). (4) Familia GRU: el slice quemado NO es juez válido aquí
+(§13.4). (5) 2/2 configs pasaron — no hubo selección entre muchas.
+Camino restante (§13/§9): F5 opcional → shadow forward como juez primario →
+sign-off Erika → plomería en chiquito. Trials: gruls-{ew,ivol}-20260713.
