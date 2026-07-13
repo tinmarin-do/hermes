@@ -138,6 +138,57 @@ rate 30-40%) + base rates del periodo de iteración. Principios ya fijados:
 - **Erika aprueba el número explícitamente antes del primer trial de F4** y queda
   escrito aquí como enmienda §8.1.
 
+## 8.1 Enmienda F3 — VARA APROBADA (Erika, 2026-07-13, ANTES del primer trial)
+
+Sobre las 40 ventanas estándar del window_check (seed 42), retorno NETO absoluto
+por ventana de 28d, todos los costos incluidos. Marco temporal decidido por Erika:
+**2021 = prueba de estrés; veredicto principal sobre 2022+** (33 ventanas).
+
+| # | Criterio | Exigencia |
+|---|---|---|
+| W1 | Economía moderna | mediana neta > 0 **y** media neta ≥ **+1.0%/ventana** en 2022+ |
+| W2 | Consistencia | ningún año 2022-2025 con media neta < **−1.5%/ventana** |
+| W3 | Estrés 2021 | media neta 2021 ≥ **−3.0%/ventana** |
+| W4 | Energía cinética | mediana neta ≥ **0** en ventanas 2022+ donde la canasta cayó |
+
+Anclas de calibración (registradas al aprobar): canasta 2022+ media +0.84%/σ 18.8%
+por ventana; W1 ≈ +13-14%/año neto ≈ Sharpe ~0.5 con vol-target 25% (piso de la banda
+de literatura). Reporte obligatorio sin gate: DSR (n acumulado), turnover, sensibilidad
+slippage, contribución por pierna (para candidatos L/S la pierna corta se reporta
+separada — no puede ser pasajera). **La vara no se ablanda post-resultado.**
+
+## 13. Enmienda post-EDA (2026-07-13) — redirección del centro de gravedad
+
+Resultados de F2 (EXPERIMENT_LOG mismo día): montañas = CONTINUO (arquetipos de forma
+falsificados); prima de tendencia cruda INESTABLE (Simpson por composición de régimen;
+ex-2021 ≈ 0 o negativa). Consecuencias pre-registradas ANTES de correr F4:
+
+1. **F4 (TSMOM) queda degradada a verificación de cierre** — prior honesto bajo
+   (~15-25%); se corre por pre-registro y para cerrar la pregunta con datos.
+2. **F4b (NUEVA) = candidato principal: spread LONG-SHORT cross-seccional del GRU
+   congelado** (`models/h12-gru-h28.json`, sha 4a52a1d4, receta §7.1 H12 intacta —
+   re-entrenado por ventana con purga/embargo idéntico a window_check §13). Largo top-5 /
+   corto bottom-5 del universo operable; neutral al mercado por construcción (mata el
+   factor único — la enfermedad raíz de todo lo falsificado). Bottom-5 jamás medido:
+   ese es el experimento. Grilla CERRADA: pesos por pierna ∈ {EW, inverse-vol} — 2
+   configs. Gross 1.0 (0.5 por pierna), net 0.
+3. **Costos pre-registrados (F4 y F4b)**: taker Binance futures 0.05% × entrada+salida
+   sobre gross; funding conservador 0.84%/28d (0.01%/8h) aplicado SOLO como costo al
+   |net exposure| (jamás como crédito); buffer de funding 0.1%/ventana para el libro
+   neutral; sensibilidad slippage +10bps reportada.
+4. **Juez para la familia GRU**: el slice quemado vale MENOS aún para F4b (la familia ya
+   consumió ese examen en H12 §14) → el juez primario del L/S es el **shadow forward**
+   (corre desde 2026-07-11, guarda rankings completos → el libro L/S es computable
+   retroactivamente del ledger). El one-shot en slice queda como evidencia secundaria
+   con doble caveat.
+5. **Criterios de aborto del arco**: si F4 falla la vara §8.1 Y F4b no la pasa en 2022+,
+   el arco CIERRA documentando que el set de señales actual no financia retorno
+   absoluto. Hermes sigue live (campeón + shadows); research se pausa o pivotea a data
+   nueva (funding rates/carry — hipótesis futura fuera de este arco).
+6. Trials nuevos: 3 (TSMOM lookbacks {21,63,126}) + 2 (L/S {EW, ivol}) = 5 → n_trials
+   21→26. Huellas del catálogo (asimetría por escala, valle derecho) = priors de diseño
+   para F5, no señales; certificarlas requeriría gemelos por-escala (pendiente, barato).
+
 ## 9. F6 — Firewall (NO iterable)
 
 1. Freeze del candidato: spec + parámetros hasheados → `models/` (sha256 verificado
