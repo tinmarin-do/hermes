@@ -261,3 +261,35 @@ sign-off: 2-3 semanas de marks diarios (plomería estadística: tracking sano, s
 anomalías) — la significancia estadística NO es exigible en 3 semanas y no se
 pretenderá; la exigencia es consistencia con el expediente y cero sorpresas
 operativas. Sign-off de Erika = gate final antes de F7.
+
+## 10.1 F7 en ejecución — WA aprobado por Erika (2026-07-13, "hoy comenzamos con fondos")
+
+**Re-secuencia aprobada**: F7 se construye YA, en paralelo con la maduración del shadow
+(el juez no se recorta — madura mientras la plomería trabaja). Timeline: adapter+infra
+hoy → testnet ~16-17 jul → plomería REAL ~17-18 jul → sign-off ~27 jul (shadow 2+
+semanas + bitácora de plomería) → cartera completa post-firma con entrada catch-up al
+libro vigente; primer rebalanceo natural de grilla 2026-08-08 (ancla 07-11, ⛰️).
+
+**Decisiones de Erika registradas**:
+- **Budget dinámico = wallet** (regla suya, idéntica al live Bitso): lo que exista en el
+  wallet de futuros se considera disponible; el ejecutor dimensiona el libro con el
+  balance del momento.
+- **Piso físico de plomería: $60-100 USDT** (Binance MIN_NOTIONAL ~5 USDT × 10 patas;
+  con $1 el venue rechaza las órdenes — imposibilidad del exchange, no política).
+  Guardrail: si el balance no alcanza para las 10 patas con mínimos, el ejecutor se
+  queda en CASH y alerta — jamás arma un libro mocho.
+- Sin apalancamiento en plomería (1x, margen AISLADO por posición).
+
+**Arquitectura del ejecutor (una sola fuente de verdad)**: el ejecutor NO re-calcula la
+señal — lee el entry diario del shadow ledger (`shadow/h12-gru-h28/days/`), que ya emite
+p de todo el universo a las 00:20 UTC, construye el libro ivol de la spec congelada
+`h13-gruls-ivol` (sha verificado) y reconcilia la cuenta de futuros contra ese target.
+Shadow y live no pueden divergir por construcción. Corre 00:40 UTC en europe-west1
+(job dedicado; el pipeline live de Bitso NO se toca). Mapeo símbolo→perp verificado
+contra exchangeInfo en runtime (símbolo sin perp → se excluye y alerta).
+
+**Guardrails nuevos (short/margen), todos bloqueantes**: margen aislado 1x · verificación
+MIN_NOTIONAL/LOT_SIZE pre-orden · límite de posición por símbolo (≤15% del wallet) ·
+kill switch extendido (cierra TODAS las posiciones, largas y cortas, a market) ·
+monitor de funding acumulado · alerta email vía canal existente. La key de trading
+NUNCA tiene permiso de retiro (regla #4).
