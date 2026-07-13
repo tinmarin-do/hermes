@@ -115,3 +115,43 @@ def test_build_target_weights_neutral() -> None:
 
 def test_to_perp() -> None:
     assert to_perp("BTC") == "BTCUSDT"
+
+
+def test_plumbing_universe_filtra_y_adapta_k() -> None:
+    from src.execution.spread_executor import plumbing_universe
+
+    entry = {
+        "universe": [
+            {"symbol": "BTC", "p": 0.9},
+            {"symbol": "ETH", "p": 0.8},
+            {"symbol": "A", "p": 0.7},
+            {"symbol": "B", "p": 0.6},
+            {"symbol": "C", "p": 0.4},
+            {"symbol": "D", "p": 0.3},
+            {"symbol": "E", "p": 0.2},
+            {"symbol": "F", "p": 0.1},
+        ]
+    }
+    filters = {
+        "BTCUSDT": {"min_notional": 50.0, "step_size": 0.001},
+        "ETHUSDT": {"min_notional": 20.0, "step_size": 0.001},
+        **{f"{s}USDT": {"min_notional": 5.0, "step_size": 0.1} for s in "ABCDEF"},
+    }
+    marks = {"BTCUSDT": 62000.0, "ETHUSDT": 1800.0, **{f"{s}USDT": 10.0 for s in "ABCDEF"}}
+    # balance 100: k=3 → pata real 15 → BTC (62) y ETH (20) fuera; 6 ≥ 6 → k=3
+    filtered, k = plumbing_universe(entry, 100.0, marks, filters)
+    assert k == 3
+    assert [u["symbol"] for u in filtered["universe"]] == list("ABCDEF")
+    # balance 141 (el caso del bug real): k=4 daría pata 15.9 < ETH 20 con solo
+    # 6 asequibles (<8) → cae a k=3 (pata 21.2, ETH cabe, 8 ≥ 6) y TODOS los
+    # del universo filtrado soportan la pata real de k=3
+    filtered2, k2 = plumbing_universe(entry, 141.0, marks, filters)
+    assert k2 == 3
+    assert "ETH" in [u["symbol"] for u in filtered2["universe"]]
+    assert "BTC" not in [u["symbol"] for u in filtered2["universe"]]
+    # balance 700: pata k=4 = 78.75 → los 8 caben (BTC 62 ✓) → k=4
+    _, k3 = plumbing_universe(entry, 700.0, marks, filters)
+    assert k3 == 4
+    # balance 30: nadie soporta ni k=3 (pata 4.5 < min 5) → k=0 → CASH
+    _, k4 = plumbing_universe(entry, 30.0, marks, filters)
+    assert k4 == 0

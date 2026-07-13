@@ -52,6 +52,33 @@ def latest_standing_book_entry(entries: list[dict[str, Any]]) -> dict[str, Any] 
     return max(rebs, key=lambda e: str(e["decision_date"])) if rebs else None
 
 
+def plumbing_universe(
+    entry: dict[str, Any],
+    balance: float,
+    marks: dict[str, float],
+    filters: dict[str, dict[str, float]],
+    gross: float = 0.9,
+) -> tuple[dict[str, Any], int]:
+    """§10.2 SOLO-PLOMERÍA: k más grande (5→3) tal que los símbolos cuya pata
+    mínima cabe en la pata REAL de ese k (gross·0.5/k del balance) alcanzan
+    para 2k. El tamaño de pata depende de k y k de quién cabe — por eso se
+    resuelve por k descendente, no con el cap fijo (bug cazado en plomería)."""
+
+    def min_leg(u: dict[str, Any]) -> float | None:
+        perp = to_perp(str(u["symbol"]))
+        if perp not in filters or perp not in marks:
+            return None
+        return max(filters[perp]["min_notional"], filters[perp]["step_size"] * marks[perp])
+
+    legs = [(u, min_leg(u)) for u in entry["universe"]]
+    for k in (5, 4, 3):
+        cap = gross * 0.5 / k * balance
+        keep = [u for u, ml in legs if ml is not None and ml <= cap]
+        if len(keep) >= 2 * k:
+            return {**entry, "universe": keep}, k
+    return {**entry, "universe": []}, 0
+
+
 def build_target_weights(
     entry: dict[str, Any], sigma: dict[str, float], top_k: int, mode: str
 ) -> dict[str, float]:
@@ -178,11 +205,24 @@ def main() -> int:
         return 1
 
     sigma = _sigma20_from_ledger(entries, str(standing["decision_date"]))
-    target_w = build_target_weights(standing, sigma, int(spec["top_k"]), str(spec["leg_weighting"]))
     balance = client.balance_usdt()
-    plan = plan_orders(
-        target_w, balance, client.mark_prices(), client.positions(), client.exchange_filters()
-    )
+    marks, filters = client.mark_prices(), client.exchange_filters()
+    plumbing = os.environ.get("PLUMBING_MODE", "false").lower() == "true"
+    if plumbing:
+        # §10.2: mecánica con libro reducido asequible — EW forzado, gross 0.9
+        book_entry, k = plumbing_universe(standing, balance, marks, filters)
+        log["plumbing_mode"] = {"k": k, "universe": [u["symbol"] for u in book_entry["universe"]]}
+        if k < 3:
+            log["cash"] = f"plomería: solo {k * 2} patas asequibles (mínimo 3+3) — CASH"
+            gcs.upload_json(log, f"{LOG_PREFIX}{now.date()}.json")
+            print(f"[executor] {log['cash']}")
+            return 1
+        target_w = {s: w * 0.9 for s, w in build_target_weights(book_entry, sigma, k, "ew").items()}
+    else:
+        target_w = build_target_weights(
+            standing, sigma, int(spec["top_k"]), str(spec["leg_weighting"])
+        )
+    plan = plan_orders(target_w, balance, marks, client.positions(), filters)
     log.update(
         {
             "standing_book_date": standing["decision_date"],
