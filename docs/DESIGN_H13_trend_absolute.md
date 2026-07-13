@@ -232,3 +232,32 @@ europe-west1; el laboratorio queda en us-central1.
 Jobs de EDA + trials TSMOM ≈ $0.05-0.10 c/u → estimado total **$5-15 USD** adicionales
 (gasto acumulado ~$13 de $290; tope duro 80% = $232). Protecciones del arco H11 vigentes
 (billing budget 50/80%, EXCLUDE_ALL_CREDITS).
+
+## 9.1 F6 en ejecución (2026-07-13, decisión Erika: "Vámonos de una vez con F6", F5 saltada)
+
+**Candidato congelado**: `models/h13-gruls-ivol.json` —
+sha256 `0dac692a2016ba891f753a33281a686383ce8cb78fd9a5c3c4d2dea3b99e9354`.
+Estrategia sobre el artefacto GRU ya congelado de H12 (sha `4a52a1d4…`, SIN retoques):
+top-5 largo / bottom-5 corto, pesos ivol (σ 20d), gross 1.0, net 0, cadencia 28d (⛰️),
+costos §13.3. F5 (capa de regímenes) queda saltada por decisión — puede revisitarse
+post-firewall como mejora, jamás como rescate.
+
+**Vara del one-shot SECUNDARIO en el slice (pre-registrada AQUÍ, antes de correr)**:
+modo deployment (el artefacto congelado puntúa; CERO re-entrenos), 28 fases escalonadas
+(offsets 0..27, hold 28d), economía L/S con costos §13.3 por periodo (entrada+salida
+completa cada rebalanceo — conservador):
+- **S1**: media entre fases del neto por periodo > 0.
+- **S2**: ≥ 55% de fases con neto medio positivo.
+**Doble caveat permanente**: (a) el slice fue consumido por esta MISMA familia (one-shot
+GRU §14 de H12) — este resultado es evidencia DÉBIL gane o pierda; (b) el operador
+conoce el contenido del slice. Por ambos, el veredicto S1/S2 NO abre nada por sí solo:
+es un dato del expediente. **El juez primario es el shadow forward** (§9.1b).
+
+**§9.1b — Shadow L/S (juez primario)**: el ledger multi-stream (corre desde 2026-07-11,
+ancla de grilla 07-11) guarda p y precios de TODO el universo por día → el libro
+h13-gruls-ivol se reconstruye retroactivamente desde el ancla y se marca a diario.
+Evaluador: `src/lab/shadow_spread.py` (on-demand). Ventana mínima de juicio antes del
+sign-off: 2-3 semanas de marks diarios (plomería estadística: tracking sano, sin
+anomalías) — la significancia estadística NO es exigible en 3 semanas y no se
+pretenderá; la exigencia es consistencia con el expediente y cero sorpresas
+operativas. Sign-off de Erika = gate final antes de F7.
