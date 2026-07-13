@@ -293,3 +293,19 @@ MIN_NOTIONAL/LOT_SIZE pre-orden · límite de posición por símbolo (≤15% del
 kill switch extendido (cierra TODAS las posiciones, largas y cortas, a market) ·
 monitor de funding acumulado · alerta email vía canal existente. La key de trading
 NUNCA tiene permiso de retiro (regla #4).
+
+## 10.2 Desviación SOLO-PLOMERÍA (decisión Erika 2026-07-13: "plomería reducida con los $100")
+
+Hallazgo de la plomería (dry-run real): las patas mínimas del venue son BTC $62,
+ETH/LTC/BCH $20, resto $5-6 → el libro completo 5+5 exige wallet ~$620 (ew) /
+~$450 (ivol). Con $100 se pre-registra **PLUMBING_MODE** en el ejecutor:
+- Universo de plomería = símbolos del libro vigente cuya pata mínima
+  (max(min_notional, step×mark)) quepa en el 15% del wallet → hoy 6 baratos.
+- k adaptativo = min(5, ⌊n_asequibles/2⌋), mínimo 3 — si no, CASH.
+- Pesos EW forzados (determinista), gross 0.9 (patas de 15% exacto, dentro del cap).
+- **Propósito EXCLUSIVO: mecánica** (órdenes, margen aislado, reconciliación,
+  funding, kill switch). Sus resultados NO son evidencia de performance de la
+  estrategia y NO tocan el expediente. El libro real 5+5 se estrena con la
+  cartera completa (~$650+; desde agosto, con σ del ledger madura, ~$450 con ivol).
+- PLUMBING_MODE es un env del job, default OFF: producción conserva
+  libro-completo-o-CASH sin excepciones.
