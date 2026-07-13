@@ -1204,3 +1204,25 @@ Decisión Erika: F5 saltada, directo a F6. Ejecutado en orden estricto:
    +0.46% acumulado (2 marks; EW fallback hasta que el ledger junte σ20).
    Exigencia §9.1b: 2-3 semanas de marks sanos → sign-off Erika → F7 (adapter
    Binance Futures + guardrails short/margen + plomería en chiquito).
+
+### H13-F7 — 🚀 PRIMER LIBRO LONG-SHORT REAL DE HERMES (2026-07-13, plomería §10.2)
+
+GO explícito de Erika tras dry-run aprobado. Job hermes-h13-executor
+(europe-west1, IP fija 35.240.76.13, key trading IP-restringida, EXECUTE=true):
+**6 órdenes a mercado ejecutadas** — L: BAT 272.1 / TRX 67.0 / XRP 20.5 ·
+S: BCH 0.093 / LTC 0.502 / MANA 316.0. Libro 3+3 de plomería (§10.2), patas
+~$21.8, gross ~$131 (90% de wallet $145.25), neto ≈ 0, margen aislado 1x.
+Fees reales $0.06 (≈ modelo de costos). Pasada de reconciliación posterior:
+"0 órdenes" — fills e idempotencia verificados.
+
+**La plomería pagó su existencia ANTES del primer peso**: (1) patas mínimas
+reales del venue (BTC $62, ETH/LTC/BCH $20 → libro 5+5 real exige ~$450-620);
+(2) bug del filtro de asequibilidad (cap fijo vs pata dependiente de k) →
+fix por k descendente; (3) Multi-Assets Mode de la cuenta bloqueaba el margen
+aislado (error -4168) → el ejecutor abortó con CERO órdenes (fail-fast
+correcto), Erika cambió a Single-Asset Mode, re-fire limpio.
+
+Estado: libro vivo hasta el rebalanceo de grilla 2026-08-08 (⛰️); reconcile
+manual por ahora (scheduler+terraform pendientes); kill switch operativo;
+resultados de plomería NO tocan el expediente. Camino: marks del shadow +
+bitácora → paquete de sign-off ~27-jul → cartera completa.
