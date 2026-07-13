@@ -162,7 +162,21 @@ rate 30-40%) + base rates del periodo de iteración. Principios ya fijados:
   liquidación. La estadística no sustituye la prueba de tubería.
 - La migración del capital del live Bitso actual la decide Erika en ese momento.
 
-## 11. Presupuesto del arco
+## 11. Enmienda F1 — venue decidido (2026-07-13, gate de Erika cerrado)
+
+**Binance USDT-M Futures, ejecutor en `europe-west1`.** Sondas Cloud Build
+(2026-07-13, `reports/venue_futures_audit.md`): el 451 de Binance es por región US,
+no por GCP — desde europe-west1 abren spot y futuros (200); el testnet de futuros
+abre incluso desde us-central1 (plomería F7 sin mover región); Binance Vision CDN
+abre en todas las regiones (candidato a reemplazar el cable local del corpus —
+housekeeping futuro). Ventaja metodológica decisiva: **mismo venue que el corpus
+histórico** → las señales se entrenan y ejecutan sobre los mismos precios; el
+puente de tracking (necesario con Bitso en H11) deja de existir. Fees 0.02%/0.05%
+(≈7× más barato que Bitso spot). Pendiente del lado de Erika: abrir cuenta y key
+**read-only** (jamás retiro, regla #4). Solo el job/adapter de ejecución vivirá en
+europe-west1; el laboratorio queda en us-central1.
+
+## 12. Presupuesto del arco
 
 Jobs de EDA + trials TSMOM ≈ $0.05-0.10 c/u → estimado total **$5-15 USD** adicionales
 (gasto acumulado ~$13 de $290; tope duro 80% = $232). Protecciones del arco H11 vigentes
