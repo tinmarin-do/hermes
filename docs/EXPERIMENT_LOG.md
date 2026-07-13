@@ -1183,3 +1183,24 @@ sobre el piso −1.5). (4) Familia GRU: el slice quemado NO es juez válido aqu�
 (§13.4). (5) 2/2 configs pasaron — no hubo selección entre muchas.
 Camino restante (§13/§9): F5 opcional → shadow forward como juez primario →
 sign-off Erika → plomería en chiquito. Trials: gruls-{ew,ivol}-20260713.
+
+### H13-F6 — FIREWALL EN MARCHA (2026-07-13): freeze + one-shot secundario PASADO + juez shadow vivo
+
+Decisión Erika: F5 saltada, directo a F6. Ejecutado en orden estricto:
+1. **Freeze**: spec `models/h13-gruls-ivol.json` (sha 0dac692a…) apuntando al
+   artefacto GRU congelado de H12 (sha 4a52a1d4…, sin retoques). Vara S1/S2 del
+   slice pre-registrada en §9.1 ANTES de correr.
+2. **One-shot SECUNDARIO en el slice (modo deployment, cero re-entrenos): ✅ PASA**
+   — fase-media **+1.86%/periodo, 28/28 fases positivas (100%)** en el bear
+   2025-09→2026-06 donde la canasta perdía −9%/periodo y el GRU long-only −7.
+   **La simetría de libro de texto**: piernas L −3.28 / S +5.34 — en el bear la
+   corta cargó todo; en el window_check alcista fue al revés (L +1.61/S −0.43).
+   Cada pierna cobra en su régimen = bidireccionalidad demostrada en AMBOS
+   regímenes. DOBLE CAVEAT vigente (slice consumido por la familia + operador
+   contaminado): evidencia SECUNDARIA del expediente, no abre nada por sí sola.
+   NO es trial nuevo (candidato ya contado; n_trials sigue en 26).
+3. **Juez primario VIVO**: shadow_spread reconstruye el libro desde el ancla
+   2026-07-11 del ledger multi-stream y lo marca a diario. Estado al arrancar:
+   +0.46% acumulado (2 marks; EW fallback hasta que el ledger junte σ20).
+   Exigencia §9.1b: 2-3 semanas de marks sanos → sign-off Erika → F7 (adapter
+   Binance Futures + guardrails short/margen + plomería en chiquito).
