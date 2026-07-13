@@ -39,7 +39,7 @@ operativos (GCP + LLM) de la sección Presupuestos.
   Fase 2 = neteo del PaperAdapter; Fase 3 = vista de cartera en dashboard.
   Fuentes de verdad: PRD v0.3 §8.8/§9 y `docs/DESIGN_portfolio_allocator.md`.
 
-## ⚡ ARCO H11 ACTIVO — modo research-cloud (directivas Erika 2026-07-11)
+## ⚡ ARCO H13 ACTIVO — retorno absoluto (TSMOM long-short + arquetipos), modo research-cloud
 
 Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 de abajo:
 
@@ -47,21 +47,25 @@ Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 d
   aprobación por operación (settings `allow`; gatekeeper cost-est del hook suspendido).
 - **Ledgers GCP suspendidos** para el arco. Protección de gasto real:
   `google_billing_budget` con alertas 50%/80% (`EXCLUDE_ALL_CREDITS`). **Regla dura:
-  jamás gastar >80% ($232) de los $290 de créditos antes de alcanzar la meta**
-  (F1 ≥ 0.60 OOS + ~1% diario neto MXN). Reportar gasto acumulado periódicamente.
+  jamás gastar >80% ($232) de los $290 de créditos antes de alcanzar la meta** (la
+  vara del arco se fija en F3; el 1% diario quedó ENTERRADO 2026-07-13). Reportar
+  gasto acumulado periódicamente.
   El ledger LLM y su cost-check de CI siguen vigentes.
 - **Todo experimento corre en GCP** (`src/lab/`, job `hermes-lab`, bucket
   `hermes-research-*`). Local se usa ÚNICAMENTE como cable de descarga del histórico
   Binance (delta + upload) — nada más.
 - **Datos duales**: Binance = corpus histórico/features · Bitso = labels, evaluación y
   contabilidad (SIEMPRE en MXN) · puente de tracking pre-registrado entre ambos.
-- **Metodología**: sense-first (dossier de variables → GATE de Erika), split híbrido
-  80/20 (bloques purgados K=5 + corte temporal), ventana de observación >> horizonte.
-  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR).
+- **Metodología**: EDA didáctico primero (descriptivo, páginas Artifact para Erika);
+  evaluación estándar = window_check (40 ventanas 28d, seed 42) + corte temporal;
+  grillas CERRADAS antes de correr; sin gates de research (Fable decide y documenta).
+  Gates que SÍ quedan: venue (F1), vara numérica (F3), sign-off (F6), tamaño (F7).
+  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR; n=21 al abrir H13).
 - **Intocables**: el pipeline live (`src/brain/`, allocator, comité, scheduler) no se
   modifica; secretos siguen en deny; nada mueve dinero real sin el firewall completo
-  (slice one-shot + shadow ≥45d + sign-off de Erika). Fuente de verdad del arco:
-  `docs/DESIGN_H11_daily_classifier.md` + plan aprobado 2026-07-11.
+  (one-shot en slice CON caveat de contaminación documentado + shadow corto en venue
+  nuevo + sign-off de Erika + plomería en chiquito antes de tamaño completo). Fuente
+  de verdad del arco: `docs/DESIGN_H13_trend_absolute.md` + plan aprobado 2026-07-13.
 
 ## Reglas críticas (no negociables)
 

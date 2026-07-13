@@ -1068,3 +1068,45 @@ granite-ttm-r2 fine-tune completo, forecast 28d → rank → top-5):
 **FASE NN CERRADA (máx 2 configs, ambas corridas): el GRU `nn1-gru-h28` queda
 como candidato ÚNICO y CONFIRMADO del arco.** Camino restante: shadow ≥45d
 (elegible ~2026-08-25) + scheduler a 28d + sign-off de Erika. n_trials=21.
+
+### H12 — CIERRE DEL ARCO (2026-07-13) + defense_check §15 ENTERRADO sin correr
+
+Ronda larga de ping-pong con Erika (2026-07-12/13) cerró el arco H12 con lectura
+honesta de TODO el expediente contra los JSON crudos de GCS:
+- window_check: GRU net_median +0.27%/ventana vs canasta +0.32% — empatados; el
+  promedio mejor del GRU (+3.43 vs +2.21) viene de colas alcistas 2024-25. Además
+  el GRU REPROBÓ su propia vara §13 (peor-año 2021 −1.85 < −1.0): no es "ganador
+  validado", es el menos malo de dos candidatos.
+- One-shot (slice bear): GRU mediana −6.97% vs canasta −9.11% por corrida, 0/28
+  positivas ambos. Defensa parcial validada; retorno absoluto NO.
+- Veredicto de producto (Erika): "no quiero una canasta con frenos; ese nunca fue
+  el objetivo". **defense_check §15 (blindaje compuerta×vol-targeting) queda
+  ENTERRADO SIN CORRER** — estaba pre-registrado, el código existe congelado en la
+  branch `feature/h12-defense-check`, 0 trials añadidos (n_trials sigue en 21).
+- El GRU y ext5-h28 SIGUEN en shadow multi-stream (costo ~0) como baselines vivos.
+  El live Bitso (campeón momentum) sigue intacto.
+
+## ARCO H13 — Retorno absoluto bidireccional: TSMOM long-short + arquetipos (abierto 2026-07-13)
+
+**Pivote de objetivo (decisión Erika)**: retorno absoluto del movimiento en AMBAS
+direcciones ("energía cinética"), no selección relativa ni defensa. Mecanismo tras
+literature review: TSMOM long-short (siglo de evidencia externa; JAMÁS probado en
+nuestro harness — los 21 trials fueron cross-seccionales long-only) + capa de
+regímenes/arquetipos ("catálogo de montañas", idea de Erika). Venue de futuros
+nuevo (ella abre cuenta; auditoría de acceso API en F1 — Binance bloquea IPs GCP).
+
+Pre-registro completo: `docs/DESIGN_H13_trend_absolute.md`. Claves:
+- Particiones: iteración 2021→2025-09-10 · firewall = slice 2025-09-11→2026-06-12
+  **REUSADO con caveat de contaminación documentado** (quemado por el one-shot GRU;
+  compensaciones: spec congelada ex-ante, vara ex-ante, pase reportado como "slice
+  de segunda mano", shadow corto obligatorio) · forward = shadow 2-3 semanas en
+  venue nuevo (única evidencia 100% virgen).
+- Meta 1% diario ENTERRADA (Erika: "expectativas no fantasiosas"); vara numérica
+  se fija en F3 desde literatura + iteración, con OK explícito de ella, ANTES del
+  primer trial.
+- EDA exhaustivo didáctico primero (F2, descriptivo, no cuenta al DSR): catálogo
+  de montañas multi-escala (¿continuo o grumos?) con gemelos sintéticos + curva de
+  identificabilidad + estructura de tendencia por horizonte/régimen.
+- Grilla TSMOM pre-registrada y CERRADA: lookbacks {21, 63, 126}d, vol-scaling
+  canónico, costos reales del venue. n_trials arranca en 21 (acumulativo).
+- Plomería en chiquito ($20-50, 1-2 semanas) antes de tamaño completo (F7).
