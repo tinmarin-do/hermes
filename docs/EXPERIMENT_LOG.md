@@ -1139,3 +1139,16 @@ corre igual (pre-registrado, construcción canónica ≠ prima cruda).
 
 Artifacts didácticos entregados: cap.1 (catálogo) y cap.2 (prima). Reportes:
 mountains_catalog.parquet, mountains_h13.{json,md}, trend_study_h13.{json,md}.
+
+### H13-F4 — TSMOM FALSIFICADO en cripto (2026-07-13, trials 22-24, n_trials=24)
+
+Vara §8.1 aprobada por Erika ANTES de correr; costos §13.3; 40 ventanas estándar.
+Los 3 lookbacks NO PASAN (W1 exige mediana>0 y media ≥ +1.0%/ventana en 2022+):
+- L=21: mediana −0.62 / media +0.10 (2021: +4.52 — el año raro era quien sostenía)
+- L=63: mediana +0.05 / media −0.32
+- L=126: mediana −0.69 / media −0.24
+Ningún año catastrófico (W2/W3 ok en general) — el TSMOM cripto-only no explota,
+simplemente NO genera: consistente con la anatomía del EDA §5b (prima inestable,
+factor único). La verificación de cierre cerró la pregunta como se pre-registró
+(§13.1, prior 15-25%). El siglo de evidencia multi-mercado NO transfiere a un
+universo de un solo factor. Trials: tsmom-l{21,63,126}-20260713.
