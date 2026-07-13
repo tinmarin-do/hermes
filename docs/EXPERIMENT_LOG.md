@@ -1110,3 +1110,32 @@ Pre-registro completo: `docs/DESIGN_H13_trend_absolute.md`. Claves:
 - Grilla TSMOM pre-registrada y CERRADA: lookbacks {21, 63, 126}d, vol-scaling
   canónico, costos reales del venue. n_trials arranca en 21 (acumulativo).
 - Plomería en chiquito ($20-50, 1-2 semanas) antes de tamaño completo (F7).
+
+### H13-F2 — EDA didáctico CORRIDO (2026-07-13): dos veredictos duros, cero trials gastados
+
+**Capítulo 1 — Catálogo de montañas (§5a, jobs z4289, seed 42)**: 8,202 especímenes
+reales (4 escalas: tol 5/10/20/35%) vs 81,525 gemelos block-bootstrap.
+**Veredicto pre-registrado: CONTINUO** — la silueta k-means real NUNCA supera a la
+del gemelo por más de +0.015 (umbral +0.05, k∈2..8). La hipótesis de
+arquetipos-de-forma queda falsificada a escala diaria mirando solo precio: el
+paisaje de montañitas es indistinguible de azar con vol realista. Sobreviven dos
+huellas que NO son forma: (1) asimetría temporal cae con la escala 0.50→0.43
+(cordilleras: pico temprano, desangre largo; gemelos planos en 0.478); (2) el
+valle derecho queda por debajo del izquierdo cada vez más con la escala (52→59%).
+Consecuencia F5: la capa de regímenes usará el fallback estándar (jump-model),
+NO arquetipos de forma.
+
+**Capítulo 2 — Prima de tendencia (§5b, job cb8hq, ventanas no solapadas)**: la
+foto pooled engaña (+7.1%/periodo H=21, +9.7% H=63) — **por año se desmorona**:
+H=21 vive de 2021 (+26.8; el resto ±4), H=42 es −59/−39 en 2021/22, H=63 negativa
+en 4/6 años pese al pooled positivo → **paradoja de Simpson por composición de
+regímenes** (los "venía subiendo" abundan cuando todo subió después). Persistencia
+de signo 0.44-0.63 sin patrón; diario 0.476 (leve reversión, consistente con
+H9/H12). Sin estructura condicional estable por vol. Honestidad de n: 29 símbolos
+correlacionados ≈ ~28 ventanas independientes a H=63 en 5.5 años. **Expectativa
+fijada ANTES de F4**: si los trials TSMOM salen débiles será consistente con esta
+anatomía; si salen fuertes, doble lupa sobre de qué año viene la ganancia. F4 se
+corre igual (pre-registrado, construcción canónica ≠ prima cruda).
+
+Artifacts didácticos entregados: cap.1 (catálogo) y cap.2 (prima). Reportes:
+mountains_catalog.parquet, mountains_h13.{json,md}, trend_study_h13.{json,md}.
