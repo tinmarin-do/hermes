@@ -309,3 +309,35 @@ window_check §13 SOLO si en el trial supera al GRU en AMBAS primarias
 económicas: exceso fase-media > +7.61 Y anti-episodio sin-top1 > +3.53.
 Empatar no premia — con menos que eso, la fase NN CIERRA con el GRU como
 único candidato y TTM queda documentado.
+
+## §15 defense_check — blindaje long-only del GRU (decisión Erika 2026-07-12: "Secuencial... probemos tu propuesta. Luego decidimos.")
+
+Objetivo: medir si la "energía" de las caídas se captura en long-only vía
+(1) compuerta de participación y (2) vol-targeting — ANTES de cualquier wiring
+a producción. La SEÑAL no se toca (misma receta §7.1, mismo seed).
+
+**Variantes (grilla CERRADA, 6 = 3×2; baseline 0.50/off ya contado como trial):**
+- threshold ∈ {0.50, 0.55, 0.60} — compuerta: sin convicción → cash
+- vol-targeting ∈ {off, on} — on: pesos × m_t donde m_t viene de
+  `exposure_from_returns()` del live (src/brain/voltarget.py, import puro):
+  EWMA λ=0.94 sobre retornos DIARIOS de la canasta EW operable hasta t0−1,
+  σ_target=25% anual, warmup 20, m=min(1, σ_target/σ). Parámetros del live,
+  NO se tunean. 5 variantes nuevas contadas (n_trials 21→26).
+
+**Evaluación: el marco de ventanas §13** (las MISMAS 40 ventanas, seed 42 —
+comparables 1:1 con el baseline ya medido): GRU re-entrenado por ventana,
+predicciones computadas UNA vez, las 6 variantes aplicadas sobre ellas.
+Por variante: neto absoluto medio/mediano por ventana, exceso mediano,
+% positivas, medias por año, peor ventana, exposición media. El slice §14
+NO se toca (quemado — ni siquiera descriptivamente para selección).
+
+**VARA (fijada antes de correr; no se ablanda):**
+1. **W1 conservar el edge**: exceso mediano ≥ +1.0%/ventana (baseline: +1.99).
+2. **W2 capturar energía**: entre las que pasan W1, gana el MEJOR retorno neto
+   absoluto medio por ventana.
+3. **W3 desempate**: mejor peor-año (media anual mínima más alta).
+4. Si NINGUNA variante supera el neto absoluto medio del baseline → el blindaje
+   no aporta; se documenta y el baseline (0.50/off) queda como la config.
+Ganadora (si la hay) → tercer stream del shadow (§12.2, mismo artefacto
+congelado + overlay de estrategia); el GRU puro NUNCA se reemplaza en shadow.
+Decisión de producción de Erika: DESPUÉS de ver esta tabla (secuencial).
