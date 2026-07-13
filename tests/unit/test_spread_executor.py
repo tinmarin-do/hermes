@@ -115,3 +115,33 @@ def test_build_target_weights_neutral() -> None:
 
 def test_to_perp() -> None:
     assert to_perp("BTC") == "BTCUSDT"
+
+
+def test_plumbing_universe_filtra_y_adapta_k() -> None:
+    from src.execution.spread_executor import plumbing_universe
+
+    entry = {
+        "universe": [
+            {"symbol": "BTC", "p": 0.9},
+            {"symbol": "ETH", "p": 0.8},
+            {"symbol": "A", "p": 0.7},
+            {"symbol": "B", "p": 0.6},
+            {"symbol": "C", "p": 0.4},
+            {"symbol": "D", "p": 0.3},
+            {"symbol": "E", "p": 0.2},
+            {"symbol": "F", "p": 0.1},
+        ]
+    }
+    filters = {
+        "BTCUSDT": {"min_notional": 50.0, "step_size": 0.001},
+        "ETHUSDT": {"min_notional": 20.0, "step_size": 0.001},
+        **{f"{s}USDT": {"min_notional": 5.0, "step_size": 0.1} for s in "ABCDEF"},
+    }
+    marks = {"BTCUSDT": 62000.0, "ETHUSDT": 1800.0, **{f"{s}USDT": 10.0 for s in "ABCDEF"}}
+    # balance 100 → pata máx 15 → BTC (62) y ETH (20) fuera; quedan 6 → k=3
+    filtered, k = plumbing_universe(entry, 100.0, marks, filters)
+    assert k == 3
+    assert [u["symbol"] for u in filtered["universe"]] == list("ABCDEF")
+    # balance 700 → pata máx 105 → todos caben → k=4 (8 símbolos)
+    _, k2 = plumbing_universe(entry, 700.0, marks, filters)
+    assert k2 == 4

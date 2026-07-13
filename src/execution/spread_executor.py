@@ -52,6 +52,26 @@ def latest_standing_book_entry(entries: list[dict[str, Any]]) -> dict[str, Any] 
     return max(rebs, key=lambda e: str(e["decision_date"])) if rebs else None
 
 
+def plumbing_universe(
+    entry: dict[str, Any],
+    balance: float,
+    marks: dict[str, float],
+    filters: dict[str, dict[str, float]],
+    leg_frac: float = PER_SYMBOL_CAP,
+) -> tuple[dict[str, Any], int]:
+    """§10.2 SOLO-PLOMERÍA: universo asequible (pata mínima ≤ leg_frac·balance)
+    y k adaptativo (min(5, ⌊n/2⌋)). Devuelve (entry filtrado, k)."""
+    keep = []
+    for u in entry["universe"]:
+        perp = to_perp(str(u["symbol"]))
+        if perp not in filters or perp not in marks:
+            continue
+        min_leg = max(filters[perp]["min_notional"], filters[perp]["step_size"] * marks[perp])
+        if min_leg <= leg_frac * balance:
+            keep.append(u)
+    return {**entry, "universe": keep}, min(5, len(keep) // 2)
+
+
 def build_target_weights(
     entry: dict[str, Any], sigma: dict[str, float], top_k: int, mode: str
 ) -> dict[str, float]:
@@ -178,11 +198,24 @@ def main() -> int:
         return 1
 
     sigma = _sigma20_from_ledger(entries, str(standing["decision_date"]))
-    target_w = build_target_weights(standing, sigma, int(spec["top_k"]), str(spec["leg_weighting"]))
     balance = client.balance_usdt()
-    plan = plan_orders(
-        target_w, balance, client.mark_prices(), client.positions(), client.exchange_filters()
-    )
+    marks, filters = client.mark_prices(), client.exchange_filters()
+    plumbing = os.environ.get("PLUMBING_MODE", "false").lower() == "true"
+    if plumbing:
+        # §10.2: mecánica con libro reducido asequible — EW forzado, gross 0.9
+        book_entry, k = plumbing_universe(standing, balance, marks, filters)
+        log["plumbing_mode"] = {"k": k, "universe": [u["symbol"] for u in book_entry["universe"]]}
+        if k < 3:
+            log["cash"] = f"plomería: solo {k * 2} patas asequibles (mínimo 3+3) — CASH"
+            gcs.upload_json(log, f"{LOG_PREFIX}{now.date()}.json")
+            print(f"[executor] {log['cash']}")
+            return 1
+        target_w = {s: w * 0.9 for s, w in build_target_weights(book_entry, sigma, k, "ew").items()}
+    else:
+        target_w = build_target_weights(
+            standing, sigma, int(spec["top_k"]), str(spec["leg_weighting"])
+        )
+    plan = plan_orders(target_w, balance, marks, client.positions(), filters)
     log.update(
         {
             "standing_book_date": standing["decision_date"],
