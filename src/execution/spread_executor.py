@@ -57,19 +57,26 @@ def plumbing_universe(
     balance: float,
     marks: dict[str, float],
     filters: dict[str, dict[str, float]],
-    leg_frac: float = PER_SYMBOL_CAP,
+    gross: float = 0.9,
 ) -> tuple[dict[str, Any], int]:
-    """§10.2 SOLO-PLOMERÍA: universo asequible (pata mínima ≤ leg_frac·balance)
-    y k adaptativo (min(5, ⌊n/2⌋)). Devuelve (entry filtrado, k)."""
-    keep = []
-    for u in entry["universe"]:
+    """§10.2 SOLO-PLOMERÍA: k más grande (5→3) tal que los símbolos cuya pata
+    mínima cabe en la pata REAL de ese k (gross·0.5/k del balance) alcanzan
+    para 2k. El tamaño de pata depende de k y k de quién cabe — por eso se
+    resuelve por k descendente, no con el cap fijo (bug cazado en plomería)."""
+
+    def min_leg(u: dict[str, Any]) -> float | None:
         perp = to_perp(str(u["symbol"]))
         if perp not in filters or perp not in marks:
-            continue
-        min_leg = max(filters[perp]["min_notional"], filters[perp]["step_size"] * marks[perp])
-        if min_leg <= leg_frac * balance:
-            keep.append(u)
-    return {**entry, "universe": keep}, min(5, len(keep) // 2)
+            return None
+        return max(filters[perp]["min_notional"], filters[perp]["step_size"] * marks[perp])
+
+    legs = [(u, min_leg(u)) for u in entry["universe"]]
+    for k in (5, 4, 3):
+        cap = gross * 0.5 / k * balance
+        keep = [u for u, ml in legs if ml is not None and ml <= cap]
+        if len(keep) >= 2 * k:
+            return {**entry, "universe": keep}, k
+    return {**entry, "universe": []}, 0
 
 
 def build_target_weights(
