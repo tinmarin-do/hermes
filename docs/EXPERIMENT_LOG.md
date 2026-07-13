@@ -1068,3 +1068,118 @@ granite-ttm-r2 fine-tune completo, forecast 28d → rank → top-5):
 **FASE NN CERRADA (máx 2 configs, ambas corridas): el GRU `nn1-gru-h28` queda
 como candidato ÚNICO y CONFIRMADO del arco.** Camino restante: shadow ≥45d
 (elegible ~2026-08-25) + scheduler a 28d + sign-off de Erika. n_trials=21.
+
+### H12 — CIERRE DEL ARCO (2026-07-13) + defense_check §15 ENTERRADO sin correr
+
+Ronda larga de ping-pong con Erika (2026-07-12/13) cerró el arco H12 con lectura
+honesta de TODO el expediente contra los JSON crudos de GCS:
+- window_check: GRU net_median +0.27%/ventana vs canasta +0.32% — empatados; el
+  promedio mejor del GRU (+3.43 vs +2.21) viene de colas alcistas 2024-25. Además
+  el GRU REPROBÓ su propia vara §13 (peor-año 2021 −1.85 < −1.0): no es "ganador
+  validado", es el menos malo de dos candidatos.
+- One-shot (slice bear): GRU mediana −6.97% vs canasta −9.11% por corrida, 0/28
+  positivas ambos. Defensa parcial validada; retorno absoluto NO.
+- Veredicto de producto (Erika): "no quiero una canasta con frenos; ese nunca fue
+  el objetivo". **defense_check §15 (blindaje compuerta×vol-targeting) queda
+  ENTERRADO SIN CORRER** — estaba pre-registrado, el código existe congelado en la
+  branch `feature/h12-defense-check`, 0 trials añadidos (n_trials sigue en 21).
+- El GRU y ext5-h28 SIGUEN en shadow multi-stream (costo ~0) como baselines vivos.
+  El live Bitso (campeón momentum) sigue intacto.
+
+## ARCO H13 — Retorno absoluto bidireccional: TSMOM long-short + arquetipos (abierto 2026-07-13)
+
+**Pivote de objetivo (decisión Erika)**: retorno absoluto del movimiento en AMBAS
+direcciones ("energía cinética"), no selección relativa ni defensa. Mecanismo tras
+literature review: TSMOM long-short (siglo de evidencia externa; JAMÁS probado en
+nuestro harness — los 21 trials fueron cross-seccionales long-only) + capa de
+regímenes/arquetipos ("catálogo de montañas", idea de Erika). Venue de futuros
+nuevo (ella abre cuenta; auditoría de acceso API en F1 — Binance bloquea IPs GCP).
+
+Pre-registro completo: `docs/DESIGN_H13_trend_absolute.md`. Claves:
+- Particiones: iteración 2021→2025-09-10 · firewall = slice 2025-09-11→2026-06-12
+  **REUSADO con caveat de contaminación documentado** (quemado por el one-shot GRU;
+  compensaciones: spec congelada ex-ante, vara ex-ante, pase reportado como "slice
+  de segunda mano", shadow corto obligatorio) · forward = shadow 2-3 semanas en
+  venue nuevo (única evidencia 100% virgen).
+- Meta 1% diario ENTERRADA (Erika: "expectativas no fantasiosas"); vara numérica
+  se fija en F3 desde literatura + iteración, con OK explícito de ella, ANTES del
+  primer trial.
+- EDA exhaustivo didáctico primero (F2, descriptivo, no cuenta al DSR): catálogo
+  de montañas multi-escala (¿continuo o grumos?) con gemelos sintéticos + curva de
+  identificabilidad + estructura de tendencia por horizonte/régimen.
+- Grilla TSMOM pre-registrada y CERRADA: lookbacks {21, 63, 126}d, vol-scaling
+  canónico, costos reales del venue. n_trials arranca en 21 (acumulativo).
+- Plomería en chiquito ($20-50, 1-2 semanas) antes de tamaño completo (F7).
+
+### H13-F2 — EDA didáctico CORRIDO (2026-07-13): dos veredictos duros, cero trials gastados
+
+**Capítulo 1 — Catálogo de montañas (§5a, jobs z4289, seed 42)**: 8,202 especímenes
+reales (4 escalas: tol 5/10/20/35%) vs 81,525 gemelos block-bootstrap.
+**Veredicto pre-registrado: CONTINUO** — la silueta k-means real NUNCA supera a la
+del gemelo por más de +0.015 (umbral +0.05, k∈2..8). La hipótesis de
+arquetipos-de-forma queda falsificada a escala diaria mirando solo precio: el
+paisaje de montañitas es indistinguible de azar con vol realista. Sobreviven dos
+huellas que NO son forma: (1) asimetría temporal cae con la escala 0.50→0.43
+(cordilleras: pico temprano, desangre largo; gemelos planos en 0.478); (2) el
+valle derecho queda por debajo del izquierdo cada vez más con la escala (52→59%).
+Consecuencia F5: la capa de regímenes usará el fallback estándar (jump-model),
+NO arquetipos de forma.
+
+**Capítulo 2 — Prima de tendencia (§5b, job cb8hq, ventanas no solapadas)**: la
+foto pooled engaña (+7.1%/periodo H=21, +9.7% H=63) — **por año se desmorona**:
+H=21 vive de 2021 (+26.8; el resto ±4), H=42 es −59/−39 en 2021/22, H=63 negativa
+en 4/6 años pese al pooled positivo → **paradoja de Simpson por composición de
+regímenes** (los "venía subiendo" abundan cuando todo subió después). Persistencia
+de signo 0.44-0.63 sin patrón; diario 0.476 (leve reversión, consistente con
+H9/H12). Sin estructura condicional estable por vol. Honestidad de n: 29 símbolos
+correlacionados ≈ ~28 ventanas independientes a H=63 en 5.5 años. **Expectativa
+fijada ANTES de F4**: si los trials TSMOM salen débiles será consistente con esta
+anatomía; si salen fuertes, doble lupa sobre de qué año viene la ganancia. F4 se
+corre igual (pre-registrado, construcción canónica ≠ prima cruda).
+
+Artifacts didácticos entregados: cap.1 (catálogo) y cap.2 (prima). Reportes:
+mountains_catalog.parquet, mountains_h13.{json,md}, trend_study_h13.{json,md}.
+
+### H13-F4 — TSMOM FALSIFICADO en cripto (2026-07-13, trials 22-24, n_trials=24)
+
+Vara §8.1 aprobada por Erika ANTES de correr; costos §13.3; 40 ventanas estándar.
+Los 3 lookbacks NO PASAN (W1 exige mediana>0 y media ≥ +1.0%/ventana en 2022+):
+- L=21: mediana −0.62 / media +0.10 (2021: +4.52 — el año raro era quien sostenía)
+- L=63: mediana +0.05 / media −0.32
+- L=126: mediana −0.69 / media −0.24
+Ningún año catastrófico (W2/W3 ok en general) — el TSMOM cripto-only no explota,
+simplemente NO genera: consistente con la anatomía del EDA §5b (prima inestable,
+factor único). La verificación de cierre cerró la pregunta como se pre-registró
+(§13.1, prior 15-25%). El siglo de evidencia multi-mercado NO transfiere a un
+universo de un solo factor. Trials: tsmom-l{21,63,126}-20260713.
+
+### H13-F4b — 🎯 EL SPREAD L/S DEL GRU PASA LA VARA §8.1 — AMBAS CONFIGS (2026-07-13, trials 25-26, n_trials=26)
+
+Primer candidato del proyecto en pasar una vara de retorno ABSOLUTO pre-registrada
+(aprobada por Erika antes de correr; costos §13.3; 40 ventanas estándar, 0 saltadas).
+
+| | ew | ivol |
+|---|---|---|
+| 2022+ mediana/media (%/ventana) | +0.80 / +1.11 | **+1.01 / +1.28** |
+| std 2022+ | 6.32 | **5.56** |
+| Por año 22/23/24/25 | +0.81/−0.10/+2.71/+1.10 | +1.09/−0.33/+2.45/+2.08 |
+| Estrés 2021 | −0.19 | −0.45 |
+| **W4: mediana cuando la canasta CAE (15 ventanas)** | **+0.77** | **+1.01** |
+| Piernas L/S (media) | +1.57 / −0.49 | +1.61 / −0.43 |
+| Veredicto W1·W2·W3·W4 | ✅✅✅✅ PASA | ✅✅✅✅ PASA |
+
+**ivol domina a ew en las 4 métricas de cabecera → candidato = gruls-ivol**
+(~+18%/año neto implícito, Sharpe/ventana 0.23 ≈ 0.83 anual). La lectura clave:
+W4 — el libro GANA con mediana >+1% en las ventanas donde el mercado cayó. La
+"energía cinética" de Erika, materializada: neutral al factor, cobra el spread.
+
+**Caveats obligados (sin gate, para el registro)**: (1) framework window_check =
+robustez de señal, NO deployabilidad — el retrain ve futuro relativo a su ventana;
+el juez de deploy es el shadow forward (corre desde 07-11, ranks completos →
+L/S computable retroactivamente). (2) La pierna corta tiene media NEGATIVA
+(−0.43%/ventana): es la prima del seguro — paga la neutralidad y cobra en las
+caídas (W4); no es pasajera, es cobertura. (3) 2023 fue plano-negativo (−0.33,
+sobre el piso −1.5). (4) Familia GRU: el slice quemado NO es juez válido aquí
+(§13.4). (5) 2/2 configs pasaron — no hubo selección entre muchas.
+Camino restante (§13/§9): F5 opcional → shadow forward como juez primario →
+sign-off Erika → plomería en chiquito. Trials: gruls-{ew,ivol}-20260713.
