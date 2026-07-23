@@ -1,4 +1,5 @@
 """Validate Silver feature layer."""
+
 from dataclasses import dataclass
 
 from src.data.db import get_connection

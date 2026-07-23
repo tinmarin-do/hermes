@@ -8,6 +8,9 @@ jobs:
   deploy-prod:
     name: Deploy to production
     runs-on: ubuntu-latest
+    # Gate: only runs once GCP is configured (var GCP_PROJECT_ID set). Skipped
+    # (neutral) until then — avoids red X on main pushes before GCP exists.
+    if: ${{ vars.GCP_PROJECT_ID != '' }}
     environment: production
     steps:
       - uses: actions/checkout@v4
@@ -36,5 +39,5 @@ jobs:
         run: |
           URL=$(gcloud run services describe hermes-dashboard \
             --region=${{ vars.GCP_REGION }} --format='value(status.url)')
-          curl --fail "$URL/health" || (echo "❌ Health check failed" && exit 1)
+          curl --fail "$URL/healthz" || (echo "❌ Health check failed" && exit 1)
           echo "✅ Production deployed: $URL"

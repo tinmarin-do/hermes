@@ -1,4 +1,5 @@
 """Bull and Bear researchers + debate facilitator (TradingAgents-inspired)."""
+
 import os as _os
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -50,18 +51,21 @@ def _analyst_consensus(state: HermesState) -> str:
 
 def _reports_text(state: HermesState) -> str:
     return "\n\n".join(
-        f"{r['symbol']} ({r['bias']}): {r['analysis']}"
-        for r in state.get("analyst_reports", [])
+        f"{r['symbol']} ({r['bias']}): {r['analysis']}" for r in state.get("analyst_reports", [])
     )
 
 
 def bull_researcher(state: HermesState) -> dict:
     llm = get_llm("decision")
     reports = _reports_text(state)
-    response = llm.invoke([
-        SystemMessage(content=BULL_SYSTEM),
-        HumanMessage(content=f"Analyst reports:\n{reports}\n\nMarket context: {state.get('regime_summary', '')}\n\nMake the bull case."),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=BULL_SYSTEM),
+            HumanMessage(
+                content=f"Analyst reports:\n{reports}\n\nMarket context: {state.get('regime_summary', '')}\n\nMake the bull case."
+            ),
+        ]
+    )
     return {
         "bull_argument": response.content,
         "messages": [HumanMessage(content=f"[BullResearcher]\n{response.content}")],
@@ -71,10 +75,14 @@ def bull_researcher(state: HermesState) -> dict:
 def bear_researcher(state: HermesState) -> dict:
     llm = get_llm("decision")
     reports = _reports_text(state)
-    response = llm.invoke([
-        SystemMessage(content=BEAR_SYSTEM),
-        HumanMessage(content=f"Analyst reports:\n{reports}\n\nMarket context: {state.get('regime_summary', '')}\n\nMake the bear case."),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=BEAR_SYSTEM),
+            HumanMessage(
+                content=f"Analyst reports:\n{reports}\n\nMarket context: {state.get('regime_summary', '')}\n\nMake the bear case."
+            ),
+        ]
+    )
     return {
         "bear_argument": response.content,
         "messages": [HumanMessage(content=f"[BearResearcher]\n{response.content}")],
@@ -89,25 +97,35 @@ def debate_facilitator(state: HermesState) -> dict:
 
     # Each round: bull responds to bear, bear responds to bull
     if round_num <= DEBATE_ROUNDS:
-        bull_response = llm.invoke([
-            SystemMessage(content=BULL_SYSTEM),
-            HumanMessage(content=(
-                f"Bear argument: {state.get('bear_argument', '')}\n\n"
-                "Counter this argument with specific data points."
-            )),
-        ])
-        bear_response = llm.invoke([
-            SystemMessage(content=BEAR_SYSTEM),
-            HumanMessage(content=(
-                f"Bull argument: {state.get('bull_argument', '')}\n\n"
-                "Counter this argument with specific data points."
-            )),
-        ])
-        rounds.append({
-            "round": round_num,
-            "bull": bull_response.content,
-            "bear": bear_response.content,
-        })
+        bull_response = llm.invoke(
+            [
+                SystemMessage(content=BULL_SYSTEM),
+                HumanMessage(
+                    content=(
+                        f"Bear argument: {state.get('bear_argument', '')}\n\n"
+                        "Counter this argument with specific data points."
+                    )
+                ),
+            ]
+        )
+        bear_response = llm.invoke(
+            [
+                SystemMessage(content=BEAR_SYSTEM),
+                HumanMessage(
+                    content=(
+                        f"Bull argument: {state.get('bull_argument', '')}\n\n"
+                        "Counter this argument with specific data points."
+                    )
+                ),
+            ]
+        )
+        rounds.append(
+            {
+                "round": round_num,
+                "bull": bull_response.content,
+                "bear": bear_response.content,
+            }
+        )
         return {
             "debate_rounds": rounds,
             "debate_round_count": round_num,
@@ -121,8 +139,7 @@ def debate_facilitator(state: HermesState) -> dict:
 
     # Final facilitation — evaluate the quant thesis
     debate_text = "\n\n".join(
-        f"Round {r['round']} — Bull: {r['bull']}\nBear: {r['bear']}"
-        for r in rounds
+        f"Round {r['round']} — Bull: {r['bull']}\nBear: {r['bear']}" for r in rounds
     )
 
     analyst_consensus = _analyst_consensus(state)
@@ -130,20 +147,24 @@ def debate_facilitator(state: HermesState) -> dict:
     quant_rationale = quant.get("rationale", "No quant thesis available")
     quant_size = quant.get("size_usd", 0.0)
 
-    response = llm.invoke([
-        SystemMessage(content=FACILITATOR_SYSTEM),
-        HumanMessage(content=(
-            f"QUANT THESIS (to be verified by debate):\n"
-            f"  Direction: {quant_dir}\n"
-            f"  Size: ${quant_size:.2f}\n"
-            f"  Basis: {quant_rationale}\n\n"
-            f"Analyst consensus direction: {analyst_consensus}\n\n"
-            f"Initial bull: {state.get('bull_argument', '')}\n"
-            f"Initial bear: {state.get('bear_argument', '')}\n\n"
-            f"Debate rounds:\n{debate_text}\n\n"
-            f"Declare your verdict: AGREE (match quant direction), or HOLD (veto)."
-        )),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=FACILITATOR_SYSTEM),
+            HumanMessage(
+                content=(
+                    f"QUANT THESIS (to be verified by debate):\n"
+                    f"  Direction: {quant_dir}\n"
+                    f"  Size: ${quant_size:.2f}\n"
+                    f"  Basis: {quant_rationale}\n\n"
+                    f"Analyst consensus direction: {analyst_consensus}\n\n"
+                    f"Initial bull: {state.get('bull_argument', '')}\n"
+                    f"Initial bear: {state.get('bear_argument', '')}\n\n"
+                    f"Debate rounds:\n{debate_text}\n\n"
+                    f"Declare your verdict: AGREE (match quant direction), or HOLD (veto)."
+                )
+            ),
+        ]
+    )
 
     text = response.content
     verdict = analyst_consensus if analyst_consensus != "HOLD" else "HOLD"

@@ -1,4 +1,5 @@
 """python -m src.data.gold.aggregate --symbol BTC/USDT,ETH/USDT"""
+
 import argparse
 import json
 import os
@@ -22,8 +23,10 @@ def main() -> None:
 
     print(f"\n── Gold signals ({len(signals)} símbolos) ──")
     for s in signals:
-        print(f"  {s['symbol']:12s}  regime={s['regime']:14s}  conf={s['regime_conf']:.2f}"
-              f"  hurst={s['features']['hurst']}  garch_vol={s['features']['garch_vol']}")
+        print(
+            f"  {s['symbol']:12s}  regime={s['regime']:14s}  conf={s['regime_conf']:.2f}"
+            f"  hurst={s['features']['hurst']}  garch_vol={s['features']['garch_vol']}"
+        )
 
     print(f"\n{json.dumps(signals, indent=2)}")
 

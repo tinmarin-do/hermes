@@ -38,6 +38,7 @@ from src.data.gold.aggregate import aggregate_at, get_available_period, get_forw
 QUANT_CORE_AVAILABLE = False
 try:
     from src.brain.quant_core import QuantCore  # noqa: F401
+
     QUANT_CORE_AVAILABLE = True
 except ImportError:
     pass
@@ -48,14 +49,14 @@ FORWARD_PERIODS = 168  # 7 days in 1h candles
 VOLLATILITY_TOP_N = 20
 GRID_KELLY = [0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40]
 GRID_LOSS_LIMIT = [0.01, 0.02, 0.03, 0.04, 0.05]
-CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "500"))
+CAPITAL = float(os.environ.get("HERMES_CAPITAL_USD", "1"))
 
 # Heuristic signal quality filters — reduce false positives at source
-MIN_CONFIDENCE = 0.25      # floor: below this the signal isn't even worth risk review
-MIN_RETURN_ABS = 0.002     # |return| > 0.2% minimum directional move
-MAX_GARCH_VOL = 0.08       # reject if annualized vol > 8% (panic / illiquid)
-HURST_TREND_MIN = 0.52     # clear trend (was 0.55, too strict)
-HURST_MR_MAX = 0.48        # clear mean-reversion (was 0.45)
+MIN_CONFIDENCE = 0.25  # floor: below this the signal isn't even worth risk review
+MIN_RETURN_ABS = 0.002  # |return| > 0.2% minimum directional move
+MAX_GARCH_VOL = 0.08  # reject if annualized vol > 8% (panic / illiquid)
+HURST_TREND_MIN = 0.52  # clear trend (was 0.55, too strict)
+HURST_MR_MAX = 0.48  # clear mean-reversion (was 0.45)
 REGIME_ALLOWED = {"trending", "mean-reverting"}
 
 
@@ -213,8 +214,9 @@ def _generate_weekly_timestamps(
     return [d.to_pydatetime().replace(tzinfo=UTC) for d in stamps if d.to_pydatetime() >= start]
 
 
-def _run_point(signal: dict, kelly_frac: float, loss_limit: float,
-               quant_core: QuantCore | None = None) -> BacktestPoint | None:
+def _run_point(
+    signal: dict, kelly_frac: float, loss_limit: float, quant_core: QuantCore | None = None
+) -> BacktestPoint | None:
     if quant_core is not None:
         qs = quant_core.predict(signal, kelly_fraction=kelly_frac)
         action = qs.direction
@@ -269,10 +271,12 @@ def _run_point(signal: dict, kelly_frac: float, loss_limit: float,
     )
 
 
-def _compute_metrics(points: list[BacktestPoint], kelly_frac: float,
-                     loss_limit: float) -> CalibrationMetrics:
-    m = CalibrationMetrics(kelly_fraction=kelly_frac, daily_loss_limit_pct=loss_limit,
-                           total_points=len(points))
+def _compute_metrics(
+    points: list[BacktestPoint], kelly_frac: float, loss_limit: float
+) -> CalibrationMetrics:
+    m = CalibrationMetrics(
+        kelly_fraction=kelly_frac, daily_loss_limit_pct=loss_limit, total_points=len(points)
+    )
 
     for p in points:
         if p.profitable is None:
@@ -300,7 +304,7 @@ def _compute_metrics(points: list[BacktestPoint], kelly_frac: float,
 
     m.precision = m.true_positive / max(m.true_positive + m.false_positive, 1)
     m.recall = m.true_positive / max(m.true_positive + m.false_negative, 1)
-    m.f1 = (2 * m.precision * m.recall / max(m.precision + m.recall, 0.001))
+    m.f1 = 2 * m.precision * m.recall / max(m.precision + m.recall, 0.001)
     m.approval_rate = m.approved / total
     m.avg_forward_return_approved = (
         float(np.mean(m.approved_returns)) if m.approved_returns else 0.0
@@ -336,10 +340,14 @@ def quantitative_backtest(
     if stamps is None or len(stamps) == 0:
         raise RuntimeError("No data available for backtest")
 
-    print(f"[calibrate:quant] {len(stamps)} weekly points over {len(symbols)} symbols  "
-          f"| source: {signal_source}")
-    print(f"[calibrate:quant] grid: Kelly {GRID_KELLY} × loss_limit {GRID_LOSS_LIMIT}"
-          f" = {len(GRID_KELLY) * len(GRID_LOSS_LIMIT)} combinations")
+    print(
+        f"[calibrate:quant] {len(stamps)} weekly points over {len(symbols)} symbols  "
+        f"| source: {signal_source}"
+    )
+    print(
+        f"[calibrate:quant] grid: Kelly {GRID_KELLY} × loss_limit {GRID_LOSS_LIMIT}"
+        f" = {len(GRID_KELLY) * len(GRID_LOSS_LIMIT)} combinations"
+    )
 
     all_points: list[BacktestPoint] = []
     for i, ts in enumerate(stamps):
@@ -379,21 +387,28 @@ def quantitative_backtest(
     }
 
 
-def _run_point_from_features(point: BacktestPoint, kelly_frac: float,
-                             loss_limit: float) -> BacktestPoint:
+def _run_point_from_features(
+    point: BacktestPoint, kelly_frac: float, loss_limit: float
+) -> BacktestPoint:
     news_conf = point.heuristic_confidence
     size = _kelly_size(news_conf, kelly_frac)
     var_ok = _var_check(point.garch_vol, size, loss_limit)
     approved = size > 0 and var_ok
     return BacktestPoint(
-        ts=point.ts, symbol=point.symbol, regime=point.regime,
-        regime_conf=point.regime_conf, hurst=point.hurst,
-        garch_vol=point.garch_vol, returns_1h=point.returns_1h,
+        ts=point.ts,
+        symbol=point.symbol,
+        regime=point.regime,
+        regime_conf=point.regime_conf,
+        hurst=point.hurst,
+        garch_vol=point.garch_vol,
+        returns_1h=point.returns_1h,
         returns_24h=point.returns_24h,
         heuristic_action=point.heuristic_action,
         heuristic_confidence=point.heuristic_confidence,
-        kelly_size=size if approved else 0.0, var_ok=var_ok,
-        risk_approved=approved, forward_return=point.forward_return,
+        kelly_size=size if approved else 0.0,
+        var_ok=var_ok,
+        risk_approved=approved,
+        forward_return=point.forward_return,
         profitable=point.profitable,
     )
 
@@ -419,9 +434,9 @@ def _top_volatile_dates(points: list[BacktestPoint], n: int = VOLLATILITY_TOP_N)
     return top
 
 
-async def _run_pipeline_at(ts: datetime, symbols: list[str],
-                           timeframe: str) -> dict | None:
+async def _run_pipeline_at(ts: datetime, symbols: list[str], timeframe: str) -> dict | None:
     """Run full LangGraph pipeline as-of a historical timestamp."""
+
     def _sync_run() -> dict | None:
         try:
             from src.brain.graph import hermes_graph
@@ -514,8 +529,11 @@ def llm_validation(
             if result:
                 elapsed = time.time() - t0
                 result["elapsed_s"] = round(elapsed, 1)
-                print(f"    verdict={result.get('verdict')} risk={result.get('risk_approved')} "
-                      f"({elapsed:.0f}s)", flush=True)
+                print(
+                    f"    verdict={result.get('verdict')} risk={result.get('risk_approved')} "
+                    f"({elapsed:.0f}s)",
+                    flush=True,
+                )
             else:
                 print("    no signals available", flush=True)
             return result
@@ -551,7 +569,7 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
         "",
         "| Parameter | Value |",
         "|---|---|",
-        f"| `HERMES_KELLY_FRACTION` | **{params.get('kelly_fraction', 0.25)}** |",
+        f"| `HERMES_KELLY_FRACTION` | **{params.get('kelly_fraction', 0.10)}** |",
         f"| `HERMES_DAILY_LOSS_LIMIT_PCT` | **{params.get('daily_loss_limit_pct', 0.02)}** |",
         "",
         "### Performance Metrics (at optimum)",
@@ -583,21 +601,26 @@ def generate_report(quant_result: dict, llm_results: list[dict] | None = None) -
         )
 
     if llm_results:
-        trades = [r for r in llm_results if r.get("pm_action", "HOLD") != "HOLD"
-                  and r.get("pm_symbol", "NONE") != "NONE"]
+        trades = [
+            r
+            for r in llm_results
+            if r.get("pm_action", "HOLD") != "HOLD" and r.get("pm_symbol", "NONE") != "NONE"
+        ]
         total_return = sum((r.get("forward_return") or 0) for r in trades)
 
-        lines.extend([
-            "",
-            "## Phase 2 — LLM Validation",
-            "",
-            f"**Dates validated:** {len(llm_results)}",
-            f"**Trades executed:** {len(trades)}",
-            f"**Total P&L (effective):** {total_return:+.2%}",
-            "",
-            "| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Eff Return |",
-            "|---|---|---|---|---|---|---|",
-        ])
+        lines.extend(
+            [
+                "",
+                "## Phase 2 — LLM Validation",
+                "",
+                f"**Dates validated:** {len(llm_results)}",
+                f"**Trades executed:** {len(trades)}",
+                f"**Total P&L (effective):** {total_return:+.2%}",
+                "",
+                "| Date | Verdict | Conf | Risk OK | PM Action | PM Symbol | Eff Return |",
+                "|---|---|---|---|---|---|---|",
+            ]
+        )
         for r in llm_results:
             ret = r.get("forward_return")
             ret_str = f"{ret:+.2%}" if ret is not None else "—"
@@ -633,6 +656,7 @@ def run_calibration(
     if train_model and QUANT_CORE_AVAILABLE:
         print("[calibrate] training LightGBM QuantCore ...")
         from src.brain.quant_core import train_and_save
+
         train_and_save(symbols, timeframe)
         if model_path is None:
             model_path = str(Path("data/models/quant_core_lgbm.pkl"))
@@ -656,27 +680,37 @@ def run_calibration(
             persist_run,
             start_run,
         )
+
         n_dates = len(_top_volatile_dates(quant_result["points"]))
         est_total = round(estimate_cost_usd() * n_dates, 4)
-        print(f"[cost] estimado LLM de la calibracion: ~${est_total:.4f} USD "
-              f"({n_dates} fechas × ~${estimate_cost_usd():.4f}) — "
-              f"autorizar via /cost:gate antes de correr")
+        print(
+            f"[cost] estimado LLM de la calibracion: ~${est_total:.4f} USD "
+            f"({n_dates} fechas × ~${estimate_cost_usd():.4f}) — "
+            f"autorizar via /cost:gate antes de correr"
+        )
         meter = start_run(f"calibrate-{datetime.now(UTC):%Y%m%dT%H%M%S}")
 
         llm_results = llm_validation(
-            quant_result["points"], symbols, timeframe,
-            concurrency=llm_concurrency, debate_rounds=debate_rounds,
+            quant_result["points"],
+            symbols,
+            timeframe,
+            concurrency=llm_concurrency,
+            debate_rounds=debate_rounds,
         )
         t2 = time.time()
         print(f"[calibrate] Phase 2 done in {t2 - t1:.0f}s")
 
         cost = meter.summary()
         persist_run(meter)
-        print(f"[cost] real LLM calibracion: ${cost['cost_usd']:.4f} USD · "
-              f"{cost['total_tokens']:,} tokens · {cost['n_calls']} llamadas")
-        print(f"[cost] registrar en ledger:  /cost:log "
-              f"llm|{datetime.now(UTC):%Y-%m-%d}|calibracion {meter.run_id}|"
-              f"{cost['cost_usd']:.4f}|auto")
+        print(
+            f"[cost] real LLM calibracion: ${cost['cost_usd']:.4f} USD · "
+            f"{cost['total_tokens']:,} tokens · {cost['n_calls']} llamadas"
+        )
+        print(
+            f"[cost] registrar en ledger:  /cost:log "
+            f"llm|{datetime.now(UTC):%Y-%m-%d}|calibracion {meter.run_id}|"
+            f"{cost['cost_usd']:.4f}|auto"
+        )
 
     generate_report(quant_result, llm_results)
     total = time.time() - t0
@@ -687,20 +721,25 @@ def run_calibration(
 
 if __name__ == "__main__":
     import argparse
+
     parser = argparse.ArgumentParser(prog="hermes-calibrate")
-    parser.add_argument("--symbols", default=None,
-                        help="comma-separated symbols (default: HERMES_ALLOWED_SYMBOLS)")
+    parser.add_argument(
+        "--symbols", default=None, help="comma-separated symbols (default: HERMES_ALLOWED_SYMBOLS)"
+    )
     parser.add_argument("--timeframe", default="1h")
-    parser.add_argument("--skip-llm", action="store_true",
-                        help="skip Phase 2 (LLM validation)")
-    parser.add_argument("--concurrency", type=int, default=2,
-                        help="max concurrent LLM pipelines (default: 2)")
-    parser.add_argument("--debate-rounds", type=int, default=1,
-                        help="debate rounds for LLM validation (default: 1)")
-    parser.add_argument("--model", default=None,
-                        help="path to trained LightGBM model (replaces heuristic)")
-    parser.add_argument("--train-model", action="store_true",
-                        help="train LightGBM QuantCore before calibration")
+    parser.add_argument("--skip-llm", action="store_true", help="skip Phase 2 (LLM validation)")
+    parser.add_argument(
+        "--concurrency", type=int, default=2, help="max concurrent LLM pipelines (default: 2)"
+    )
+    parser.add_argument(
+        "--debate-rounds", type=int, default=1, help="debate rounds for LLM validation (default: 1)"
+    )
+    parser.add_argument(
+        "--model", default=None, help="path to trained LightGBM model (replaces heuristic)"
+    )
+    parser.add_argument(
+        "--train-model", action="store_true", help="train LightGBM QuantCore before calibration"
+    )
     args = parser.parse_args()
 
     symbols = [s.strip() for s in args.symbols.split(",")] if args.symbols else None

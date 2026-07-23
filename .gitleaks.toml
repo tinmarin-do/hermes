@@ -1,0 +1,15 @@
+# gitleaks config — extends the default ruleset, but allowlists `.env`.
+# `.env` holds local secrets (DEEPSEEK_API_KEY, Binance testnet keys), is
+# gitignored, and is never committed — so a CI checkout never contains it. The
+# allowlist keeps local `--no-git` scans clean and documents the intent.
+title = "hermes gitleaks"
+
+[extend]
+useDefault = true
+
+[allowlist]
+description = "Local-only, gitignored secret files"
+paths = [
+    '''\.env$''',
+    '''\.envrc$''',
+]

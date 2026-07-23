@@ -1,9 +1,14 @@
 # Hermes — Claude Code Instructions
 
 ## Qué es Hermes
-Sistema multiagente de trading con IA. Múltiples agentes LLM (LangGraph) colaboran para
-decidir operaciones sobre criptoactivos, ejecutadas automáticamente en Binance. Desplegado
-en GCP con Terraform. **Proyecto experimental y educativo — no asesoría financiera.**
+**Overlay defensivo de momentum + laboratorio de research anti-overfit** (identidad v0.3,
+2026-07-02). Una señal cuantitativa determinista (momentum multi-escala, única validada en
+holdout) reparte un budget como cartera; agentes LLM (LangGraph) la **verifican como
+red-team** (confirman/vetan/recortan — jamás deciden el número). El research continúa vía
+shadow mode (challenger de regresión). Ejecuta en Binance, desplegado en GCP con Terraform.
+**Proyecto experimental y educativo — no asesoría financiera.** La claim pública es honesta:
+sin alpha absoluto; valor defensivo validado (`docs/EXPERIMENT_LOG.md`).
+**Fuente de verdad de ejecución: `docs/HERMES_PRD.md` v0.3 — runbook §9, fases en orden.**
 
 ## Modo de ejecución (`HERMES_MODE`)
 
@@ -14,15 +19,64 @@ en GCP con Terraform. **Proyecto experimental y educativo — no asesoría finan
 
 Siempre leer `HERMES_MODE` en `.envrc` antes de cualquier operación. Por defecto: `local`.
 
+## Portafolio y budget de trading (estado 2026-07-02)
+
+Hermes reparte un **budget de trading** entre los 6 símbolos permitidos como **cartera**
+(no una sola apuesta), **rebalanceado a diario**. Es un bolsillo **distinto** de los caps
+operativos (GCP + LLM) de la sección Presupuestos.
+
+| Entorno | Capital de trading | Naturaleza |
+|---------|--------------------|------------|
+| `local` / paper | **$1 imaginario** | Sandbox; día 0 arranca con $1 en cash. |
+| `cloud` | **$400 USD** (decisión 2026-07-03) | **Paper a escala $400 HOY**; live (long-only Bitso) solo tras F6 (BitsoAdapter) + `/brain:calibrate-risk` + stage sandbox + key rotada sin retiro (regla #4). |
+
+- **Whitelist (6):** BTC, ETH, SOL, **LINK**, AVAX, XRP (data `*/USDT` Binance). XRP reemplazó a MATIC (delistado); LINK reemplazó a BNB (no existe en **Bitso**, el venue de EJECUCIÓN decidido 2026-07-03 — data sigue de Binance; Bitso spot-only → live long-only permanente; fees 0.36% taker → preferir maker).
+- **Pesos:** `conf × inverse-vol`, normalizados al budget. El delta vs el libro actual define buy/sell/hold.
+- **Short:** ultra-conservador (`P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **cap 10%**). Futuros-only en real, simulado en paper, **OFF por default en live** (regla #8).
+- **Kelly:** interim **0.10**; el definitivo sale de `/brain:calibrate-risk` sobre la señal momentum (PRD §8.2).
+- **Estado:** allocator + capa de decisión **implementados** (PR #10). Pendiente (PRD §9):
+  Fase 1 = migrar `quant_core` de LightGBM (falsificado) a la **regla momentum multi-escala**;
+  Fase 2 = neteo del PaperAdapter; Fase 3 = vista de cartera en dashboard.
+  Fuentes de verdad: PRD v0.3 §8.8/§9 y `docs/DESIGN_portfolio_allocator.md`.
+
+## ⚡ ARCO H13 ACTIVO — retorno absoluto (TSMOM long-short + arquetipos), modo research-cloud
+
+Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 de abajo:
+
+- **Autonomía total en la nube**: gcloud/gsutil/bq/terraform se ejecutan SIN pedir
+  aprobación por operación (settings `allow`; gatekeeper cost-est del hook suspendido).
+- **Ledgers GCP suspendidos** para el arco. Protección de gasto real:
+  `google_billing_budget` con alertas 50%/80% (`EXCLUDE_ALL_CREDITS`). **Regla dura:
+  jamás gastar >80% ($232) de los $290 de créditos antes de alcanzar la meta** (la
+  vara del arco se fija en F3; el 1% diario quedó ENTERRADO 2026-07-13). Reportar
+  gasto acumulado periódicamente.
+  El ledger LLM y su cost-check de CI siguen vigentes.
+- **Todo experimento corre en GCP** (`src/lab/`, job `hermes-lab`, bucket
+  `hermes-research-*`). Local se usa ÚNICAMENTE como cable de descarga del histórico
+  Binance (delta + upload) — nada más.
+- **Datos duales**: Binance = corpus histórico/features · Bitso = labels, evaluación y
+  contabilidad (SIEMPRE en MXN) · puente de tracking pre-registrado entre ambos.
+- **Metodología**: EDA didáctico primero (descriptivo, páginas Artifact para Erika);
+  evaluación estándar = window_check (40 ventanas 28d, seed 42) + corte temporal;
+  grillas CERRADAS antes de correr; sin gates de research (Fable decide y documenta).
+  Gates que SÍ quedan: venue (F1), vara numérica (F3), sign-off (F6), tamaño (F7).
+  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR; n=21 al abrir H13).
+- **Intocables**: el pipeline live (`src/brain/`, allocator, comité, scheduler) no se
+  modifica; secretos siguen en deny; nada mueve dinero real sin el firewall completo
+  (one-shot en slice CON caveat de contaminación documentado + shadow corto en venue
+  nuevo + sign-off de Erika + plomería en chiquito antes de tamaño completo). Fuente
+  de verdad del arco: `docs/DESIGN_H13_trend_absolute.md` + plan aprobado 2026-07-13.
+
 ## Reglas críticas (no negociables)
 
-1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`.
-2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes.
+1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`. *(SUSPENDIDA en arco H11 — ver bloque de arriba.)*
+2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes. *(En arco H11: plan antes de apply sigue siendo buena práctica, sin gate.)*
 3. **NUNCA** commitear secretos — Secret Manager (cloud) o `.env` local (en .gitignore).
 4. **NUNCA** operar en modo live sin guardrails activos (Kelly + VaR + correlación).
-5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`.
-6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00.
-7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`.
+5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`. *(Ledger GCP suspendido en arco H11; el LLM sigue.)*
+6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00. *(SUSPENDIDA en arco H11.)*
+7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`. *(SUSPENDIDA en arco H11.)*
+8. **NUNCA** habilitar short en live sin opt-in explícito tras calibrar (`/brain:calibrate-risk`). Short real requiere venue de **futuros** (spot no puede); en paper se **simula**. Live arranca **long-only**. Ver §8.8 del PRD y `docs/DESIGN_portfolio_allocator.md`.
 
 ## Skills disponibles
 
@@ -137,13 +191,21 @@ hermes/
 
 ## Testing
 
+Por default `pytest` corre SOLO unit (rápido, offline, $0). Las suites pagas/externas
+(e2e invoca DeepSeek real ~$0.01/corrida; integration pega a Binance testnet) están
+**deseleccionadas por marker** vía `addopts` — hay que pedirlas a propósito.
+
 ```bash
-uv run pytest tests/unit/           # sin dependencias externas
-uv run pytest tests/integration/    # requiere BINANCE_TESTNET_* en .env
-uv run pytest tests/e2e/            # pipeline completo, paper mode
+uv run pytest                       # SOLO unit (default seguro — sin red, sin costo)
+uv run pytest -m integration        # Binance testnet — requiere BINANCE_TESTNET_* en .env
+uv run pytest -m e2e                # pipeline completo, paper mode — PAGA LLM: cotizar
+                                    #   + /cost:gate ANTES (regla #6). NO usar `pytest tests/`.
 ```
 
-CI bloquea en: tests + cost-check + security scan.
+⚠️ NUNCA correr `pytest tests/` esperando “solo tests” — el marker filter del default lo
+mantiene seguro, pero la suite paga se dispara con `-m e2e` explícito y nada más. Cotizá antes.
+
+CI bloquea en: tests (`-m unit`) + cost-check + security scan.
 
 ## GitFlow
 

@@ -20,16 +20,19 @@
       "Bash(ls:*)",
       "Bash(find:*)",
       "Bash(grep:*)",
+      "Bash(gcloud:*)",
+      "Bash(gsutil:*)",
+      "Bash(bq:*)",
+      "Bash(terraform apply:*)",
+      "Bash(terraform destroy:*)",
       "Read(*)",
       "Edit(*)",
       "Write(*)"
     ],
+    "ask": [],
     "deny": [
-      "Bash(terraform apply:*)",
-      "Bash(terraform destroy:*)",
-      "Bash(gcloud:*)",
-      "Bash(gsutil:*)",
-      "Bash(bq:*)",
+      "Bash(gcloud secrets versions access:*)",
+      "Bash(gcloud secrets versions add:*)",
       "Bash(rm -rf:*)",
       "Bash(curl * | bash:*)"
     ]

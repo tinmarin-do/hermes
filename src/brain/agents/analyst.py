@@ -1,5 +1,7 @@
 """Technical Analyst — one per symbol, runs in parallel."""
+
 from langchain_core.messages import HumanMessage, SystemMessage
+
 from src.brain.llm import get_llm
 from src.brain.state import HermesState
 
@@ -11,6 +13,7 @@ volatility risk, and a directional bias (bullish / bearish / neutral) with ratio
 
 def make_analyst(symbol: str):
     """Factory — returns a LangGraph node function for the given symbol."""
+
     def analyst(state: HermesState) -> dict:
         signal = next((s for s in state["gold_signals"] if s["symbol"] == symbol), None)
         if signal is None:
@@ -18,21 +21,25 @@ def make_analyst(symbol: str):
 
         llm = get_llm("analyst")
         regime_ctx = state.get("regime_summary", "No regime summary available.")
-        response = llm.invoke([
-            SystemMessage(content=SYSTEM),
-            HumanMessage(content=(
-                f"Asset: {symbol}\n"
-                f"Regime: {signal['regime']} (confidence: {signal['regime_conf']:.2f})\n"
-                f"Hurst: {signal['features']['hurst']} | "
-                f"GARCH vol: {signal['features']['garch_vol']} | "
-                f"Spread: {signal['features']['spread']}\n"
-                f"Return 1h: {signal['features']['returns_1h']} | "
-                f"Return 24h: {signal['features']['returns_24h']}\n\n"
-                f"Market context: {regime_ctx}\n\n"
-                "Produce a 3-5 sentence technical analysis report with a clear "
-                "directional bias: BULLISH, BEARISH, or NEUTRAL."
-            )),
-        ])
+        response = llm.invoke(
+            [
+                SystemMessage(content=SYSTEM),
+                HumanMessage(
+                    content=(
+                        f"Asset: {symbol}\n"
+                        f"Regime: {signal['regime']} (confidence: {signal['regime_conf']:.2f})\n"
+                        f"Hurst: {signal['features']['hurst']} | "
+                        f"GARCH vol: {signal['features']['garch_vol']} | "
+                        f"Spread: {signal['features']['spread']}\n"
+                        f"Return 1h: {signal['features']['returns_1h']} | "
+                        f"Return 24h: {signal['features']['returns_24h']}\n\n"
+                        f"Market context: {regime_ctx}\n\n"
+                        "Produce a 3-5 sentence technical analysis report with a clear "
+                        "directional bias: BULLISH, BEARISH, or NEUTRAL."
+                    )
+                ),
+            ]
+        )
 
         report = {
             "symbol": symbol,
@@ -45,6 +52,7 @@ def make_analyst(symbol: str):
             "analyst_reports": [report],
             "messages": [HumanMessage(content=f"[Analyst:{symbol}]\n{response.content}")],
         }
+
     analyst.__name__ = f"analyst_{symbol.replace('/', '_')}"
     return analyst
 

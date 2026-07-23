@@ -6,6 +6,7 @@
 - Trader can RECUSE (HOLD) or CONFIRM (same direction, clamped size)
 - Trader NEVER flips direction or amplifies size beyond quant.
 """
+
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -29,8 +30,9 @@ SYMBOL: <symbol or NONE>
 RATIONALE: <2-3 sentences explaining how the debate affects the quant thesis>"""
 
 
-def _debate_multiplier(debate_verdict: str, quant_direction: str,
-                       debate_confidence: float) -> float:
+def _debate_multiplier(
+    debate_verdict: str, quant_direction: str, debate_confidence: float
+) -> float:
     """Compute multiplier from debate vs quant thesis agreement.
 
     If debate_verdict matches quant_direction → multiplier = debate_confidence.
@@ -63,24 +65,28 @@ def trader(state: HermesState) -> dict:
         for r in state.get("analyst_reports", [])
     )
 
-    response = llm.invoke([
-        SystemMessage(content=SYSTEM),
-        HumanMessage(content=(
-            f"QUANT THESIS (deterministic, max allowed):\n"
-            f"  Direction: {quant_dir}\n"
-            f"  Max size: ${quant_size:.2f}\n"
-            f"  Symbol: {quant_symbol}\n"
-            f"  Basis: {quant_rationale}\n\n"
-            f"DEBATE VERDICT (qualitative red-team):\n"
-            f"  Verdict: {verdict} (confidence: {debate_conf:.0%})\n"
-            f"  Multiplier: {multiplier:.2f} ×\n\n"
-            f"Regime: {state.get('regime_summary', '')}\n"
-            f"Analyst reports:\n{reports_text}\n"
-            f"Allowed symbols: {allowed}\n\n"
-            f"Make your adjusted trading decision. Remember: you can CONFIRM or "
-            f"HOLD, never flip direction or increase size."
-        )),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=SYSTEM),
+            HumanMessage(
+                content=(
+                    f"QUANT THESIS (deterministic, max allowed):\n"
+                    f"  Direction: {quant_dir}\n"
+                    f"  Max size: ${quant_size:.2f}\n"
+                    f"  Symbol: {quant_symbol}\n"
+                    f"  Basis: {quant_rationale}\n\n"
+                    f"DEBATE VERDICT (qualitative red-team):\n"
+                    f"  Verdict: {verdict} (confidence: {debate_conf:.0%})\n"
+                    f"  Multiplier: {multiplier:.2f} ×\n\n"
+                    f"Regime: {state.get('regime_summary', '')}\n"
+                    f"Analyst reports:\n{reports_text}\n"
+                    f"Allowed symbols: {allowed}\n\n"
+                    f"Make your adjusted trading decision. Remember: you can CONFIRM or "
+                    f"HOLD, never flip direction or increase size."
+                )
+            ),
+        ]
+    )
 
     text = response.content
 

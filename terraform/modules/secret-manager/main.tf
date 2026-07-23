@@ -1,9 +1,9 @@
 locals {
+  # Ejecución = Bitso (2026-07-03; key SIN permiso de retiro — PRD §8.3).
+  # Binance queda solo como fuente de DATA pública (sin key necesaria).
   secrets = [
-    "binance-api-key",
-    "binance-api-secret",
-    "binance-testnet-api-key",
-    "binance-testnet-api-secret",
+    "bitso-api-key",
+    "bitso-api-secret",
     "deepseek-api-key",
     "openai-api-key",
     "db-password",
@@ -18,4 +18,8 @@ resource "google_secret_manager_secret" "secrets" {
   replication {
     auto {}
   }
+}
+
+output "secret_ids" {
+  value = { for k, s in google_secret_manager_secret.secrets : k => s.secret_id }
 }

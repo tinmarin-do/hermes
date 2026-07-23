@@ -3,10 +3,11 @@
 Each source returns a list of normalized dicts:
   {id, source, url, title, body, published_at (datetime), symbols (list[str])}
 """
-import os
-import json
+
 import hashlib
-from datetime import datetime, timezone
+import json
+import os
+from datetime import UTC, datetime
 from xml.etree import ElementTree
 
 import httpx
@@ -35,15 +36,17 @@ def fetch_cryptopanic(symbols: list[str], limit: int = 50) -> list[dict]:
         for post in resp.json().get("results", [])[:limit]:
             title = post.get("title", "")
             link = post.get("url", "")
-            items.append({
-                "id": _stable_id("cryptopanic", link, title),
-                "source": "cryptopanic",
-                "url": link,
-                "title": title,
-                "body": post.get("body", "") or "",
-                "published_at": _parse_iso(post.get("published_at")),
-                "symbols": [c.get("code") for c in post.get("currencies", []) or []],
-            })
+            items.append(
+                {
+                    "id": _stable_id("cryptopanic", link, title),
+                    "source": "cryptopanic",
+                    "url": link,
+                    "title": title,
+                    "body": post.get("body", "") or "",
+                    "published_at": _parse_iso(post.get("published_at")),
+                    "symbols": [c.get("code") for c in post.get("currencies", []) or []],
+                }
+            )
     except (httpx.HTTPError, ValueError):
         return items
     return items
@@ -53,8 +56,12 @@ def _fetch_rss(source_name: str, url: str, symbols: list[str], limit: int = 50) 
     """Generic RSS fetcher — free, no API key. Editorial sources for corroboration."""
     items: list[dict] = []
     try:
-        resp = httpx.get(url, timeout=20, follow_redirects=True,
-                         headers={"User-Agent": "Hermes/0.1 (news ingest)"})
+        resp = httpx.get(
+            url,
+            timeout=20,
+            follow_redirects=True,
+            headers={"User-Agent": "Hermes/0.1 (news ingest)"},
+        )
         resp.raise_for_status()
         root = ElementTree.fromstring(resp.content)
         for item in root.iter("item"):
@@ -62,15 +69,17 @@ def _fetch_rss(source_name: str, url: str, symbols: list[str], limit: int = 50) 
             link = (item.findtext("link") or "").strip()
             desc = (item.findtext("description") or "").strip()
             pub = item.findtext("pubDate")
-            items.append({
-                "id": _stable_id(source_name, link, title),
-                "source": source_name,
-                "url": link,
-                "title": title,
-                "body": desc,
-                "published_at": _parse_rfc822(pub),
-                "symbols": _infer_symbols(title + " " + desc, symbols),
-            })
+            items.append(
+                {
+                    "id": _stable_id(source_name, link, title),
+                    "source": source_name,
+                    "url": link,
+                    "title": title,
+                    "body": desc,
+                    "published_at": _parse_rfc822(pub),
+                    "symbols": _infer_symbols(title + " " + desc, symbols),
+                }
+            )
             if len(items) >= limit:
                 break
     except (httpx.HTTPError, ElementTree.ParseError):
@@ -80,7 +89,9 @@ def _fetch_rss(source_name: str, url: str, symbols: list[str], limit: int = 50) 
 
 def fetch_coindesk_rss(symbols: list[str], limit: int = 50) -> list[dict]:
     """CoinDesk — editorial house A."""
-    return _fetch_rss("coindesk_rss", "https://www.coindesk.com/arc/outboundfeeds/rss/", symbols, limit)
+    return _fetch_rss(
+        "coindesk_rss", "https://www.coindesk.com/arc/outboundfeeds/rss/", symbols, limit
+    )
 
 
 def fetch_cointelegraph_rss(symbols: list[str], limit: int = 50) -> list[dict]:
@@ -118,33 +129,38 @@ def fetch_whale_alert(symbols: list[str], limit: int = 50) -> list[dict]:
             to = tx.get("to", {}).get("owner_type", "unknown")
             title = f"On-chain: {amount:,.0f} {sym.upper()} {frm} → {to}"
             tx_hash = tx.get("hash", "")
-            items.append({
-                "id": _stable_id("whale_alert", tx_hash, title),
-                "source": "whale_alert",
-                "url": f"https://whale-alert.io/transaction/{sym}/{tx_hash}",
-                "title": title,
-                "body": json.dumps({k: tx.get(k) for k in ("blockchain", "amount_usd", "transaction_type")}),
-                "published_at": _parse_epoch(tx.get("timestamp")),
-                "symbols": [sym.upper()] if sym else [],
-            })
+            items.append(
+                {
+                    "id": _stable_id("whale_alert", tx_hash, title),
+                    "source": "whale_alert",
+                    "url": f"https://whale-alert.io/transaction/{sym}/{tx_hash}",
+                    "title": title,
+                    "body": json.dumps(
+                        {k: tx.get(k) for k in ("blockchain", "amount_usd", "transaction_type")}
+                    ),
+                    "published_at": _parse_epoch(tx.get("timestamp")),
+                    "symbols": [sym.upper()] if sym else [],
+                }
+            )
     except (httpx.HTTPError, ValueError):
         return items
     return items
 
 
 SOURCE_FETCHERS = {
-    "cryptopanic": fetch_cryptopanic,        # aggregator + community voting
-    "coindesk_rss": fetch_coindesk_rss,      # editorial A
+    "cryptopanic": fetch_cryptopanic,  # aggregator + community voting
+    "coindesk_rss": fetch_coindesk_rss,  # editorial A
     "cointelegraph_rss": fetch_cointelegraph_rss,  # editorial B
-    "decrypt_rss": fetch_decrypt_rss,        # editorial C
-    "whale_alert": fetch_whale_alert,        # on-chain facts (key-gated)
+    "decrypt_rss": fetch_decrypt_rss,  # editorial C
+    "whale_alert": fetch_whale_alert,  # on-chain facts (key-gated)
 }
 
 
 def fetch_all(symbols: list[str], sources: list[str] | None = None, limit: int = 50) -> list[dict]:
     if sources is None:
-        raw = os.environ.get("NEWS_SOURCES",
-                             "cryptopanic,coindesk_rss,cointelegraph_rss,decrypt_rss")
+        raw = os.environ.get(
+            "NEWS_SOURCES", "cryptopanic,coindesk_rss,cointelegraph_rss,decrypt_rss"
+        )
         sources = [s.strip() for s in raw.split(",")]
 
     all_items: list[dict] = []
@@ -158,30 +174,31 @@ def fetch_all(symbols: list[str], sources: list[str] | None = None, limit: int =
 # ── helpers ──────────────────────────────────────────────────────────────────
 def _parse_iso(s: str | None) -> datetime:
     if not s:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
     try:
         return datetime.fromisoformat(s.replace("Z", "+00:00")).replace(tzinfo=None)
     except ValueError:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _parse_rfc822(s: str | None) -> datetime:
     if not s:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
     from email.utils import parsedate_to_datetime
+
     try:
         return parsedate_to_datetime(s).replace(tzinfo=None)
     except (TypeError, ValueError):
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _parse_epoch(ts: int | None) -> datetime:
     if not ts:
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
     try:
-        return datetime.fromtimestamp(int(ts), tz=timezone.utc).replace(tzinfo=None)
+        return datetime.fromtimestamp(int(ts), tz=UTC).replace(tzinfo=None)
     except (ValueError, OSError):
-        return datetime.now(timezone.utc).replace(tzinfo=None)
+        return datetime.now(UTC).replace(tzinfo=None)
 
 
 def _infer_symbols(text: str, watchlist: list[str]) -> list[str]:
@@ -190,8 +207,14 @@ def _infer_symbols(text: str, watchlist: list[str]) -> list[str]:
     found = []
     for sym in watchlist:
         base = sym.split("/")[0].lower()
-        names = {"btc": "bitcoin", "eth": "ethereum", "sol": "solana",
-                 "bnb": "binance", "avax": "avalanche", "matic": "polygon"}
+        names = {
+            "btc": "bitcoin",
+            "eth": "ethereum",
+            "sol": "solana",
+            "bnb": "binance",
+            "avax": "avalanche",
+            "matic": "polygon",
+        }
         if base in text_low or names.get(base, "###") in text_low:
             found.append(base.upper())
     return found

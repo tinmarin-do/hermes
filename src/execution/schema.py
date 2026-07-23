@@ -5,6 +5,7 @@ so the DDL lives here and is called from each adapter's constructor. This
 prevents BinanceAdapter (testnet/live) from crashing on persist when no
 PaperAdapter was ever instantiated to create the table.
 """
+
 from __future__ import annotations
 
 from src.data.db import get_connection

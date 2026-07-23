@@ -11,17 +11,19 @@ Pricing comes from env (per 1M tokens):
   LLM_COST_DEEPSEEK_FLASH_INPUT   (default 0.14)
   LLM_COST_DEEPSEEK_FLASH_OUTPUT  (default 0.28)
 """
+
 from __future__ import annotations
 
 import os
 from contextvars import ContextVar
-from dataclasses import dataclass, field
-from datetime import datetime, timezone
+from dataclasses import dataclass
+from datetime import UTC, datetime
+from typing import Any
 
 from langchain_core.callbacks import BaseCallbackHandler
 
 # Active meter for the current run. ContextVar so concurrent runs don't bleed.
-_active_meter: ContextVar["CostMeter | None"] = ContextVar("_active_meter", default=None)
+_active_meter: ContextVar[CostMeter | None] = ContextVar("_active_meter", default=None)
 
 
 def _price_input() -> float:
@@ -52,11 +54,12 @@ class CostMeter:
 
     @property
     def cost_usd(self) -> float:
-        cost = (self.prompt_tokens / 1_000_000) * _price_input() \
-            + (self.completion_tokens / 1_000_000) * _price_output()
+        cost = (self.prompt_tokens / 1_000_000) * _price_input() + (
+            self.completion_tokens / 1_000_000
+        ) * _price_output()
         return round(cost, 4)
 
-    def summary(self) -> dict:
+    def summary(self) -> dict[str, Any]:
         return {
             "run_id": self.run_id,
             "n_calls": self.n_calls,
@@ -70,7 +73,7 @@ class CostMeter:
 class CostCallbackHandler(BaseCallbackHandler):
     """Attached to every LLM via get_llm — routes token usage to the active meter."""
 
-    def on_llm_end(self, response, **kwargs) -> None:  # noqa: ANN001
+    def on_llm_end(self, response: Any, **kwargs: Any) -> None:
         meter = _active_meter.get()
         if meter is None:
             return
@@ -78,7 +81,7 @@ class CostCallbackHandler(BaseCallbackHandler):
         meter.add(prompt, completion)
 
 
-def _extract_tokens(response) -> tuple[int, int]:  # noqa: ANN001
+def _extract_tokens(response: Any) -> tuple[int, int]:
     """Pull (prompt, completion) tokens from a LangChain LLMResult, robust to shape."""
     # Path 1: aggregated llm_output (OpenAI-compatible, incl. DeepSeek).
     llm_output = getattr(response, "llm_output", None) or {}
@@ -119,19 +122,20 @@ def estimate_cost_usd(default_total_tokens: int = 150_000) -> float:
     # Fallback baseline: 70% input / 30% output split of a typical full run.
     p_in = int(default_total_tokens * 0.7)
     p_out = default_total_tokens - p_in
-    return round((p_in / 1_000_000) * _price_input()
-                 + (p_out / 1_000_000) * _price_output(), 4)
+    return round((p_in / 1_000_000) * _price_input() + (p_out / 1_000_000) * _price_output(), 4)
 
 
 def _historical_avg_cost(last_n: int = 10) -> float | None:
     try:
         from src.data.db import get_connection
+
         con = get_connection()
         try:
             _ensure_table(con)
             row = con.execute(
                 "SELECT AVG(cost_usd) FROM (SELECT cost_usd FROM llm_cost_runs "
-                "ORDER BY ts DESC LIMIT ?)", [last_n],
+                "ORDER BY ts DESC LIMIT ?)",
+                [last_n],
             ).fetchone()
         finally:
             con.close()
@@ -140,7 +144,7 @@ def _historical_avg_cost(last_n: int = 10) -> float | None:
         return None
 
 
-def _ensure_table(con) -> None:  # noqa: ANN001
+def _ensure_table(con: Any) -> None:
     con.execute("""
         CREATE TABLE IF NOT EXISTS llm_cost_runs (
             run_id            VARCHAR NOT NULL,
@@ -159,8 +163,9 @@ def _ensure_table(con) -> None:  # noqa: ANN001
 def persist_run(meter: CostMeter) -> None:
     """Persist actual usage to DuckDB so /cost:log can append it to the ledger."""
     from src.data.db import get_connection
+
     con = get_connection()
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    now = datetime.now(UTC).replace(tzinfo=None)
     try:
         _ensure_table(con)
         con.execute(
@@ -168,8 +173,93 @@ def persist_run(meter: CostMeter) -> None:
                (run_id, ts, n_calls, prompt_tokens, completion_tokens,
                 total_tokens, cost_usd, logged_to_ledger)
                VALUES (?, ?, ?, ?, ?, ?, ?, FALSE)""",
-            [meter.run_id, now, meter.n_calls, meter.prompt_tokens,
-             meter.completion_tokens, meter.total_tokens, meter.cost_usd],
+            [
+                meter.run_id,
+                now,
+                meter.n_calls,
+                meter.prompt_tokens,
+                meter.completion_tokens,
+                meter.total_tokens,
+                meter.cost_usd,
+            ],
         )
     finally:
         con.close()
+
+
+def mark_logged(run_id: str) -> int:
+    """Flip `logged_to_ledger=TRUE` after `/cost:log` appended the run to the
+    markdown ledger, so `/cost:status` stops flagging it as unregistered.
+
+    Accepts a full run_id or a unique prefix — the markdown ledger stores the
+    short 8-char form while DuckDB keeps the full UUID. Only unlogged matches are
+    touched (idempotent). Returns the number of rows updated.
+    """
+    from src.data.db import get_connection
+
+    con = get_connection()
+    try:
+        _ensure_table(con)
+        rows = con.execute(
+            "UPDATE llm_cost_runs SET logged_to_ledger = TRUE "
+            "WHERE run_id LIKE ? AND NOT logged_to_ledger RETURNING run_id",
+            [f"{run_id}%"],
+        ).fetchall()
+        return len(rows)
+    finally:
+        con.close()
+
+
+def mark_logged_cloud(run_id: str) -> int:
+    """`mark_logged` contra el DuckDB de GCS (las corridas cloud viven ahí, no en el
+    archivo local — gap detectado 2026-07-03). Baja SOLO el blob del DB a un tmp,
+    flipea el flag y lo re-sube; jamás toca el snapshot (evita pisar el del dashboard
+    con uno local viejo). Ventana de carrera con una corrida en vuelo: aceptable en
+    POC (1 corrida/día + versioning del bucket)."""
+    import tempfile
+
+    from src.brain.state_sync import _bucket
+
+    bucket = _bucket()
+    blob = bucket.blob("hermes.duckdb")
+    if not blob.exists():
+        raise RuntimeError("gs://.../hermes.duckdb no existe — nada que marcar")
+
+    with tempfile.NamedTemporaryFile(suffix=".duckdb", delete=False) as tmp:
+        tmp_path = tmp.name
+    blob.download_to_filename(tmp_path)
+
+    prev = os.environ.get("HERMES_DUCKDB_PATH")
+    os.environ["HERMES_DUCKDB_PATH"] = tmp_path
+    try:
+        n = mark_logged(run_id)
+    finally:
+        if prev is None:
+            del os.environ["HERMES_DUCKDB_PATH"]
+        else:
+            os.environ["HERMES_DUCKDB_PATH"] = prev
+
+    if n > 0:
+        # timeout amplio: ~120MB desde uplink doméstico excede el default de 120s
+        bucket.blob("hermes.duckdb").upload_from_filename(tmp_path, timeout=600)
+    os.unlink(tmp_path)
+    return n
+
+
+if __name__ == "__main__":
+    import sys
+
+    # `--mark-logged <run_id> [--cloud]` flips the DuckDB ledger flag — invoked by the
+    # /cost:log skill right after it appends the row to the markdown ledger. `--cloud`
+    # targets the GCS state DB (corridas del brain en Cloud Run).
+    if len(sys.argv) >= 3 and sys.argv[1] == "--mark-logged":
+        rid = sys.argv[2]
+        if "--cloud" in sys.argv[3:]:
+            n = mark_logged_cloud(rid)
+            print(f"[cost_meter] (cloud) marked {n} run(s) as logged_to_ledger for '{rid}'")
+        else:
+            n = mark_logged(rid)
+            print(f"[cost_meter] marked {n} run(s) as logged_to_ledger for '{rid}'")
+    else:
+        print("usage: python -m src.brain.cost_meter --mark-logged <run_id> [--cloud]")
+        sys.exit(2)

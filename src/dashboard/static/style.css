@@ -46,3 +46,12 @@ select {
 }
 code { background: #000; padding: 1px 5px; border-radius: 4px; }
 footer { margin-top: 24px; }
+.chart-wrap.slim { height: 200px; }
+.votes { letter-spacing: 2px; margin-left: 6px; font-size: 12px; }
+.metric { margin-right: 16px; font-variant-numeric: tabular-nums; }
+details { margin: 6px 0; border: 1px solid var(--border); border-radius: 8px; padding: 6px 10px; }
+details summary { cursor: pointer; color: var(--muted); }
+details pre {
+  white-space: pre-wrap; word-break: break-word; font-size: 12px;
+  background: #000; border-radius: 6px; padding: 10px; max-height: 260px; overflow: auto;
+}

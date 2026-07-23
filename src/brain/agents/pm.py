@@ -1,4 +1,5 @@
 """Portfolio Manager — final decision gate. §8.7.2 brake enforcement."""
+
 import os
 
 from langchain_core.messages import HumanMessage, SystemMessage
@@ -28,35 +29,47 @@ def portfolio_manager(state: HermesState) -> dict:
     decision = state.get("trader_decision", {})
     approved = state.get("risk_approved", False)
     verdict = state.get("debate_verdict", "HOLD")
-    max_positions = int(os.environ.get("HERMES_MAX_POSITIONS", "2"))
+    max_positions = int(os.environ.get("HERMES_MAX_POSITIONS", "6"))
 
-    response = llm.invoke([
-        SystemMessage(content=SYSTEM),
-        HumanMessage(content=(
-            f"Debate verdict: {verdict}\n"
-            f"Trader decision: {decision.get('action')} {decision.get('symbol')} "
-            f"${decision.get('size_usd', 0):.2f}\n"
-            f"Risk approved: {'YES' if approved else 'NO — must HOLD'}\n"
-            f"Risk synthesis: {state.get('risk_synthesis', '')}\n"
-            f"Max simultaneous positions: {max_positions}\n\n"
-            "Make the final call. If verdict is HOLD or risk not approved, you MUST HOLD."
-        )),
-    ])
+    response = llm.invoke(
+        [
+            SystemMessage(content=SYSTEM),
+            HumanMessage(
+                content=(
+                    f"Debate verdict: {verdict}\n"
+                    f"Trader decision: {decision.get('action')} {decision.get('symbol')} "
+                    f"${decision.get('size_usd', 0):.2f}\n"
+                    f"Risk approved: {'YES' if approved else 'NO — must HOLD'}\n"
+                    f"Risk synthesis: {state.get('risk_synthesis', '')}\n"
+                    f"Max simultaneous positions: {max_positions}\n\n"
+                    "Make the final call. If verdict is HOLD or risk not approved, you MUST HOLD."
+                )
+            ),
+        ]
+    )
 
     text = response.content
 
     # ── Programmatic guardrails (freno asimétrico) ──
     if not approved:
         return {
-            "pm_decision": {"action": "HOLD", "symbol": "NONE", "size_usd": 0.0,
-                            "rationale": f"REJECTED by risk guardrails. Response:\n{text}"},
+            "pm_decision": {
+                "action": "HOLD",
+                "symbol": "NONE",
+                "size_usd": 0.0,
+                "rationale": f"REJECTED by risk guardrails. Response:\n{text}",
+            },
             "messages": [HumanMessage(content=f"[PortfolioManager]\n{text}")],
         }
 
     if verdict == "HOLD":
         return {
-            "pm_decision": {"action": "HOLD", "symbol": "NONE", "size_usd": 0.0,
-                            "rationale": f"Debate verdict HOLD — PM brake. Response:\n{text}"},
+            "pm_decision": {
+                "action": "HOLD",
+                "symbol": "NONE",
+                "size_usd": 0.0,
+                "rationale": f"Debate verdict HOLD — PM brake. Response:\n{text}",
+            },
             "messages": [HumanMessage(content=f"[PortfolioManager]\n{text}")],
         }
 

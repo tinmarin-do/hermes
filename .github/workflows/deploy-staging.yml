@@ -8,6 +8,10 @@ jobs:
   deploy-staging:
     name: Deploy to staging (testnet)
     runs-on: ubuntu-latest
+    # Gate: only runs once GCP is configured (var GCP_PROJECT_ID set). Until then
+    # the job is skipped (neutral), not failed — avoids red X on every develop
+    # push before /infra:bootstrap + secrets exist.
+    if: ${{ vars.GCP_PROJECT_ID != '' }}
     environment: staging
     steps:
       - uses: actions/checkout@v4
