@@ -1226,3 +1226,48 @@ Estado: libro vivo hasta el rebalanceo de grilla 2026-08-08 (⛰️); reconcile
 manual por ahora (scheduler+terraform pendientes); kill switch operativo;
 resultados de plomería NO tocan el expediente. Camino: marks del shadow +
 bitácora → paquete de sign-off ~27-jul → cartera completa.
+
+### H13-§14 — ❌ WATCHDOG vol-relativo NO PASA §8.1 (2026-07-25, trials 27-29, n_trials=29)
+
+Idea de Erika (2026-07-24): soltar cada posición por precio (gatillo simétrico
+TP/SL a `k·sigma20`) en vez de esperar los 28 días completos. Pre-registrado
+en `DESIGN_H13_trend_absolute.md` §14 ANTES de correr, citando el precedente
+de H11 (TP/SL fijo ±3% enterrado por quedar dentro de la banda de ruido) y
+documentando dos diferencias de diseño: ventana completa de 28d (no 1-día-
+vista) y umbral relativo a la vol de cada símbolo (no % fijo universal).
+Grilla cerrada `k∈{1.0,1.5,2.0}` sobre `gruls-ivol`, mismas 40 ventanas.
+
+| k | mediana 2022+ | media 2022+ | vs gruls-ivol (+1.01 med) | W1·W2·W3·W4 | tasa de salida temprana | día medio de salida |
+|---|---|---|---|---|---|---|
+| 1.0 | +0.74 | +0.47 | por debajo | ❌✅✅✅ NO PASA | 99.5% | 4.0/28 |
+| 1.5 | +1.12 | +0.90 | apenas arriba | ❌✅✅✅ NO PASA | 98.0% | 6.8/28 |
+| 2.0 | +0.69 | +0.78 | por debajo | ❌✅✅✅ NO PASA | 92.8% | 9.9/28 |
+
+**Ningún config pasa la vara §8.1 — los tres fallan W1 (media < +1.0%/ventana
+en 2022+)**; W2/W3/W4 pasan en los tres (sin años muertos, estrés 2021 ok,
+sostiene cuando el mercado cae). k=1.5 apenas supera la mediana de referencia
+de `gruls-ivol` sin watchdog (+1.12 vs +1.01) pero **no se reporta como
+ganador**: falla la vara dura §8.1 igual que los otros dos, y con solo 3
+puntos de grilla, quedarse con el único que edita el comparador blando sería
+verdict-shopping — la vara no se ablanda post-resultado.
+
+**Causa raíz identificada (no es "no funciona", es un bug de calibración
+concreto)**: `sigma20` es volatilidad DIARIA; el gatillo se compara contra un
+camino ACUMULADO de hasta 28 días, cuya dispersión crece con `√t`. Un umbral
+de `k` sigmas diarias queda MUY apretado frente a un camino de varias semanas
+— por eso la tasa de salida temprana es 93-99.5% en TODA la grilla (incluido
+k=2.0) y el día medio de cierre es 4-10 de 28: el watchdog nunca llegó a
+probar "dejar correr una tendencia real", probó "recortar casi todo casi de
+inmediato". Es el mismo síntoma que mató a H11 (amputa la cola derecha que
+paga la estrategia — falla específicamente en W1, el criterio de magnitud),
+pero por una causa distinta y identificable: el umbral no escala con el
+tiempo transcurrido. Corrección honesta para una eventual §15 (NO aplicada
+aquí — sería reinterpretar el resultado post-hoc): `k·sigma20·√d` evaluado
+día a día, para que la banda se ensanche con la ventana en vez de ser plana.
+
+**Veredicto: FALSIFICADO tal como se pre-registró.** Se documenta y queda
+fuera del candidato vivo — `gruls-ivol` sin watchdog sigue siendo la única
+pieza operativa (plomería §10.2 intacta, sin cambios). Trials:
+`watchdog-k{1.0,1.5,2.0}-20260724`. Reportes: `reports/h13_watchdog.{json,md}`.
+Imagen `lab:v29` (drift menor vs terraform, pendiente alinear
+`TF_VAR_lab_image` como ya estaba anotado de antes).
