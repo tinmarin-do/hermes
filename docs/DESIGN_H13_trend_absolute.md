@@ -309,3 +309,70 @@ ETH/LTC/BCH $20, resto $5-6 → el libro completo 5+5 exige wallet ~$620 (ew) /
   cartera completa (~$650+; desde agosto, con σ del ledger madura, ~$450 con ivol).
 - PLUMBING_MODE es un env del job, default OFF: producción conserva
   libro-completo-o-CASH sin excepciones.
+
+## 14. Enmienda — salida por precio (watchdog) sobre `gruls-ivol` (2026-07-24, pre-registro)
+
+Idea de Erika (conversación 2026-07-24): capturar "energía cinética" en ambas direcciones
+sin esperar los 28 días completos — soltar una posición cuando el precio ya dio el
+movimiento buscado, en vez de sostenerla hasta el próximo rebalanceo pase lo que pase.
+
+### 14.1 Precedente — por qué esto NO es una repetición ciega
+
+H11 ya probó take-profit/stop-loss a nivel FIJO ±3% sobre el clasificador diario
+(`src/lab/backtest_daily.py`, `StrategyParams.stop_loss`/`take_profit`, chequeo a 1 día
+vista vía `fwd_high_ret`/`fwd_low_ret`) y lo enterró con evidencia
+(`docs/EXPERIMENT_LOG.md` — TP+3%: +0.164%→−0.086%/día; SL−3%: +0.169%→−0.022%/día;
+`docs/DESIGN_H11_daily_classifier.md` §10.3): *"ningún mecanismo de salida intradía a ±3%
+sobrevive en este universo — el nivel está dentro de la banda de ruido"*. Un nivel fijo
+universal quedaba dentro de la vol diaria típica de cripto (~3-5%) y amputaba la cola
+derecha que paga la estrategia. **No se re-mide sin mostrar esta evidencia** (regla de
+la casa) — este diseño ataca directamente esa causa de muerte con dos diferencias:
+
+1. El gatillo se evalúa sobre la ventana completa de 28 días (camino día a día), no un
+   solo "¿tocó mañana?" a 1 día vista.
+2. El umbral es **relativo a la vol de cada símbolo** (`sigma20` = `close.pct_change()`
+   con `.rolling(20).std()`, la MISMA métrica que ya pondera la pierna ivol en
+   `spread_leg_weights`, `src/lab/h13_eval.py`), no un porcentaje universal fijo.
+
+### 14.2 Mecanismo
+
+- **Cadencia de re-rankeo**: intacta, 28d (⛰️ — el GRU congelado sigue prediciendo a su
+  horizonte entrenado; solo cambia CUÁNDO se cierra una posición ya abierta, no cuándo
+  se vuelve a preguntar quién es top-5/bottom-5).
+- **Monitoreo**: diario, dentro de cada ventana de 28d, usando los `close` diarios ya
+  presentes en el panel de `load_panel` (sin ingesta nueva).
+- **Gatillo por posición individual** (no a nivel de todo el libro): cada símbolo del
+  libro (largo o corto) se cierra en cuanto su retorno acumulado desde `t0` cruza
+  `+k·sigma20` (toma de ganancia) o `−k·sigma20` (stop de pérdida) — simétrico, ambas
+  direcciones, con el signo de la pata ya aplicado (una pata corta gana con precio
+  bajando). Si ninguno se cruza, se sostiene hasta el cierre natural del día 28.
+- **Capital liberado**: queda en CASH hasta el próximo rebalanceo programado — no hay
+  re-entrada intra-ventana (evita inventar una segunda regla de rebalanceo no
+  registrada).
+- **Se descarta explícitamente** el kill-switch a nivel de cartera completa (un solo
+  símbolo rezagado retendría a los que ya quieren salir).
+- **Costos**: mismos de §13.3 (`ROUNDTRIP`, `FUNDING_28D`/`FUNDING_BUFFER` de
+  `src/lab/h13_eval.py`) — el cierre anticipado paga el mismo roundtrip que un cierre a
+  28d, prorrateado por los días efectivamente sostenidos para el funding.
+
+### 14.3 Grilla CERRADA (pre-registrada antes de correr)
+
+`k ∈ {1.0, 1.5, 2.0}` (múltiplo de `sigma20`), simétrico TP/SL, sobre la pierna ganadora
+de F4b (`ivol`, ya pasó §8.1). 3 configs. Cualquier config adicional requiere enmienda
+pre-registrada nueva antes de correrla.
+
+### 14.4 Vara
+
+Bajo las mismas 40 ventanas purgadas de `window_check` (seed 42, purge/embargo 28d): la
+mediana neta 2022+ del watchdog **no debe quedar por debajo** de la mediana neta 2022+ de
+`gruls-ivol` sin watchdog (`net_median_modern` de `apply_h13_bar`, ya registrada en
+`reports/h13_spread.json`) — mismo patrón que §7 F5 ("entra SOLO si mejora al crudo bajo
+la misma vara"). Si no mejora, se documenta y queda fuera; la vara no se ablanda
+post-resultado. Reporte obligatorio: contribución de TP vs SL por separado (cuántas
+patas cerraron por cada motivo), para poder distinguir "capturó la cola derecha" de
+"solo evitó pérdidas".
+
+### 14.5 Conteo de trials
+
+La construcción del motor y sus tests unitarios son ingeniería pura — no cuentan al DSR.
+Correr la grilla de 3 configs bajo `window_check` SÍ cuenta: `n_trials` 26→29.
