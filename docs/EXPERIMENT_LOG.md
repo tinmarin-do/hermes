@@ -1271,3 +1271,35 @@ pieza operativa (plomería §10.2 intacta, sin cambios). Trials:
 `watchdog-k{1.0,1.5,2.0}-20260724`. Reportes: `reports/h13_watchdog.{json,md}`.
 Imagen `lab:v29` (drift menor vs terraform, pendiente alinear
 `TF_VAR_lab_image` como ya estaba anotado de antes).
+
+---
+
+## ARCO H14 — prima de rebalanceo "cosecha del vaivén" (abierto 2026-07-26, pre-registro)
+
+**Origen**: observación de Erika ("diario gano y al día siguiente ya bajó mi portafolio") +
+su directiva: universo = TODO el mercado y planteamiento riguroso de la H antes de medir.
+**Pre-registrado en `DESIGN_H14_rebalancing_premium.md` ANTES de cualquier corrida**, con una
+particularidad: el borrador v1 pasó por crítica adversarial doble (metodológica + cuantitativa
+con Monte Carlo) que encontró 3 defectos invalidantes — benchmark de γ* confundido con el
+premio vs buy-and-hold, gemelo IID algebraicamente vacuo a f=1d, funding mal asignado al solo
+lado del fixmix — corregidos en la v2 que se registra (§11 del DESIGN, parte del expediente).
+
+Claves:
+- **H**: anti-persistencia (VR<1) vigente en el estrato ejecutable como CONDICIÓN NECESARIA
+  (H-A, H-C); condicional a ella, fixmix diario w=½ vs B&H neto de fricciones simétricas
+  (H-B, solo F3). Prior honesto pre-registrado: ~15%.
+- **Universo**: 825 perps USDT-M históricos de data.binance.vision, ANTI-supervivencia
+  (deslistados con klines y funding conservados — verificado), point-in-time, estratos de
+  liquidez mensuales sin lookahead; estrato ejecutable = top-40% (congelado en el DESIGN).
+- **Falsadores con IC** (n_eff≈1.25 por corr cross-seccional ~0.8 → bootstrap de bloques
+  sobre fechas, decisión jamás por punto): H-A = IC90 mediana VR(28) ≥1 o ρ₁ ≥0 en 2022+;
+  H-C = ídem en 2024-07→2026-06 (ventana fija). Agregador sin escotillas: F3 ⟺ H-A ∧ H-C.
+- **DSR**: F0-F2a descriptivo, NO cuenta; F3 (si llega) = 1 trial contado, n 29→30, con vara
+  de Erika + enmienda ⛰️ aprobada ANTES. Compromisos anti-forking: f=1d único evaluable,
+  spot no resucita, numerario USDT con MXN espejo, pase histórico solo compra shadow forward.
+- **Precedentes citados**: Zaremba 2021 (reversal diario = iliquidez; el segmento líquido
+  muestra momentum — la amenaza principal), autopsia watchdog H13-§14 y ±3% H11 (intervenir a
+  diario amputó dos veces la cola derecha), H11 cierre (sin alpha 1d), H10.2 (OU pierde),
+  persistencia propia 2026 = 0.518 (el vaivén se apaga — por eso H-C).
+- n_trials sigue en **29**. Costo F1+F2a estimado <$1. Arco H13 (shadow/firewall/plomería)
+  intacto y sin competir.
