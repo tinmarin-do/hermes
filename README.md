@@ -35,13 +35,14 @@ Hermes es dos productos en uno:
 | **Watchdog de drawdown** | Cloud Scheduler cada 30 min → re-corrida de emergencia | Activo |
 | **Dashboard** | Cloud Run + **IAP (custom OAuth)** | **Privado por diseño** — `/api/live` sirve balances reales; demos = viewer temporal, no flip público |
 | **Laboratorio de research** | Cloud Run job `hermes-lab` + bucket `hermes-research-*` | Activo; billing budget con alertas 50/80% |
-| **Shadow (juez forward)** | Job `hermes-shadow` + scheduler; marks diarios | Activo — multi-stream, **jamás ejecuta** |
-| **Ejecutor long-short** | Cloud Run job en `europe-west1`, Cloud NAT con IP fija, key IP-restringida | **Primer libro L/S real ejecutado 2026-07-13**: 6 órdenes, margen aislado 1x, fees reales $0.06 ≈ modelo |
+| **Shadow (juez forward)** | Job `hermes-shadow-h12` + scheduler `00:20` UTC | Activo — ledger multi-stream con marks diarios, **jamás ejecuta**. El reporte de marks del candidato L/S se corre on-demand |
+| **Ejecutor long-short** | Cloud Run job en `europe-west1`, Cloud NAT con IP fija, key IP-restringida | **Primer libro L/S real ejecutado 2026-07-13**: 6 órdenes, margen aislado 1x, fees reales $0.06 ≈ modelo. Libro abierto hasta el rebalanceo de grilla; reconciliación manual |
 | **Secretos** | Secret Manager (keys sin permiso de retiro) | Nunca en repo, nunca en contexto del agente |
 | **CI/CD** | GitHub Actions (GitFlow): tests + cost-check + security scan | Verde como condición de merge |
 
-**Costo real acumulado del arco de research en la nube: ~$17 de $290 de créditos** (regla
-dura: jamás pasar del 80%). Cada operación con costo pasa por un gate de cotización.
+**Costo del arco de research en la nube: ~$17 de $290 de créditos** (último corte registrado,
+2026-07-13; regla dura: jamás pasar del 80%). Cada operación con costo pasa por un gate de
+cotización, y el gasto real de LLM por corrida queda en el log (~$0.01/día).
 
 ---
 
