@@ -1,0 +1,8 @@
+# Marcador para que `data/` exista al clonar.
+#
+# El contenedor corre como uid 1000 (ver Dockerfile). docker-compose.yml monta
+# `../data:/app/data`; si el directorio no existe en el anfitrión, Docker lo crea
+# como root y la ingesta truena con PermissionError al escribir el lote de Bronze.
+#
+# El contenido de esta carpeta (bronze crudo, medallion.duckdb, índice FAISS) está
+# en .gitignore: se regenera corriendo el pipeline.

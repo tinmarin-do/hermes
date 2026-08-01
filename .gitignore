@@ -1,7 +1,12 @@
 # Datos generados por el pipeline: bronze crudo, base DuckDB e índice FAISS.
 # Se montan como volumen del contenedor y NO se versionan — se regeneran corriendo
 # el pipeline. Su persistencia entre corridas es lo que permite demostrar idempotencia.
-/data/
+#
+# El DIRECTORIO sí se versiona (vía data/.gitkeep) aunque su contenido no: el
+# contenedor corre como uid 1000 y, si `data/` no existiera al clonar, Docker la
+# crearía como root al montarla y el pipeline no podría escribir.
+/data/*
+!/data/.gitkeep
 *.duckdb
 
 # Python
