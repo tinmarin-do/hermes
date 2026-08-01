@@ -24,6 +24,27 @@ las cuatro corridas end-to-end.
 
 ---
 
+## Sobre esta rama
+
+Esto es una **adaptación para el diplomado de la rama `main`** de este mismo repo.
+`main` contiene **Hermes**, un proyecto propio de investigación cuantitativa sobre
+mercados cripto —experimental y educativo, no asesoría financiera—; esta rama
+(`diplomado/medallion`) sale de ahí y se depuró hasta dejar **únicamente la
+práctica**: los archivos de Hermes se eliminaron *de esta rama*, no de `main`.
+
+De la base original se conservó el **dominio**: noticias de mercado cripto y las
+mismas fuentes RSS. El pipeline medallón, en cambio, se escribió **desde cero**
+para la práctica, porque el de Hermes no cumple los criterios pedidos:
+
+- limpia el HTML **antes** de guardar, así que su capa cruda no es cruda;
+- no tiene contrato declarativo (`BaseModel`) ni tabla de cuarentena;
+- sus embeddings alimentan un *clustering*, sin índice vectorial ni búsqueda.
+
+Consecuencia práctica: este código no importa nada de `main` y se corre solo.
+Para ver el proyecto del que desciende, cambiar a la rama `main`.
+
+---
+
 ## Estructura
 
 ```
