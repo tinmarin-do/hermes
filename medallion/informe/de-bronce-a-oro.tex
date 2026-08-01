@@ -1,11 +1,12 @@
 % Informe del entregable — arquitectura medallón.
 % Compilar:  latexmk -xelatex informe.tex     (o: xelatex informe.tex, dos veces)
 %
-% ── Datos de la portada: editá SOLO estas cuatro líneas ─────────────────────
+% ── Datos de la portada: editá SOLO estas cinco líneas ──────────────────────
 \newcommand{\Autora}{Erika Jimenez}
 \newcommand{\Materia}{Práctica Módulo 1}
 \newcommand{\Institucion}{Diplomado de AI · Augmented Humans}
-\newcommand{\Fecha}{1 de agosto de 2026}
+\newcommand{\Fecha}{31 de julio de 2026}
+\newcommand{\Repo}{https://github.com/tinmarin-do/hermes/tree/diplomado/medallion/medallion}
 % ───────────────────────────────────────────────────────────────────────────
 
 \documentclass[11pt,a4paper]{article}
@@ -34,7 +35,10 @@
 \definecolor{suave}{HTML}{F4F5F7}
 \definecolor{acento}{HTML}{2C5F8A}
 
-\hypersetup{colorlinks=true, linkcolor=acento, urlcolor=acento, citecolor=acento}
+\hypersetup{colorlinks=true, linkcolor=acento, urlcolor=acento, citecolor=acento,
+  pdftitle={Arquitectura medallón para un corpus de noticias de mercado},
+  pdfauthor={\Autora}, pdfsubject={\Materia\ --- \Institucion},
+  pdfkeywords={medallón, bronze, silver, gold, DuckDB, FAISS, \Repo}}
 
 \lstdefinestyle{codigo}{
   basicstyle=\ttfamily\footnotesize,
@@ -70,7 +74,10 @@
 \title{\vspace{-1.5cm}\textbf{Arquitectura medallón para un corpus de noticias
 de mercado}\\[0.3em]\large Bronze crudo, contrato de datos, carga idempotente
 y búsqueda semántica vectorial}
-\author{\Autora \\ \small \Materia\ ---\ \Institucion}
+\author{\Autora \\ \small \Materia\ ---\ \Institucion \\[0.5em]
+  \small Código y evidencia: \href{\Repo}{\texttt{github.com/\allowbreak tinmarin-do/\allowbreak hermes}} \\
+  \footnotesize rama \texttt{diplomado/medallion} \textperiodcentered\ carpeta
+  \texttt{medallion/}}
 \date{\Fecha}
 
 \begin{document}
@@ -400,8 +407,13 @@ desde su índice, porque la build por defecto arrastra CUDA (unos 2,5\,GB) que
 aquí no se usa. El contenedor corre como UID 1000 para que lo escrito en el
 volumen pertenezca al usuario del anfitrión y no a \texttt{root}.
 
+El código completo ---incluida la evidencia citada en este informe--- está
+público en \href{\Repo}{\texttt{github.com/\allowbreak tinmarin-do/\allowbreak hermes}}, rama
+\texttt{diplomado/medallion}, carpeta \texttt{medallion/}.
+
 \begin{lstlisting}[language=bash, caption={Reproducción completa desde cero.}]
-cd medallion
+git clone -b diplomado/medallion https://github.com/tinmarin-do/hermes.git
+cd hermes/medallion
 docker compose build
 
 docker compose run --rm medallion                    # corrida 1: lote nuevo
