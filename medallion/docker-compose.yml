@@ -1,0 +1,23 @@
+# Medallón bronze → silver → gold, contenedorizado.
+#
+#   docker compose run --rm medallion                        # corrida E2E (lote nuevo)
+#   docker compose run --rm medallion python -m medallion run --batch-id <ID>
+#   docker compose run --rm medallion python -m medallion search "texto libre"
+#
+# `data/` se monta desde el host: bronze crudo, DuckDB e índice FAISS sobreviven
+# al contenedor — indispensable para demostrar idempotencia entre corridas.
+services:
+  medallion:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: medallion:light
+    volumes:
+      - ../data:/app/data
+      - hf-cache:/home/appuser/.cache/huggingface   # el modelo se baja una sola vez
+    environment:
+      MEDALLION_DUCKDB_PATH: /app/data/medallion.duckdb
+      MEDALLION_DATA_DIR: /app/data/medallion
+
+volumes:
+  hf-cache:
