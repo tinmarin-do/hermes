@@ -1,34 +1,17 @@
-# Secrets
-.envrc
-.env
-*.key
-*.pem
-
-# GCP credentials (local)
-.gcloud_config/
+# Datos generados por el pipeline: bronze crudo, base DuckDB e índice FAISS.
+# Se montan como volumen del contenedor y NO se versionan — se regeneran corriendo
+# el pipeline. Su persistencia entre corridas es lo que permite demostrar idempotencia.
+/data/
+*.duckdb
 
 # Python
 __pycache__/
 *.pyc
 .venv/
-.uv/
 *.egg-info/
-dist/
+.pytest_cache/
+.ruff_cache/
 .coverage
-coverage.xml
-htmlcov/
-
-# Data lake (local DuckDB, models) — root-relative so it does NOT match src/data/
-/data/
-*.duckdb
-
-# Terraform
-terraform/.terraform/
-terraform/*.tfplan
-terraform/tfplan.binary
-terraform/*.tfstate
-terraform/*.tfstate.backup
-terraform/.terraform.lock.hcl
 
 # Docker
 .docker/
@@ -41,7 +24,3 @@ terraform/.terraform.lock.hcl
 # OS
 .DS_Store
 Thumbs.db
-
-# Claude Code — settings personales (heartbeat, etc.)
-.claude/settings.local.json
-src/dashboard/static/data/snapshot.json

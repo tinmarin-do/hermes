@@ -1,0 +1,4 @@
+# Extras para correr las pruebas. La imagen Docker sólo instala requirements.txt:
+# los tests corren en el anfitrión, no dentro del contenedor.
+-r requirements.txt
+pytest>=8.0

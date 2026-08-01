@@ -1,4 +1,4 @@
-# Versión light: sólo lo que el medallón necesita (nada del stack Hermes).
+# Dependencias del pipeline. Para correr las pruebas: requirements-dev.txt.
 duckdb>=1.1
 httpx>=0.27
 pydantic>=2.9
