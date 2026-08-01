@@ -1,0 +1,502 @@
+% Informe del entregable — arquitectura medallón.
+% Compilar:  latexmk -xelatex informe.tex     (o: xelatex informe.tex, dos veces)
+%
+% ── Datos de la portada: editá SOLO estas cuatro líneas ─────────────────────
+\newcommand{\Autora}{Erika}
+\newcommand{\Materia}{Arquitecturas de datos}
+\newcommand{\Institucion}{Diplomado}
+\newcommand{\Fecha}{1 de agosto de 2026}
+% ───────────────────────────────────────────────────────────────────────────
+
+\documentclass[11pt,a4paper]{article}
+
+\usepackage{fontspec}
+\setmainfont{Latin Modern Roman}
+\setmonofont{DejaVu Sans Mono}[Scale=0.82]
+\usepackage[spanish,es-noquoting]{babel}
+\usepackage[margin=2.4cm]{geometry}
+\usepackage{booktabs}
+\usepackage{longtable}
+\usepackage{array}
+\usepackage{xcolor}
+\usepackage{fvextra}
+\usepackage[most]{tcolorbox}
+\usepackage{tikz}
+\usetikzlibrary{arrows.meta,positioning,shapes.geometric}
+\usepackage{listings}
+\usepackage{caption}
+\usepackage{hyperref}
+
+\definecolor{bronce}{HTML}{A8703E}
+\definecolor{plata}{HTML}{6E7B8B}
+\definecolor{oro}{HTML}{B8912F}
+\definecolor{tinta}{HTML}{1F2933}
+\definecolor{suave}{HTML}{F4F5F7}
+\definecolor{acento}{HTML}{2C5F8A}
+
+\hypersetup{colorlinks=true, linkcolor=acento, urlcolor=acento, citecolor=acento}
+
+\lstdefinestyle{codigo}{
+  basicstyle=\ttfamily\footnotesize,
+  backgroundcolor=\color{suave},
+  keywordstyle=\color{acento}\bfseries,
+  commentstyle=\color{plata}\itshape,
+  stringstyle=\color{bronce},
+  breaklines=true,
+  showstringspaces=false,
+  frame=leftline,
+  framerule=1.6pt,
+  rulecolor=\color{acento!40},
+  xleftmargin=10pt,
+  framexleftmargin=8pt,
+  aboveskip=10pt, belowskip=10pt,
+  captionpos=b,
+}
+\lstset{style=codigo}
+\lstdefinelanguage{sqlite}{
+  morekeywords={INSERT,INTO,SELECT,FROM,WHERE,ON,CONFLICT,DO,UPDATE,SET,NOTHING,
+    CREATE,OR,REPLACE,TABLE,AS,QUALIFY,PARTITION,BY,ORDER,GROUP,HAVING,COUNT,JOIN,
+    USING,PRIMARY,KEY,DISTINCT,CASE,WHEN,THEN,ELSE,END,IS,NOT,excluded},
+  sensitive=false, morecomment=[l]{--},
+}
+
+\newtcolorbox{caja}[1][]{colback=suave, colframe=acento!55, boxrule=0.7pt,
+  arc=2pt, left=8pt, right=8pt, top=6pt, bottom=6pt, #1}
+
+\captionsetup{font=small, labelfont={bf,color=acento}}
+\setlength{\parskip}{0.45em}
+\setlength{\parindent}{0pt}
+
+\title{\vspace{-1.5cm}\textbf{Arquitectura medallón para un corpus de noticias
+de mercado}\\[0.3em]\large Bronze crudo, contrato de datos, carga idempotente
+y búsqueda semántica vectorial}
+\author{\Autora \\ \small \Materia\ ---\ \Institucion}
+\date{\Fecha}
+
+\begin{document}
+\maketitle
+
+\begin{caja}
+\textbf{Resumen.} Se implementó una arquitectura medallón completa sobre
+noticias de mercado cripto, ingeridas de tres feeds RSS públicos sin
+autenticación. La capa \emph{Bronze} conserva dos lotes crudos íntegros con
+timestamp y huella SHA-256; \emph{Silver} valida cada registro contra un
+contrato Pydantic v2 y desvía los inválidos a una tabla de cuarentena con el
+motivo del rechazo; la carga usa \emph{staging} más \texttt{UPSERT} por clave
+natural, de modo que reprocesar un lote arroja \texttt{filas\_nuevas = 0}; y
+\emph{Gold} construye un índice vectorial FAISS de 384 dimensiones que expone
+una función de búsqueda semántica. Todo corre en contenedor vía
+\texttt{docker-compose} y fue ejecutado de punta a punta cuatro veces. Los cinco
+criterios de aceptación se cumplen con evidencia reproducible.
+\end{caja}
+
+\section{Objetivo y dominio}
+
+El requisito pedía una arquitectura medallón sobre un tema de interés propio,
+alimentada por una API o feed público real y sin autenticación. El dominio
+elegido son las \textbf{noticias de mercado de criptoactivos}, por continuidad
+con un proyecto propio de investigación cuantitativa: el corpus de noticias es
+texto libre, heterogéneo y sucio, que es justamente donde un contrato de datos y
+una búsqueda semántica aportan valor real y no decorativo.
+
+Las fuentes son tres feeds RSS abiertos ---CoinDesk, Cointelegraph y
+Decrypt---, sin API key, sin token y sin cuenta. El entregable es una base de
+código autocontenida (1\,176 líneas de Python, 15 pruebas automatizadas) que no
+depende de ningún servicio de pago.
+
+\section{Arquitectura}
+
+\begin{center}
+\resizebox{\textwidth}{!}{%
+\begin{tikzpicture}[
+  font=\small,
+  capa/.style={rectangle, rounded corners=3pt, draw, thick, minimum width=3.5cm,
+               minimum height=1.5cm, align=center, text=white},
+  nota/.style={align=center, font=\scriptsize\itshape, text=tinta!70},
+  flecha/.style={-{Stealth[length=3mm]}, thick, draw=tinta!60}
+]
+\node[capa, fill=bronce] (b) {\textbf{BRONZE}\\[2pt]\scriptsize payload crudo\\\scriptsize + SHA-256};
+\node[capa, fill=plata, right=2.1cm of b] (s) {\textbf{SILVER}\\[2pt]\scriptsize contrato Pydantic\\\scriptsize + UPSERT};
+\node[capa, fill=oro, right=2.1cm of s] (g) {\textbf{GOLD}\\[2pt]\scriptsize embeddings\\\scriptsize + índice FAISS};
+
+\node[left=1.5cm of b, align=center, font=\scriptsize] (rss) {3 feeds RSS\\públicos\\(sin auth)};
+\node[below=1.05cm of s, align=center, font=\scriptsize, draw, dashed, rounded corners=2pt,
+      inner sep=4pt, text=tinta] (q) {cuarentena\\\texttt{silver\_rejects}\\(campo + motivo)};
+\node[below=1.05cm of g, align=center, font=\scriptsize, draw, rounded corners=2pt,
+      inner sep=4pt, text=tinta] (api) {\texttt{search(query, k)}\\coseno top-$k$};
+
+\draw[flecha] (rss) -- (b);
+\draw[flecha] (b) -- node[above, nota] {parse} (s);
+\draw[flecha] (s) -- node[above, nota] {embed} (g);
+\draw[flecha] (g) -- (api);
+\draw[flecha, draw=tinta!45] (s) -- node[right, nota, xshift=2pt] {inválidos} (q);
+
+\node[below=0.35cm of b, nota] {inmutable};
+\node[below=2.7cm of s, nota, yshift=0.2cm] {DuckDB · \texttt{data/medallion.duckdb}};
+\end{tikzpicture}}
+\end{center}
+
+El almacenamiento es \textbf{DuckDB} en archivo, montado como volumen del
+contenedor: el estado sobrevive entre corridas, condición necesaria para poder
+demostrar idempotencia. Las tablas son seis:
+
+\begin{center}
+\small
+\begin{tabular}{@{}llp{7.6cm}@{}}
+\toprule
+\textbf{Capa} & \textbf{Tabla} & \textbf{Rol} \\
+\midrule
+Bronze & \texttt{bronze\_batches} & payload crudo por (lote, fuente) + SHA-256 \\
+Silver & \texttt{stg\_news} & \emph{staging}, se recrea en cada corrida \\
+Silver & \texttt{silver\_news} & destino limpio, PK = clave natural \\
+Silver & \texttt{silver\_rejects} & cuarentena con campo, tipo y motivo \\
+Gold & \texttt{gold\_news\_embeddings} & mapa \texttt{news\_id} $\rightarrow$ posición en FAISS \\
+--- & \texttt{load\_audit} & bitácora por corrida (evidencia de idempotencia) \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Bronze: ingesta cruda}
+
+La regla de la capa es que el payload se guarde \textbf{tal como llegó}: sin
+parsear, sin limpiar HTML y sin recortar. Se persiste por partida doble ---
+archivo en \texttt{data/medallion/bronze/<batch\_id>/<fuente>.xml} y renglón en
+\texttt{bronze\_batches}--- con su huella SHA-256, de modo que cualquiera puede
+verificar después que el contenido no fue alterado. El \texttt{batch\_id} es el
+timestamp UTC de la corrida, y la escritura usa \texttt{ON CONFLICT DO NOTHING}:
+un lote ya escrito nunca se sobrescribe.
+
+\begin{caja}
+\textbf{Por qué no limpiar aquí.} La tentación es normalizar el HTML en la
+ingesta. Si se hace, se pierde la capacidad de re-parsear el histórico con
+reglas nuevas cuando el contrato cambie ---y con ella, el sentido de tener una
+capa Bronze. La limpieza vive en Silver.
+\end{caja}
+
+\begin{table}[h]
+\centering\small
+\caption{Lotes crudos almacenados (salida de \texttt{bronze\_batches}).}
+\begin{tabular}{@{}lrlrr@{}}
+\toprule
+\textbf{batch\_id} & \textbf{fuentes} & \textbf{fetched\_at} & \textbf{bytes crudos} & \textbf{SHA-256 distintos} \\
+\midrule
+\texttt{20260801T001833Z} & 3 & 2026-08-01 00:18:33 & 116\,368 & 3 \\
+\texttt{20260801T001859Z} & 3 & 2026-08-01 00:18:59 & 116\,368 & 3 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Silver: contrato de datos y cuarentena}
+
+Cada registro se valida contra el modelo \texttt{NewsItem} (Pydantic v2) antes
+de tocar la tabla destino. El contrato es explícito y estricto: declara
+\texttt{extra="forbid"}, de modo que un campo inesperado en el feed es un
+rechazo y no un silencio.
+
+\begin{lstlisting}[language=Python, caption={Contrato de datos (extracto de \texttt{contracts.py}).}]
+class NewsItem(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True)
+
+    news_id:      Annotated[str, Field(min_length=32, max_length=32)]
+    source:       Literal["coindesk", "cointelegraph", "decrypt"]
+    title:        Annotated[str, Field(min_length=10,  max_length=300)]
+    url:          Annotated[str, Field(min_length=12,  max_length=2000)]
+    body:         Annotated[str, Field(min_length=40,  max_length=8000)]
+    published_at: datetime
+    symbols:      list[str] = Field(default_factory=list)
+
+    @field_validator("published_at")
+    @classmethod
+    def _fecha_plausible(cls, v: datetime) -> datetime:
+        # ni del futuro ni de hace mas de tres anos
+        ...
+
+    @model_validator(mode="after")
+    def _id_consistente(self) -> "NewsItem":
+        if self.news_id != natural_key(self.source, self.url):
+            raise ValueError("news_id no corresponde a sha256(source|url)")
+        return self
+\end{lstlisting}
+
+Lo que no pasa el contrato no se descarta: se escribe en
+\texttt{silver\_rejects} junto con el \textbf{campo}, el \textbf{tipo de error},
+el \textbf{mensaje} y el \textbf{registro crudo completo} en JSON, de manera que
+el rechazo sea auditable y reprocesable. Cuando fallan varios campos a la vez se
+reporta la \emph{causa raíz}: si la URL falta, \texttt{news\_id} también falla
+por ser derivado, y el motivo relevante es el primero.
+
+\begin{table}[h]
+\centering\small
+\caption{Validación por lote. Los cuatro rechazos (2 por lote) comparten motivo:
+campo \texttt{body}, tipo \texttt{string\_too\_short}, mensaje \emph{«String should
+have at least 40 characters»} ---notas cuyo resumen RSS venía vacío o de una
+sola línea---.}
+\begin{tabular}{@{}lrrr@{}}
+\toprule
+\textbf{batch\_id} & \textbf{leídas} & \textbf{válidas} & \textbf{rechazadas} \\
+\midrule
+\texttt{20260801T001833Z} & 93 & 91 & 2 \\
+\texttt{20260801T001859Z} & 93 & 91 & 2 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Carga idempotente}
+
+La clave natural del dominio es \texttt{news\_id = sha256(source | url)[:32]}, y
+es \texttt{PRIMARY KEY} de \texttt{silver\_news}. Se eligió la URL y no el
+título ---que cambia con las ediciones del editor--- ni el GUID del feed ---que
+cada fuente formatea distinto---.
+
+El flujo es \emph{staging} y luego MERGE. La tabla \texttt{stg\_news} se recrea
+en cada corrida y se deduplica internamente, porque un mismo feed puede repetir
+una nota dentro del mismo lote; sin ese paso el \texttt{UPSERT} intentaría
+actualizar dos veces la misma fila.
+
+\begin{lstlisting}[language=sqlite, caption={Deduplicación en staging y MERGE por clave natural (\texttt{silver.py}).}]
+CREATE OR REPLACE TABLE stg_news AS
+SELECT * FROM stg_news
+QUALIFY row_number() OVER (PARTITION BY news_id ORDER BY published_at DESC) = 1;
+
+INSERT INTO silver_news (news_id, source, title, url, body, published_at,
+                         symbols, content_hash, first_batch_id, last_batch_id,
+                         inserted_at, updated_at)
+SELECT news_id, source, title, url, body, published_at, symbols,
+       content_hash, batch_id, batch_id, ?, ?
+FROM stg_news
+ON CONFLICT (news_id) DO UPDATE SET
+    title         = excluded.title,
+    body          = excluded.body,
+    published_at  = excluded.published_at,
+    content_hash  = excluded.content_hash,
+    last_batch_id = excluded.last_batch_id,
+    updated_at    = CASE
+                        WHEN silver_news.content_hash IS DISTINCT FROM excluded.content_hash
+                        THEN excluded.updated_at
+                        ELSE silver_news.updated_at
+                    END;
+\end{lstlisting}
+
+El \texttt{CASE} sobre \texttt{content\_hash} ---resumen de título, cuerpo, fecha
+y símbolos--- distingue dos situaciones que suelen confundirse: \emph{«ya había
+visto esta nota»} y \emph{«esta nota cambió»}. Un reproceso puro deja
+\texttt{updated\_at} intacto; una corrección editorial en la fuente sí queda
+registrada. Cada corrida escribe su renglón en \texttt{load\_audit}.
+
+\begin{table}[h]
+\centering\small
+\caption{Bitácora \texttt{load\_audit}: cuatro ejecuciones de punta a punta.}
+\begin{tabular}{@{}llrrr@{}}
+\toprule
+\textbf{run\_id} & \textbf{batch\_id} & \textbf{válidas} & \textbf{filas\_nuevas} & \textbf{filas\_actualizadas} \\
+\midrule
+\texttt{run-20260801T001834Z} & \texttt{...T001833Z} & 91 & 91 & 0 \\
+\texttt{run-20260801T001900Z} & \texttt{...T001859Z} & 91 & \textbf{0} & 0 \\
+\texttt{run-20260801T001939Z} & \texttt{...T001833Z} & 91 & \textbf{0} & 0 \\
+\texttt{run-20260801T001953Z} & \texttt{...T001859Z} & 91 & \textbf{0} & 0 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Las corridas 3 y 4 son el caso estricto que pide el criterio: reprocesar el
+\emph{mismo} \texttt{batch\_id} ya cargado. Ambas dan \texttt{filas\_nuevas = 0}.
+La corrida 2 es un caso adicional e interesante: bajó un lote \emph{nuevo}
+(timestamp y SHA-256 propios) veintiséis segundos después del primero; como los
+feeds no habían publicado nada en ese lapso, el MERGE reconoció las 91 notas por
+clave natural y tampoco insertó nada. La deduplicación es por contenido, no por
+lote.
+
+\section{Ausencia de duplicados}
+
+\begin{lstlisting}[language=sqlite, caption={Consulta de verificación y su resultado.}]
+SELECT news_id, count(*) FROM silver_news GROUP BY news_id HAVING count(*) > 1;
+-- (0 filas)
+-- filas en silver_news = 91  ·  news_id distintos = 91
+\end{lstlisting}
+
+La cuarentena también es idempotente: su llave primaria es
+\texttt{(batch\_id, source, record\_ord)}, así que reprocesar un lote no infla la
+tabla de rechazos ---un detalle que se escapa con facilidad y que está cubierto
+por una prueba automatizada.
+
+\section{Gold: índice vectorial y búsqueda semántica}
+
+El campo relevante es el texto de la nota: se embebe \texttt{título. cuerpo} con
+\texttt{sentence-transformers/all-MiniLM-L6-v2} (384 dimensiones, CPU, local) y
+se indexa en un \texttt{faiss.IndexFlatIP} sobre vectores normalizados en L2, de
+modo que el producto interno \textbf{es} la similitud coseno. El índice se
+persiste en disco y la construcción es incremental: sólo se embeben los
+\texttt{news\_id} que aún no están en \texttt{gold\_news\_embeddings}, cuya
+columna \texttt{vec\_ord} guarda la posición en el índice.
+
+Se eligió el índice exhaustivo y no uno aproximado (IVF, HNSW) porque a esta
+escala ---decenas o centenas de documentos--- la búsqueda exacta es instantánea
+y un índice aproximado sólo agregaría hiperparámetros que calibrar sin ganancia
+medible.
+
+\begin{lstlisting}[language=Python, caption={Función de búsqueda semántica expuesta (\texttt{gold.py}).}]
+def search(query: str, k: int = 5) -> list[dict]:
+    """Devuelve las k notas mas cercanas al texto libre."""
+    idx = _load_index()
+    qv = embed([query])                 # normalizado en L2
+    scores, ords = idx.search(qv, min(k, idx.ntotal))
+    # vec_ord -> JOIN con silver_news -> filas con score coseno
+\end{lstlisting}
+
+\begin{table}[h]
+\centering\small
+\caption{Estado del índice tras las cuatro corridas.}
+\begin{tabular}{@{}rrlr@{}}
+\toprule
+\textbf{vectores} & \textbf{vec\_ord distintos} & \textbf{modelo} & \textbf{dim} \\
+\midrule
+91 & 91 & \texttt{all-MiniLM-L6-v2} & 384 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection*{Consultas demostradas}
+
+\begin{table}[h]
+\centering\small
+\caption{Tres consultas en lenguaje natural y sus tres primeros resultados.}
+\begin{tabular}{@{}rp{11.5cm}@{}}
+\toprule
+\textbf{score} & \textbf{titular recuperado} \\
+\midrule
+\multicolumn{2}{@{}l@{}}{\textit{«lawsuit and regulatory crackdown by financial authorities»}} \\
+0.4627 & New York \textbf{sues} Kalshi over alleged illegal gambling operation \\
+0.4091 & New York sues Kalshi, alleges it offers a gambling platform «plain and...» \\
+0.3604 & The good and the bad of perps, according to crypto traders \\
+\midrule
+\multicolumn{2}{@{}l@{}}{\textit{«institutional money flowing into spot ETFs»}} \\
+0.5666 & Bitcoin ETFs post \$233M \textbf{inflows}, pushing week back into the green \\
+0.5391 & Bitcoin, Ethereum Wobble as Fed Holds Rates Steady \\
+0.4162 & Aviva Investors launches tokenized fund after Central Bank of Ireland... \\
+\midrule
+\multicolumn{2}{@{}l@{}}{\textit{«sharp market selloff and price volatility»}} \\
+0.4124 & Bitcoin's calm is back and so is the setup for a \textbf{volatility explosion} \\
+0.3029 & Bitcoin, ether fall, equities rally with broader crypto market on track... \\
+0.3014 & Bitcoin holds monthly gain, faces «choppy» August as «forced-selling»... \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\begin{caja}
+\textbf{Por qué es búsqueda semántica y no textual.} La consulta \emph{«lawsuit
+and regulatory crackdown by financial authorities»} recupera \emph{«New York
+sues Kalshi...»}: ninguna de las palabras de la consulta aparece en ese titular
+---un \texttt{LIKE '\%lawsuit\%'} habría devuelto cero filas---. Lo mismo ocurre
+con \emph{«institutional money flowing into spot ETFs»}, que encuentra
+\emph{«inflows»}, y con \emph{«sharp market selloff»}, que encuentra
+\emph{«volatility explosion»}. La recuperación opera sobre el significado del
+texto, no sobre sus caracteres.
+\end{caja}
+
+\section{Contenedorización y reproducción}
+
+La imagen pesa 459\,MB: se instala explícitamente la build \emph{CPU} de PyTorch
+desde su índice, porque la build por defecto arrastra CUDA (unos 2,5\,GB) que
+aquí no se usa. El contenedor corre como UID 1000 para que lo escrito en el
+volumen pertenezca al usuario del anfitrión y no a \texttt{root}.
+
+\begin{lstlisting}[language=bash, caption={Reproducción completa desde cero.}]
+cd medallion
+docker compose build
+
+docker compose run --rm medallion                    # corrida 1: lote nuevo
+docker compose run --rm medallion                    # corrida 2: segundo lote
+docker compose run --rm medallion python -m medallion run --batch-id <ID>
+docker compose run --rm medallion python -m medallion search "texto libre"
+\end{lstlisting}
+
+El directorio \texttt{data/} se monta como volumen: bronze crudo, base DuckDB e
+índice FAISS sobreviven al contenedor, que es precisamente lo que permite
+demostrar idempotencia entre ejecuciones separadas.
+
+\section{Pruebas automatizadas}
+
+Quince pruebas corren sin red y sin descargar el modelo ---los embeddings se
+sustituyen por un hash determinista y el lote de Bronze se siembra con un RSS
+sintético---:
+
+\begin{itemize}\setlength\itemsep{0.1em}
+  \item aceptación del contrato y rechazo campo por campo (URL inválida, cuerpo
+        corto, título corto, fuente desconocida, fecha futura, símbolo fuera de
+        la whitelist, campo extra, \texttt{news\_id} inconsistente);
+  \item cuarentena que registra el motivo correcto;
+  \item triple reproceso del mismo lote con \texttt{filas\_nuevas = 0};
+  \item dos lotes de contenido idéntico sin generar duplicados;
+  \item cuarentena que no se infla al reprocesar;
+  \item índice FAISS incremental y orden decreciente de \emph{score} en la
+        búsqueda.
+\end{itemize}
+
+\begin{lstlisting}[language=bash]
+$ pytest medallion/tests -o addopts=""
+15 passed in 1.21s
+\end{lstlisting}
+
+\section{Cumplimiento de los criterios de aceptación}
+
+\begin{center}
+\small
+\begin{tabular}{@{}p{2.3cm}p{5.6cm}p{7.4cm}@{}}
+\toprule
+\textbf{Criterio} & \textbf{Mínimo exigido} & \textbf{Obtenido} \\
+\midrule
+Bronze & 2+ lotes crudos, timestamp, sin transformar &
+2 lotes de 116\,368 bytes, 3 payloads con SHA-256 cada uno, guardados byte a
+byte en disco y en base \\
+\addlinespace
+Contrato & validación explícita, cuarentena con motivo &
+\texttt{NewsItem} (Pydantic v2, \texttt{extra="forbid"}); 93 leídas $\rightarrow$
+91 válidas y 2 en cuarentena por lote, con campo, tipo, mensaje y registro crudo \\
+\addlinespace
+Idempotencia & reproceso da \texttt{filas\_nuevas = 0} &
+staging + \texttt{ON CONFLICT DO UPDATE}; 3 de 4 corridas con
+\texttt{filas\_nuevas = 0}, incluidos dos reprocesos del mismo \texttt{batch\_id} \\
+\addlinespace
+Duplicados & \texttt{COUNT(*) > 1} por clave natural = 0 filas &
+0 filas; 91 registros con 91 \texttt{news\_id} distintos \\
+\addlinespace
+Gold & índice vectorial funcional, 1+ consulta semántica &
+FAISS \texttt{IndexFlatIP} de 384-d con 91 vectores; 3 consultas demostradas \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\section{Decisiones de diseño y limitaciones}
+
+Tres decisiones merecen mención explícita. Primera, la clave natural es la URL y
+no el título ni el GUID, por las razones ya expuestas. Segunda, Bronze es
+inmutable por diseño (\texttt{ON CONFLICT DO NOTHING}), lo que permite re-parsear
+el histórico si el contrato evoluciona. Tercera, el \texttt{content\_hash}
+separa la re-observación del cambio real, que es lo que hace que la métrica
+\texttt{filas\_actualizadas} signifique algo.
+
+Las limitaciones se enuncian sin adorno:
+
+\begin{itemize}\setlength\itemsep{0.1em}
+  \item el modelo \texttt{all-MiniLM-L6-v2} es \textbf{monolingüe en inglés},
+        igual que el corpus; una consulta en español recupera resultados
+        notablemente peores, y una versión bilingüe exigiría cambiar a
+        \texttt{paraphrase-multilingual-MiniLM-L12-v2};
+  \item los feeds RSS entregan sólo el resumen y no la nota completa, de modo
+        que los embeddings describen el \emph{abstract}, no el cuerpo entero;
+  \item la inferencia de símbolos es por palabras clave y no por reconocimiento
+        de entidades: alcanza para etiquetar, no para desambiguar.
+\end{itemize}
+
+\appendix
+\section{Anexo: salida literal de la ejecución}
+
+Lo que sigue es la salida sin editar de
+\texttt{docker compose run -{}-rm medallion python -m medallion evidence},
+ejecutada tras las cuatro corridas.
+
+{\footnotesize
+\VerbatimInput[breaklines=true, breakanywhere=true, fontsize=\scriptsize]{salida-e2e.txt}
+}
+
+\end{document}

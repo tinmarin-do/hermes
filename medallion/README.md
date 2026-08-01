@@ -10,6 +10,11 @@ propia base DuckDB y no toca el pipeline de trading.
 - **Stack**: Python 3.12 · DuckDB · Pydantic v2 · sentence-transformers
   (`all-MiniLM-L6-v2`, 384-d, CPU) · FAISS · Docker Compose.
 
+📄 **Informe para entregar: [`informe/informe.pdf`](informe/informe.pdf)** (7 páginas,
+LaTeX en [`informe/informe.tex`](informe/informe.tex) — el nombre y la materia de la
+portada se editan en las primeras líneas del `.tex`; recompilar con
+`latexmk -xelatex informe.tex`).
+
 ---
 
 ## Cómo correr
