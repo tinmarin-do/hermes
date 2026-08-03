@@ -39,9 +39,15 @@ operativos (GCP + LLM) de la sección Presupuestos.
   Fase 2 = neteo del PaperAdapter; Fase 3 = vista de cartera en dashboard.
   Fuentes de verdad: PRD v0.3 §8.8/§9 y `docs/DESIGN_portfolio_allocator.md`.
 
-## ⚡ ARCO H13 ACTIVO — retorno absoluto (TSMOM long-short + arquetipos), modo research-cloud
+## ⚡ ARCO DE RESEARCH ACTIVO — H14 (prima de rebalanceo), modo research-cloud
 
-Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 de abajo:
+**Arco abierto: H14** — prima de rebalanceo ("cosecha del vaivén") sobre ~825 perps
+anti-supervivencia; hoy en fase EDA descriptiva. **H13 NO está cerrado**: su candidato
+`gruls-ivol` sigue vivo en shadow forward + plomería long-short en Binance Futures,
+esperando sign-off. Los dos hilos comparten este bloque de reglas y el mismo presupuesto
+(`DESIGN_H14` §preámbulo) — H14 no compite con H13 ni lo reemplaza.
+
+Mientras haya un arco abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 de abajo:
 
 - **Autonomía total en la nube**: gcloud/gsutil/bq/terraform se ejecutan SIN pedir
   aprobación por operación (settings `allow`; gatekeeper cost-est del hook suspendido).
@@ -60,22 +66,25 @@ Mientras este arco esté abierto, este bloque MANDA sobre las reglas 1/2/5/6/7 d
   evaluación estándar = window_check (40 ventanas 28d, seed 42) + corte temporal;
   grillas CERRADAS antes de correr; sin gates de research (Fable decide y documenta).
   Gates que SÍ quedan: venue (F1), vara numérica (F3), sign-off (F6), tamaño (F7).
-  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR; n=21 al abrir H13).
+  Todos los trials se cuentan en `experiments/trials.jsonl` (DSR; n=21 al abrir H13,
+  **n=29 al abrir H14** — verificado contra el bucket 2026-07-28).
 - **Intocables**: el pipeline live (`src/brain/`, allocator, comité, scheduler) no se
   modifica; secretos siguen en deny; nada mueve dinero real sin el firewall completo
   (one-shot en slice CON caveat de contaminación documentado + shadow corto en venue
-  nuevo + sign-off de Erika + plomería en chiquito antes de tamaño completo). Fuente
-  de verdad del arco: `docs/DESIGN_H13_trend_absolute.md` + plan aprobado 2026-07-13.
+  nuevo + sign-off de Erika + plomería en chiquito antes de tamaño completo). Fuentes
+  de verdad: `docs/DESIGN_H14_rebalancing_premium.md` (arco abierto, aprobado
+  2026-07-26) y `docs/DESIGN_H13_trend_absolute.md` (plan aprobado 2026-07-13; su
+  shadow/plomería siguen corriendo).
 
 ## Reglas críticas (no negociables)
 
-1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`. *(SUSPENDIDA en arco H11 — ver bloque de arriba.)*
-2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes. *(En arco H11: plan antes de apply sigue siendo buena práctica, sin gate.)*
+1. **NUNCA** ejecutar operaciones GCP sin pasar primero por `/cost:gate`. *(SUSPENDIDA mientras haya arco de research abierto — ver bloque de arriba.)*
+2. **NUNCA** hacer `terraform apply` sin `/infra:plan` antes. *(Con arco abierto: plan antes de apply sigue siendo buena práctica, sin gate.)*
 3. **NUNCA** commitear secretos — Secret Manager (cloud) o `.env` local (en .gitignore).
 4. **NUNCA** operar en modo live sin guardrails activos (Kelly + VaR + correlación).
-5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`. *(Ledger GCP suspendido en arco H11; el LLM sigue.)*
-6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00. *(SUSPENDIDA en arco H11.)*
-7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`. *(SUSPENDIDA en arco H11.)*
+5. **NUNCA** editar `docs/cost_ledger_*.md` manualmente — solo vía `/cost:log`. *(Ledger GCP suspendido mientras haya arco abierto; el LLM sigue vigente.)*
+6. **NUNCA** saltar `/cost:gate` aunque el costo estimado sea $0.00. *(SUSPENDIDA mientras haya arco abierto.)*
+7. **NUNCA** ejecutar `gcloud` ad-hoc sin pasar por `/infra:gcloud`. *(SUSPENDIDA mientras haya arco abierto.)*
 8. **NUNCA** habilitar short en live sin opt-in explícito tras calibrar (`/brain:calibrate-risk`). Short real requiere venue de **futuros** (spot no puede); en paper se **simula**. Live arranca **long-only**. Ver §8.8 del PRD y `docs/DESIGN_portfolio_allocator.md`.
 
 ## Skills disponibles

@@ -120,7 +120,8 @@ Una corrida **programada no puede pasar por `/cost:gate` interactivo** → choca
 
 - **Costo LLM plano** (~$0.0075/corrida): el grafo corre **una pasada** sobre la cartera,
   no una por símbolo. El allocator es determinista (sin LLM).
-- **Turnover y fees** a vigilar a escala $50 (en paper $1 la fee redondea a $0). El
+- **Turnover y fees** a vigilar a escala **$400** (decisión 2026-07-03; este documento se
+  escribió cuando la escala prevista era $50 — ver §9). En paper $1 la fee redondea a $0. El
   rebalanceo diario genera rotación; un dampener "no churn" puede sumarse si hace falta.
 
 ## 9. Decisiones tomadas (2026-06-28)

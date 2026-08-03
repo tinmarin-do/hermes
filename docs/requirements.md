@@ -40,8 +40,8 @@ Gestionadas en `pyproject.toml`. Instalación: `uv sync`.
 | `numpy` | ≥ 2.0 | Cómputo numérico |
 | `arch` | ≥ 7.0 | Estimación GARCH(1,1) |
 | `hurst` | ≥ 0.0.5 | Cálculo de Hurst exponent |
-| `lightgbm` | ≥ 4.0 | Predictor direccional/edge del **núcleo de decisión** (gradient boosting sobre features tabulares) |
-| `shap` | ≥ 0.45 | Interpretabilidad de features del LightGBM |
+| `lightgbm` | ≥ 4.0 | Predictor direccional del **challenger en shadow** (`src/brain/quant_core.py`) y de los trials del laboratorio (`src/lab/train.py`). **No** es el núcleo de decisión — ver RF-A1 |
+| `shap` | ≥ 0.45 | Interpretabilidad de features del challenger LightGBM (panel del dashboard, solo shadow) |
 | `scipy` | ≥ 1.14 | Cópula t-Student (Risk Agent, Sprint 2); distribuciones estadísticas |
 | `langgraph` | ≥ 0.2 | Orquestación del pipeline multiagente |
 | `langchain-core` | ≥ 0.3 | Abstracciones LLM |
@@ -145,9 +145,9 @@ Provisionada íntegramente con Terraform. Ejecutar `/infra:bootstrap` → `/infr
 - **RF-D5** Gold: snapshot debe tener < 2h de antigüedad antes de cada corrida de agentes.
 
 ### Capa de decisión (núcleo cuant + verificación agéntica)
-- **RF-A1** Núcleo de decisión **cuantitativo y determinista**: régimen → LightGBM (dirección) → GARCH (sizing) → math de Risk (Kelly/VaR/correlación). Fija dirección y tamaño **sin LLM**; backtesteable con purged + embargoed walk-forward.
+- **RF-A1** Núcleo de decisión **cuantitativo y determinista**: régimen → **regla momentum multi-escala** (voto de signo 7/14/30/90d — dirección) → GARCH (sizing) → math de Risk (Kelly/VaR/correlación). Fija dirección y tamaño **sin LLM**; backtesteable con purged + embargoed walk-forward. *(El LightGBM direccional original quedó FALSIFICADO en el Experimento 0 y fue reemplazado por la regla momentum, única señal que sobrevivió el holdout — ver `docs/EXPERIMENT_LOG.md`. LightGBM sobrevive solo como challenger en shadow, sin autoridad de decisión.)*
 - **RF-A2** Pipeline agéntico (LangGraph) como **verificación**: RegimeClassifier → Analysts (×N) → Debate bull/bear (red-team) → Trader → Risk (×3) → PM. Los agentes solo pueden **vetar o recortar** la tesis cuant (freno asimétrico: opera en `[0, tamaño_cuant]`), **nunca originar ni amplificar**.
-- **RF-A3** Cada corrida persiste: régimen, **señal cuant (LightGBM/GARCH)**, transcripción del debate, decisión y racional auditable.
+- **RF-A3** Cada corrida persiste: régimen, **señal cuant (momentum multi-escala/GARCH)**, transcripción del debate, decisión y racional auditable.
 - **RF-A4** El Risk agent ejecuta todos los guardrails antes de aprobar cualquier decisión.
 - **RF-A5** **Validez de la capa agéntica (medible):** el backtest cuant-solo vs cuant+veto-agéntico debe mostrar mejora en Sharpe/drawdown; si no la muestra, la capa es decoración y se recorta.
 - **RF-A6** Cada corrida registra tokens consumidos y costo USD en `cost_ledger_llm.md`.
@@ -171,7 +171,7 @@ Provisionada íntegramente con Terraform. Ejecutar `/infra:bootstrap` → `/infr
 
 | Guardrail | Regla | Acción si viola |
 |-----------|-------|-----------------|
-| Kelly fraccional 0.25× | Size = f(confianza PM, volatilidad) | Rechazar orden |
+| Kelly fraccional 0.10× | Size = f(confianza PM, volatilidad). Calibrado 2026-07-03 (`docs/calibration_report.md`); definitivo sale de `/brain:calibrate-risk` sobre la señal momentum (PRD §8.2) | Rechazar orden |
 | VaR pre-trade | 2σ loss ≤ límite diario | Rechazar orden |
 | Correlación | corr > 0.7 AND exposición > límite | Rechazar orden |
 | Pérdida diaria | ≤ `HERMES_DAILY_LOSS_LIMIT_PCT` del capital | Halt trading del día |
