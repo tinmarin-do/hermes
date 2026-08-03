@@ -159,14 +159,14 @@ Agents MUST respect these limits. The risk-agent enforces them pre-trade.
 
 | Guardrail | Rule |
 |-----------|------|
-| Position sizing | Kelly 0.10× based on PM confidence (calibrated 2026-06-27) |
+| Position sizing | Kelly 0.10× based on PM confidence (calibrated 2026-07-03) |
 | VaR pre-trade | Reject if 2σ loss > daily limit |
 | Correlation cap | Reject if corr > 0.7 AND total exposure > limit |
 | Daily loss limit | Halt trading for the day when reached |
 | Symbol whitelist | Only approved symbols (see `.env` HERMES_ALLOWED_SYMBOLS) |
 | Max open positions | See `.env` HERMES_MAX_POSITIONS |
 | **Short policy** | Origina solo si `P ≤ 0.25` + conf ≥ 0.50 + régimen bajista; **exposición corta ≤ 10%** del budget; stop-loss obligatorio; **futuros-only** (spot no puede); **OFF por default en live** |
-| **Portfolio budget** | Reparto entre símbolos por `conf × inverse-vol`; **$1 paper / $50 real**; rebalanceo diario por delta vs libro |
+| **Portfolio budget** | Reparto entre símbolos por `conf × inverse-vol`; **$1 paper (local) / $400 cloud** (decisión 2026-07-03); rebalanceo diario por delta vs libro |
 
 ---
 
@@ -194,7 +194,9 @@ The risk guardrails are periodically calibrated via `src/brain/calibrate.py`:
 - **Output:** `docs/calibration_report.md` with optimal params and metrics.
 - **Run:** `direnv exec . .venv/bin/python -m src.brain.calibrate --concurrency 3 --debate-rounds 1`
 
-Current calibrated values (2026-06-27): Kelly 0.10, daily loss limit 0.01, F1 = 76%.
+Current calibrated values (`docs/calibration_report.md`, 2026-07-03): Kelly 0.10,
+daily loss limit 0.04, F1 = 70.8%. Deployed as `HERMES_KELLY_FRACTION` /
+`HERMES_DAILY_LOSS_LIMIT_PCT` (see `.env.example`).
 
 ---
 

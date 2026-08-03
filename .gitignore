@@ -45,3 +45,8 @@ Thumbs.db
 # Claude Code — settings personales (heartbeat, etc.)
 .claude/settings.local.json
 src/dashboard/static/data/snapshot.json
+
+# Graphify — grafo de conocimiento local (research, no versionado).
+# Sin anclar: la herramienta escribe un graphify-out/ por raíz indexada
+# (src/graphify-out/, docs/graphify-out/), no uno solo en la raíz del repo.
+graphify-out/
