@@ -340,6 +340,19 @@ class BitsoAdapter(ExecutionAdapter):
     ) -> None:
         from src.data.db import get_connection
 
+        record = {
+            "order_id": str(uuid.uuid4()),
+            "run_id": run_id,
+            "symbol": symbol,
+            "action": action,
+            "quantity": quantity,
+            "price": price,
+            "status": status,
+            "filled_at": filled_at,
+            "created_at": filled_at,
+            "cost_usd": cost_usd,
+            "fee_usd": fee_usd,
+        }
         con = get_connection()
         try:
             con.execute(
@@ -349,22 +362,18 @@ class BitsoAdapter(ExecutionAdapter):
                      filled_at, created_at, cost_usd, fee_usd)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
-                [
-                    str(uuid.uuid4()),
-                    run_id,
-                    symbol,
-                    action,
-                    quantity,
-                    price,
-                    status,
-                    filled_at,
-                    filled_at,
-                    cost_usd,
-                    fee_usd,
-                ],
+                list(record.values()),
             )
         finally:
             con.close()
+
+        # El DuckDB vive en /tmp y solo llega al bucket al TERMINAR la corrida.
+        # Este fill ya es irreversible en el venue, así que se escribe también a
+        # la bitácora durable AHORA — si la corrida muere antes del upload, el
+        # ledger lo recupera al arrancar (deuda de ~$375 hallada el 2026-10-03).
+        from src.brain.state_sync import journal_fill
+
+        journal_fill(record)
 
     def get_positions(self) -> list[Position]:
         """Tenencias spot reales (fetch_balance) como posiciones long.
