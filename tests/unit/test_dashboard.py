@@ -512,3 +512,56 @@ def test_debate_panel_roundtrip(build_env):
     assert panel["debate_verdict"] == "HOLD"
     assert panel["transcript"]["bull_argument"] == "bull"
     assert panel["transcript"]["debate_rounds"] == [{"round": 1}]
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Watchdog ciego — cicatriz 2026-08-22 (forensia 2026-10-03).
+# Un ticker nulo valuaba la tenencia en CERO en silencio: el equity vivo caía
+# al cash, el watchdog lo leía como breach de −59% y disparaba el re-run de
+# emergencia, que metió 6 compras el 23-ago y 5 el 24-ago con dinero real.
+# Regla: tenencia sin precio = lectura incompleta → 502 → NO breach, NO re-run,
+# y queda rastro en logs (un vigía ciego en silencio es peor que uno ruidoso).
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class _NullTickerLiveExchange(_FakeLiveExchange):
+    """Mismo libro vivo, pero el ticker no devuelve precio."""
+
+    def fetch_ticker(self, pair):
+        return {"last": None}
+
+
+def test_api_live_502_cuando_el_ticker_es_nulo_con_tenencia(client_with_snapshot, monkeypatch):
+    """El equity NO debe colapsar al cash: debe fallar ruidosamente."""
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: _NullTickerLiveExchange())
+    dash_app._live_cache.update(ts=0.0, data=None)
+    r = client_with_snapshot.get("/api/live")
+    assert r.status_code == 502
+    assert "precio" in r.json()["detail"]
+
+
+def test_watchdog_no_dispara_rerun_con_lectura_rota(watchdog_client, monkeypatch, capsys):
+    """EL INCIDENTE COMPLETO: lectura fantasma NO debe mover dinero."""
+    client, calls = watchdog_client
+    monkeypatch.setattr(dash_app, "_live_exchange", lambda: _NullTickerLiveExchange())
+    dash_app._live_cache.update(ts=0.0, data=None)
+
+    r = client.post("/api/check-drawdown")
+
+    assert r.status_code == 200
+    assert r.json()["breach"] is False
+    assert calls["run"] == 0, "el re-run de emergencia JAMÁS debe dispararse por lectura rota"
+    out = capsys.readouterr().out
+    assert "DRAWDOWN_BREACH" not in out
+    logged = json.loads([ln for ln in out.splitlines() if "DRAWDOWN_CHECK_DEGRADED" in ln][0])
+    assert logged["severity"] == "WARNING"
+    assert "precio" in logged["reason"]
+
+
+def test_watchdog_sigue_disparando_con_breach_real(watchdog_client, capsys):
+    """El guard no debe volver sordo al vigía ante una caída de verdad."""
+    client, calls = watchdog_client
+    r = client.post("/api/check-drawdown")
+    assert r.json()["breach"] is True
+    assert calls["run"] == 1
+    assert "DRAWDOWN_CHECK_DEGRADED" not in capsys.readouterr().out

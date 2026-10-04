@@ -5,7 +5,7 @@ from typing import Any
 
 import pytest
 
-from src.execution.bitso import PAIR_MAP, BitsoAdapter, _venue_pair
+from src.execution.bitso import PAIR_MAP, BitsoAdapter, PortfolioReadError, _venue_pair
 
 pytestmark = pytest.mark.unit
 
@@ -396,3 +396,84 @@ def test_wallet_budget_overrides_env_in_live(tmp_db, monkeypatch):
     with pytest.raises(Stop):
         runner.run(symbols=["BTC/USDT"])
     assert os.environ["HERMES_CAPITAL_USD"] == "566.40"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Guards de lectura de cartera — cicatriz 2026-08-22 (forensia 2026-10-03).
+# Una hipo del venue se leía como "libro vacío": equity colapsaba al cash, el
+# watchdog lo tomaba por breach de −59% y disparaba un re-run que operó real.
+# Regla: lectura fallida LEVANTA, nunca degrada a vacío/cero.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class BrokenBalance(FakeExchange):
+    def fetch_balance(self):
+        raise RuntimeError("502 Bad Gateway")
+
+
+class BrokenTicker(FakeExchange):
+    """fetch_balance OK (hay tenencia real) pero el ticker no responde."""
+
+    def fetch_ticker(self, pair):
+        raise RuntimeError("timeout")
+
+
+class NullTicker(FakeExchange):
+    """El caso exacto del 22-ago: ticker responde, pero con last nulo."""
+
+    def fetch_ticker(self, pair):
+        return {"bid": 0, "ask": 0, "last": None}
+
+
+def _held(cls):
+    """Exchange con tenencia real de BTC + caja — un libro que NO está vacío."""
+    return cls(balances={"USDT": 250.0, "USD": 0.0, "BTC": 0.004})
+
+
+def test_get_positions_levanta_si_falla_fetch_balance():
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(BrokenBalance))
+    with pytest.raises(PortfolioReadError, match="fetch_balance"):
+        a.get_positions()
+
+
+def test_get_positions_levanta_si_falla_el_ticker():
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(BrokenTicker))
+    with pytest.raises(PortfolioReadError, match="fetch_ticker"):
+        a.get_positions()
+
+
+def test_get_positions_levanta_si_el_ticker_devuelve_precio_nulo():
+    """Tenencia real + precio 0 NO es una posición que vale cero."""
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(NullTicker))
+    with pytest.raises(PortfolioReadError, match="precio"):
+        a.get_positions()
+
+
+def test_get_balance_levanta_en_vez_de_devolver_cero():
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(BrokenBalance))
+    with pytest.raises(PortfolioReadError, match="fetch_balance"):
+        a.get_balance()
+
+
+def test_get_equity_no_colapsa_al_cash_cuando_el_ticker_muere():
+    """EL BUG EXACTO: equity == balance con tenencia real viva."""
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(NullTicker))
+    with pytest.raises(PortfolioReadError):
+        a.get_equity()
+
+
+def test_lectura_sana_sigue_funcionando():
+    """El guard no debe romper el camino feliz."""
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=_held(FakeExchange))
+    pos = a.get_positions()
+    assert [p.symbol for p in pos] == ["BTC/USDT"]
+    assert pos[0].current_price == 100.0
+    assert a.get_balance() == 250.0
+    assert a.get_equity() == 250.0 + 0.004 * 100.0
+
+
+def test_libro_genuinamente_vacio_no_levanta():
+    """Sin tenencias NO es un error — es un libro vacío de verdad."""
+    a = BitsoAdapter(maker_wait_s=0.0, exchange=FakeExchange(balances={"USDT": 300.0}))
+    assert a.get_positions() == []
+    assert a.get_equity() == 300.0

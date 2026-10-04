@@ -134,6 +134,12 @@ def api_live() -> JSONResponse:
                 continue
             pair = _venue_pair(f"{asset}/USDT")
             last = float(ex.fetch_ticker(pair).get("last") or 0)
+            if last <= 0:
+                # Cicatriz 2026-08-22: un ticker nulo valuaba la tenencia en CERO
+                # en silencio → el equity vivo colapsaba al cash → el watchdog lo
+                # leía como breach y disparaba un re-run que operó de verdad.
+                # Una tenencia sin precio es lectura incompleta, no es un cero.
+                raise RuntimeError(f"ticker {pair} devolvió precio {last} con qty={qty}")
             value = qty * last
             equity += value
             positions.append(
@@ -273,7 +279,20 @@ def api_check_drawdown() -> JSONResponse:
     try:
         live: dict[str, Any] = json.loads(bytes(api_live().body))
     except HTTPException as exc:
-        # Bitso caído / sin creds RO: no es breach — no alarmar por infraestructura
+        # Bitso caído / sin creds RO / lectura incompleta: NO es breach — no alarmar
+        # por infraestructura, y sobre todo no disparar el re-run de emergencia.
+        # Pero sí dejar rastro: un watchdog ciego en silencio es peor que uno ruidoso
+        # (el 2026-08-22 nadie supo que el vigía estaba leyendo un fantasma).
+        print(
+            json.dumps(
+                {
+                    "severity": "WARNING",
+                    "event": "DRAWDOWN_CHECK_DEGRADED",
+                    "reason": str(exc.detail),
+                }
+            ),
+            flush=True,
+        )
         return JSONResponse({"breach": False, "error": str(exc.detail), "threshold": threshold})
 
     delta = (live.get("vs_snapshot") or {}).get("delta_pct")

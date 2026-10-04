@@ -38,6 +38,24 @@ PAIR_MAP = {
 _BASE_ASSETS = ("BTC", "ETH", "SOL", "XRP", "LINK", "AVAX")
 
 
+class PortfolioReadError(RuntimeError):
+    """No se pudo LEER la cartera — distinto de "la cartera está vacía".
+
+    Cicatriz 2026-08-22 (forensia 2026-10-03): `fetch_balance`/`fetch_ticker`
+    fallaban en silencio devolviendo lista vacía o precio 0.0, así que una
+    hipo transitoria del venue se volvía indistinguible de un libro sin
+    posiciones. El equity colapsaba al cash (equity $249.80 == balance, con
+    posiciones $0.00 y un libro real de ~$612), el watchdog lo leía como
+    breach de −59% y disparaba un re-run de emergencia que operó sobre ese
+    estado fantasma: 6 compras el 23-ago y 5 el 24-ago con dinero real.
+
+    Regla: una lectura fallida LEVANTA. `runner.py` lee la cartera antes de
+    cualquier orden, así que levantar aborta la corrida sin operar; el panel
+    del dashboard ya degrada a ``available: False`` y entonces NO marca la
+    curva de equity. Preferimos saltarnos un día a operar sobre un fantasma.
+    """
+
+
 def _venue_pair(symbol: str) -> str:
     return PAIR_MAP.get(symbol, symbol)
 
@@ -359,8 +377,8 @@ class BitsoAdapter(ExecutionAdapter):
         positions: list[Position] = []
         try:
             bal = self._exchange.fetch_balance()
-        except Exception:
-            return positions
+        except Exception as exc:
+            raise PortfolioReadError(f"fetch_balance falló: {exc}") from exc
         try:
             from src.execution.costbasis import cost_basis
 
@@ -375,8 +393,11 @@ class BitsoAdapter(ExecutionAdapter):
             pair = _venue_pair(canonical)
             try:
                 last = float(self._exchange.fetch_ticker(pair).get("last") or 0)
-            except Exception:
-                last = 0.0
+            except Exception as exc:
+                raise PortfolioReadError(f"fetch_ticker {pair} falló: {exc}") from exc
+            if last <= 0:
+                # Tenencia real sin precio NO vale cero: es una lectura incompleta.
+                raise PortfolioReadError(f"ticker {pair} devolvió precio {last} con qty={qty}")
             b = basis.get(canonical)
             entry, upnl, rpnl = last, 0.0, 0.0
             if b and b["qty"] > 1e-12 and qty > 0:
@@ -402,11 +423,11 @@ class BitsoAdapter(ExecutionAdapter):
         """Caja libre total en USD-equivalente: bolsillo USDT + bolsillo USD (≈1:1)."""
         try:
             bal = self._exchange.fetch_balance()
-            usdt = float((bal.get("USDT") or {}).get("free", 0) or 0)
-            usd = float((bal.get("USD") or {}).get("free", 0) or 0)
-            return usdt + usd
-        except Exception:
-            return 0.0
+        except Exception as exc:
+            raise PortfolioReadError(f"fetch_balance falló: {exc}") from exc
+        usdt = float((bal.get("USDT") or {}).get("free", 0) or 0)
+        usd = float((bal.get("USD") or {}).get("free", 0) or 0)
+        return usdt + usd
 
     def get_pockets(self) -> tuple[dict[str, float], dict[str, str]]:
         """(caja libre por bolsillo de quote, símbolo canónico → bolsillo).
@@ -432,7 +453,12 @@ class BitsoAdapter(ExecutionAdapter):
         """
         equity = self.get_balance()
         for p in self.get_positions():
-            equity += p.quantity * (p.current_price or 0.0)
+            # get_positions ya garantiza current_price > 0 (levanta si no);
+            # este guard es la segunda cerradura: marcar una tenencia a 0 es
+            # exactamente lo que hundió el equity al cash el 2026-08-22.
+            if not p.current_price or p.current_price <= 0:
+                raise PortfolioReadError(f"{p.symbol} sin precio marcable (qty={p.quantity})")
+            equity += p.quantity * p.current_price
         return equity
 
     def kill(self) -> None:
